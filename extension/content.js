@@ -111,6 +111,25 @@ function collectGenericSnapshot() {
   };
 }
 
+function cleanXPrimaryText(article, tweetText) {
+  if (tweetText?.innerText?.trim()) return tweetText.innerText.trim();
+  const clone = article?.cloneNode(true);
+  if (!clone) return '';
+  clone.querySelectorAll('button, nav, aside, svg, [aria-hidden="true"]').forEach((el) => el.remove());
+  let text = (clone.innerText || '').trim();
+  text = text.replace(/^\s*回复\s*/m, '');
+  text = text.replace(/\n{3,}/g, '\n\n');
+  const lines = text.split('\n').map((s) => s.trim()).filter(Boolean);
+  const filtered = [];
+  for (const line of lines) {
+    if (/^(主页|探索|通知|聊天|Grok|书签|更多|发帖|文章|对话|查看新帖子)$/.test(line)) continue;
+    if (/^\d+[\.\d]*[万亿]?$/.test(line)) continue;
+    if (/^(查看|显示)\s*(更多|回复|相关)/.test(line)) continue;
+    filtered.push(line);
+  }
+  return filtered.join('\n').trim();
+}
+
 function collectXSnapshot(base) {
   const article = document.querySelector('article');
   const tweetText = document.querySelector('[data-testid="tweetText"]');
@@ -118,7 +137,7 @@ function collectXSnapshot(base) {
   const sensitiveGate = !!Array.from(document.querySelectorAll('span,div')).find((el) =>
     /显示|查看|敏感|sensitive/i.test((el.innerText || '').trim())
   );
-  const primaryText = (tweetText?.innerText || article?.innerText || '').trim();
+  const primaryText = cleanXPrimaryText(article, tweetText);
   const network = getRequestProbeState();
   const networkQuiet = !network || (network.pending === 0 && (network.quietMs === null || network.quietMs > 800));
   const isTweetDetail = /\/status\/\d+/.test(location.href);
