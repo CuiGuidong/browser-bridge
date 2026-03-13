@@ -17,14 +17,26 @@ console.log('[Browser Bridge] Content script loaded');
         lastRequestFinishedAt: 0,
         requestCount: 0,
       };
+      const publish = () => {
+        const payload = JSON.stringify({
+          pending: state.pending,
+          requestCount: state.requestCount,
+          lastRequestStartedAt: state.lastRequestStartedAt,
+          lastRequestFinishedAt: state.lastRequestFinishedAt,
+          quietMs: state.lastRequestFinishedAt ? Date.now() - state.lastRequestFinishedAt : null,
+        });
+        document.documentElement?.setAttribute('data-browser-bridge-probe', payload);
+      };
       const start = () => {
         state.pending += 1;
         state.requestCount += 1;
         state.lastRequestStartedAt = Date.now();
+        publish();
       };
       const finish = () => {
         state.pending = Math.max(0, state.pending - 1);
         state.lastRequestFinishedAt = Date.now();
+        publish();
       };
 
       const origFetch = window.fetch;
@@ -59,6 +71,7 @@ console.log('[Browser Bridge] Content script loaded');
           };
         }
       };
+      publish();
     })();
   `;
   (document.documentElement || document.head || document.body).appendChild(script);
@@ -67,7 +80,10 @@ console.log('[Browser Bridge] Content script loaded');
 
 function getRequestProbeState() {
   try {
-    return window.__BROWSER_BRIDGE_PAGE_PROBE__?.getState?.() || null;
+    const direct = window.__BROWSER_BRIDGE_PAGE_PROBE__?.getState?.();
+    if (direct) return direct;
+    const attr = document.documentElement?.getAttribute('data-browser-bridge-probe');
+    return attr ? JSON.parse(attr) : null;
   } catch {
     return null;
   }
