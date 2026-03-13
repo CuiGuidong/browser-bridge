@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body {
+      width: 300px;
+      padding: 15px;
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+    h1 {
+      font-size: 16px;
+      margin: 0 0 15px 0;
+    }
+    .status {
+      padding: 10px;
+      border-radius: 6px;
+      margin-bottom: 10px;
+      font-size: 13px;
+    }
+    .status.connected {
+      background: #d4edda;
+      color: #155724;
+    }
+    .status.disconnected {
+      background: #f8d7da;
+      color: #721c24;
+    }
+    button {
+      width: 100%;
+      padding: 10px;
+      margin-top: 10px;
+      border: none;
+      border-radius: 6px;
+      background: #0066cc;
+      color: white;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    button:hover {
+      background: #0052a3;
+    }
+    .info {
+      font-size: 12px;
+      color: #666;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Browser Bridge</h1>
+  <div id="status" class="status disconnected">Checking...</div>
+  <button id="checkBridge">Check Bridge</button>
+  <div class="info">
+    Bridge URL: http://127.0.0.1:17777
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>

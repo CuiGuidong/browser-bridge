@@ -92,6 +92,20 @@ curl -X POST http://127.0.0.1:17777/click -H "Content-Type: application/json" -d
 - 改密码、支付、发布内容
 - 删除数据、授权第三方应用
 
+## 扩展 (可选)
+
+项目包含一个 Chrome/Edge 扩展作为轻量增强层：
+
+```bash
+cd extension
+# 在 chrome://extensions 加载此目录
+```
+
+扩展提供：
+- Popup 状态检查
+- 快速页面操作
+- Bridge 连接状态查看
+
 ## 技术栈
 
 - Python 3.13+ (FastAPI + uvicorn)
