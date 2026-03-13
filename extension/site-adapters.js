@@ -1,7 +1,16 @@
 // Site adapter registry for Browser Bridge Extension
 
+function getRequestProbeState() {
+  try {
+    return window.__BROWSER_BRIDGE_PAGE_PROBE__?.getState?.() || null;
+  } catch {
+    return null;
+  }
+}
+
 function collectGenericSnapshot() {
   const text = (document.body?.innerText || '').trim();
+  const network = getRequestProbeState();
   return {
     site: location.hostname,
     page: {
@@ -12,6 +21,7 @@ function collectGenericSnapshot() {
     signals: {
       readyState: document.readyState,
       bodyTextLength: text.length,
+      network,
       ready: text.length > 120 && document.readyState === 'complete',
     },
     content: {
@@ -45,12 +55,15 @@ const xAdapter = {
     );
     const primaryText = (tweetText?.innerText || article?.innerText || '').trim();
     const isTweetDetail = /\/status\/\d+/.test(location.href);
+    const network = getRequestProbeState();
+    const networkQuiet = !network || network.pending === 0 && (network.quietMs === null || network.quietMs > 800);
     const ready = !!(
       document.readyState === 'complete' &&
       isTweetDetail &&
       article &&
       primaryText.length > 20 &&
-      !loginMask
+      !loginMask &&
+      networkQuiet
     );
     return {
       site: 'x',
@@ -63,6 +76,7 @@ const xAdapter = {
         tweetTextFound: !!tweetText,
         loginMask,
         sensitiveGate,
+        networkQuiet,
         ready,
       },
       content: {
