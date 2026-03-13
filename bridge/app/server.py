@@ -12,6 +12,7 @@ from .schemas import ok, fail
 app = FastAPI(title="Browser Bridge API", version="1.0.0")
 service = BrowserBridgeService()
 playwright_client = get_playwright_client()
+extension_state = {"lastReport": None, "reports": []}
 
 
 # Request/Response models
@@ -47,6 +48,15 @@ class ReadPageRequest(BaseModel):
     timeoutSeconds: float = 15
     intervalSeconds: float = 1
     selector: Optional[str] = None
+
+
+class ExtensionReportRequest(BaseModel):
+    source: str = "extension"
+    site: Optional[str] = None
+    kind: str = "page-state"
+    page: Dict[str, Any]
+    signals: Dict[str, Any] = {}
+    content: Dict[str, Any] = {}
 
 
 @app.get("/health")
@@ -178,6 +188,26 @@ def read_page(req: ReadPageRequest):
         return ok("read-page", result)
     except HTTPException:
         raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/extension/report")
+def extension_report(req: ExtensionReportRequest):
+    try:
+        report = req.model_dump()
+        extension_state["lastReport"] = report
+        extension_state["reports"].append(report)
+        extension_state["reports"] = extension_state["reports"][-20:]
+        return ok("extension-report", {"accepted": True})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/extension/state")
+def extension_get_state():
+    try:
+        return ok("extension-state", extension_state)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

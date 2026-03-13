@@ -5,6 +5,7 @@
   "description": "Bridge between AI agent and browser",
   "permissions": [
     "activeTab",
+    "tabs",
     "scripting",
     "storage"
   ],

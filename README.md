@@ -121,6 +121,7 @@ cd extension
 - Popup 状态检查
 - 快速页面操作
 - Bridge 连接状态查看
+- 页面语义信号上报（已实现 X 最小 adapter）
 
 ## 技术栈
 
