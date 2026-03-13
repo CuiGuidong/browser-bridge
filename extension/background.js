@@ -1,6 +1,9 @@
 // Background service worker for Browser Bridge Extension
+importScripts('site-adapters.js');
 
 const BRIDGE_URL = 'http://127.0.0.1:17777';
+const X_OBSERVE_WINDOW_MS = 15000;
+const X_REPORT_INTERVAL_MS = 1500;
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'getPageInfo') {
@@ -31,9 +34,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
 chrome.tabs.onActivated.addListener(() => {
   safeReportActivePage();
+  observeActivePageForReady();
 });
 chrome.tabs.onUpdated.addListener((_tabId, changeInfo) => {
-  if (changeInfo.status === 'complete') safeReportActivePage();
+  if (changeInfo.status === 'complete') {
+    safeReportActivePage();
+    observeActivePageForReady();
+  }
 });
 
 async function getActiveTab() {
@@ -53,40 +60,7 @@ async function executeInActiveTab(func, args = []) {
 }
 
 function collectPageSignals() {
-  const url = location.href;
-  const title = document.title || '';
-  const hostname = location.hostname;
-  const text = (document.body?.innerText || '').trim();
-  const isX = hostname.includes('x.com') || hostname.includes('twitter.com');
-  const article = document.querySelector('article');
-  const tweetText = document.querySelector('[data-testid="tweetText"]');
-  const loginMask = !!document.querySelector('[data-testid="sheetDialog"], [role="dialog"]');
-  const primaryText = (tweetText?.innerText || article?.innerText || '').trim();
-  const isTweetDetail = /\/status\/\d+/.test(url);
-  const ready = isX
-    ? !!(isTweetDetail && article && primaryText.length > 20)
-    : text.length > 120;
-  return {
-    site: isX ? 'x' : hostname,
-    page: {
-      url,
-      title,
-      hostname,
-    },
-    signals: {
-      readyState: document.readyState,
-      bodyTextLength: text.length,
-      isX,
-      isTweetDetail,
-      articleFound: !!article,
-      tweetTextFound: !!tweetText,
-      loginMask,
-      ready,
-    },
-    content: {
-      primaryText: primaryText.slice(0, 4000),
-    },
-  };
+  return collectActiveSiteSnapshot();
 }
 
 async function postReport(payload) {
@@ -127,6 +101,28 @@ async function safeReportActivePage() {
       handleReportActivePage(() => resolve());
     });
   } catch {}
+}
+
+async function observeActivePageForReady(windowMs = X_OBSERVE_WINDOW_MS, intervalMs = X_REPORT_INTERVAL_MS) {
+  const started = Date.now();
+  while (Date.now() - started < windowMs) {
+    try {
+      const { result } = await executeInActiveTab(collectPageSignals);
+      const delivered = await postReport({
+        source: 'extension',
+        site: result.site,
+        kind: 'page-state',
+        page: result.page,
+        signals: result.signals,
+        content: result.content,
+      });
+      if (result.signals?.ready) return { ok: true, delivered, ready: true };
+    } catch (error) {
+      console.warn('[Browser Bridge] observe failed:', error.message);
+    }
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+  return { ok: false, ready: false };
 }
 
 async function handleGetPageInfo(sendResponse) {
