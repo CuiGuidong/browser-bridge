@@ -30,16 +30,18 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     handleReportActivePage(sendResponse);
     return true;
   }
+  if (request.action === 'extensionSnapshot') {
+    postReport(request.payload).then((delivered) => sendResponse({ ok: true, delivered }));
+    return true;
+  }
 });
 
 chrome.tabs.onActivated.addListener(() => {
   safeReportActivePage();
-  observeActivePageForReady();
 });
 chrome.tabs.onUpdated.addListener((_tabId, changeInfo) => {
   if (changeInfo.status === 'complete') {
     safeReportActivePage();
-    observeActivePageForReady();
   }
 });
 
