@@ -33,6 +33,8 @@ Real Chrome / Edge Browser
 | `POST /activate` | 切换 tab |
 | `GET /page-info` | 获取页面 title/url |
 | `GET /page-content` | 获取页面文本内容 |
+| `GET /probe-readiness` | 页面就绪探针 |
+| `POST /read-page` | 带就绪判断的页面读取 |
 | `POST /screenshot` | 截图 |
 | `GET /query` | CSS 选择器查询 DOM |
 | `POST /click` | 点击元素 |

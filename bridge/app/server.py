@@ -40,6 +40,15 @@ class FillRequest(BaseModel):
     targetId: Optional[str] = None
 
 
+class ReadPageRequest(BaseModel):
+    targetId: Optional[str] = None
+    maxChars: int = 4000
+    waitForReady: bool = True
+    timeoutSeconds: float = 15
+    intervalSeconds: float = 1
+    selector: Optional[str] = None
+
+
 @app.get("/health")
 def health():
     try:
@@ -124,6 +133,49 @@ def page_content(targetId: Optional[str] = Query(None), maxChars: int = Query(40
         if info is None:
             raise HTTPException(status_code=404, detail="page not found")
         return ok("page-content", info)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/probe-readiness")
+def probe_readiness(
+    targetId: Optional[str] = Query(None),
+    timeoutSeconds: float = Query(15),
+    intervalSeconds: float = Query(1),
+    selector: Optional[str] = Query(None),
+):
+    try:
+        result = service.probe_page_readiness(
+            target_id=targetId,
+            timeout_seconds=timeoutSeconds,
+            interval_seconds=intervalSeconds,
+            selector=selector,
+        )
+        if result is None:
+            raise HTTPException(status_code=404, detail="page not found")
+        return ok("probe-readiness", result)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/read-page")
+def read_page(req: ReadPageRequest):
+    try:
+        result = service.read_page(
+            target_id=req.targetId,
+            max_chars=req.maxChars,
+            wait_for_ready=req.waitForReady,
+            timeout_seconds=req.timeoutSeconds,
+            interval_seconds=req.intervalSeconds,
+            selector=req.selector,
+        )
+        if result is None:
+            raise HTTPException(status_code=404, detail="page not found")
+        return ok("read-page", result)
     except HTTPException:
         raise
     except Exception as e:

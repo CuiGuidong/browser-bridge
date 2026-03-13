@@ -1,5 +1,6 @@
 from urllib.parse import quote
 import time
+import json
 
 from .cdp_client import CdpHttpClient
 from .cdp_ws_client import CdpWebSocketClient
@@ -203,6 +204,106 @@ class BrowserBridgeService:
             "text": text,
             "result": value,
         }
+
+    def probe_page_readiness(self, target_id=None, timeout_seconds=15, interval_seconds=1, selector=None):
+        target = self.get_page_info(target_id)
+        if target is None:
+            return None
+        ws_url = target["webSocketDebuggerUrl"]
+        start = time.time()
+        last_signature = None
+        stable_count = 0
+        last_probe = None
+        while time.time() - start < timeout_seconds:
+            probe = self._collect_probe(ws_url, selector=selector)
+            if probe.get("ready"):
+                probe["elapsed"] = round(time.time() - start, 2)
+                probe["targetId"] = target["id"]
+                probe["title"] = probe.get("title") or target.get("title")
+                probe["url"] = probe.get("url") or target.get("url")
+                return probe
+            signature = (
+                probe.get("readyState"),
+                probe.get("url"),
+                probe.get("title"),
+                probe.get("contentLengthBucket"),
+                probe.get("selectorFound"),
+                probe.get("xPostReady"),
+            )
+            if signature == last_signature:
+                stable_count += 1
+            else:
+                stable_count = 0
+            probe["stableCount"] = stable_count
+            last_signature = signature
+            last_probe = probe
+            time.sleep(interval_seconds)
+        if last_probe is None:
+            last_probe = self._collect_probe(ws_url, selector=selector)
+        last_probe["elapsed"] = round(time.time() - start, 2)
+        last_probe["targetId"] = target["id"]
+        last_probe["title"] = last_probe.get("title") or target.get("title")
+        last_probe["url"] = last_probe.get("url") or target.get("url")
+        return last_probe
+
+    def read_page(self, target_id=None, max_chars=4000, wait_for_ready=False, timeout_seconds=15, interval_seconds=1, selector=None):
+        target = self.get_page_info(target_id)
+        if target is None:
+            return None
+        readiness = None
+        if wait_for_ready:
+            readiness = self.probe_page_readiness(
+                target_id=target["id"],
+                timeout_seconds=timeout_seconds,
+                interval_seconds=interval_seconds,
+                selector=selector,
+            )
+            target = self.get_page_info(target["id"]) or target
+        content = self.get_page_content(target["id"], max_chars=max_chars)
+        if content is None:
+            return None
+        content["readiness"] = readiness
+        return content
+
+    def _collect_probe(self, websocket_debugger_url, selector=None):
+        safe_selector = json.dumps(selector) if selector else "null"
+        expression = f'''(() => {{
+  const selector = {safe_selector};
+  const text = (document.body?.innerText || '').trim();
+  const contentLength = text.length;
+  const selectorFound = selector ? !!document.querySelector(selector) : null;
+  const xPost = location.hostname.includes('x.com') || location.hostname.includes('twitter.com');
+  const xArticle = document.querySelector('article');
+  const xTweetText = document.querySelector('[data-testid="tweetText"]');
+  const xPostReady = !!(xArticle && (xTweetText || (xArticle.innerText || '').trim().length > 80));
+  const title = document.title || '';
+  const url = location.href;
+  const readyState = document.readyState;
+  const titleReady = !/^X$/.test(title) && title.trim().length > 3;
+  const urlReady = !url.includes('/i/status/') || url.includes('/status/');
+  const contentReady = contentLength > 120;
+  const genericReady = readyState === 'complete' && titleReady && urlReady && contentReady && (selector ? !!selectorFound : true);
+  const ready = xPost ? (readyState === 'complete' && titleReady && urlReady && xPostReady) : genericReady;
+  return {{
+    ready,
+    readyState,
+    title,
+    url,
+    contentLength,
+    contentLengthBucket: Math.floor(contentLength / 100),
+    selector,
+    selectorFound,
+    xPost,
+    xPostReady,
+    signals: {{ titleReady, urlReady, contentReady }}
+  }};
+}})()'''
+        result = self.ws_client.call(
+            websocket_debugger_url,
+            "Runtime.evaluate",
+            {"expression": expression, "returnByValue": True},
+        )
+        return ((result.get("result") or {}).get("value")) or {}
 
     def _normalize_target(self, target):
         return {
