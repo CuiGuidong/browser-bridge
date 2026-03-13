@@ -15,6 +15,16 @@ playwright_client = get_playwright_client()
 extension_state = {"lastReport": None, "reports": []}
 
 
+def _get_extension_hint(target_url: Optional[str] = None):
+    report = extension_state.get("lastReport")
+    if not report:
+        return None
+    page = report.get("page") or {}
+    if target_url and page.get("url") != target_url:
+        return None
+    return report
+
+
 # Request/Response models
 class OpenRequest(BaseModel):
     url: str
@@ -155,8 +165,21 @@ def probe_readiness(
     timeoutSeconds: float = Query(15),
     intervalSeconds: float = Query(1),
     selector: Optional[str] = Query(None),
+    preferExtension: bool = Query(True),
 ):
     try:
+        page = service.get_page_info(targetId)
+        if page is None:
+            raise HTTPException(status_code=404, detail="page not found")
+        extension_hint = _get_extension_hint(page.get("url")) if preferExtension else None
+        if extension_hint:
+            return ok("probe-readiness", {
+                "source": "extension",
+                "ready": bool((extension_hint.get("signals") or {}).get("ready")),
+                "page": extension_hint.get("page"),
+                "signals": extension_hint.get("signals"),
+                "content": extension_hint.get("content"),
+            })
         result = service.probe_page_readiness(
             target_id=targetId,
             timeout_seconds=timeoutSeconds,
@@ -165,6 +188,7 @@ def probe_readiness(
         )
         if result is None:
             raise HTTPException(status_code=404, detail="page not found")
+        result["source"] = "cdp"
         return ok("probe-readiness", result)
     except HTTPException:
         raise
@@ -175,6 +199,10 @@ def probe_readiness(
 @app.post("/read-page")
 def read_page(req: ReadPageRequest):
     try:
+        page = service.get_page_info(req.targetId)
+        if page is None:
+            raise HTTPException(status_code=404, detail="page not found")
+        extension_hint = _get_extension_hint(page.get("url"))
         result = service.read_page(
             target_id=req.targetId,
             max_chars=req.maxChars,
@@ -185,6 +213,22 @@ def read_page(req: ReadPageRequest):
         )
         if result is None:
             raise HTTPException(status_code=404, detail="page not found")
+        if extension_hint:
+            result["extensionHint"] = {
+                "page": extension_hint.get("page"),
+                "signals": extension_hint.get("signals"),
+                "content": extension_hint.get("content"),
+            }
+            content = (extension_hint.get("content") or {}).get("primaryText")
+            if content:
+                result["preferredContent"] = content[: req.maxChars]
+                result["preferredContentSource"] = "extension"
+            else:
+                result["preferredContent"] = result.get("content", "")
+                result["preferredContentSource"] = "cdp"
+        else:
+            result["preferredContent"] = result.get("content", "")
+            result["preferredContentSource"] = "cdp"
         return ok("read-page", result)
     except HTTPException:
         raise
