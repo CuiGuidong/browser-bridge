@@ -1,0 +1,7 @@
+BRIDGE_HOST = "127.0.0.1"
+BRIDGE_PORT = 17777
+
+CDP_BASE_URL = "http://host.orb.internal:9333"
+CDP_HOST_HEADER = "127.0.0.1:9333"
+CDP_WS_BASE_URL = "ws://host.orb.internal:9333"
+CDP_TIMEOUT_SECONDS = 10
