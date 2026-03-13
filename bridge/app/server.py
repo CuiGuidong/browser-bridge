@@ -1,86 +1,196 @@
-import json
-from http.server import BaseHTTPRequestHandler, HTTPServer
-from urllib.parse import parse_qs, urlparse
+from fastapi import FastAPI, Query, HTTPException
+from pydantic import BaseModel
+from typing import Optional, List, Any, Dict
+import uvicorn
 
 from .config import BRIDGE_HOST, BRIDGE_PORT
 from .cdp_service import BrowserBridgeService
-from .routes import (
-    handle_activate,
-    handle_click,
-    handle_fill,
-    handle_health,
-    handle_open,
-    handle_page_content,
-    handle_page_info,
-    handle_query,
-    handle_screenshot,
-    handle_tabs,
-    handle_version,
-    handle_wait,
-)
+from .schemas import ok, fail
 
 
+app = FastAPI(title="Browser Bridge API", version="1.0.0")
 service = BrowserBridgeService()
 
 
-class Handler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        parsed = urlparse(self.path)
-        if parsed.path == "/health":
-            status, payload = handle_health(service)
-            return self._send_json(status, payload)
-        if parsed.path == "/version":
-            status, payload = handle_version(service)
-            return self._send_json(status, payload)
-        if parsed.path == "/tabs":
-            status, payload = handle_tabs(service)
-            return self._send_json(status, payload)
-        if parsed.path == "/wait":
-            status, payload = handle_wait(service, parse_qs(parsed.query))
-            return self._send_json(status, payload)
-        if parsed.path == "/page-info":
-            status, payload = handle_page_info(service, parse_qs(parsed.query))
-            return self._send_json(status, payload)
-        if parsed.path == "/page-content":
-            status, payload = handle_page_content(service, parse_qs(parsed.query))
-            return self._send_json(status, payload)
-        if parsed.path == "/query":
-            status, payload = handle_query(service, parse_qs(parsed.query))
-            return self._send_json(status, payload)
-        return self._send_json(404, {"ok": False, "action": "route", "message": "not found"})
+# Request/Response models
+class OpenRequest(BaseModel):
+    url: str
 
-    def do_POST(self):
-        body = self.rfile.read(int(self.headers.get("Content-Length", 0) or 0)).decode("utf-8")
-        if self.path == "/open":
-            status, payload = handle_open(service, body)
-            return self._send_json(status, payload)
-        if self.path == "/activate":
-            status, payload = handle_activate(service, body)
-            return self._send_json(status, payload)
-        if self.path == "/screenshot":
-            status, payload = handle_screenshot(service, body)
-            return self._send_json(status, payload)
-        if self.path == "/click":
-            status, payload = handle_click(service, body)
-            return self._send_json(status, payload)
-        if self.path == "/fill":
-            status, payload = handle_fill(service, body)
-            return self._send_json(status, payload)
-        return self._send_json(404, {"ok": False, "action": "route", "message": "not found"})
 
-    def _send_json(self, status, payload):
-        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
+class ActivateRequest(BaseModel):
+    targetId: str
 
-    def log_message(self, *args):
-        return
+
+class ScreenshotRequest(BaseModel):
+    targetId: Optional[str] = None
+    format: str = "png"
+
+
+class ClickRequest(BaseModel):
+    selector: str
+    targetId: Optional[str] = None
+    waitAfter: float = 0
+
+
+class FillRequest(BaseModel):
+    selector: str
+    text: str
+    targetId: Optional[str] = None
+
+
+@app.get("/health")
+def health():
+    try:
+        version = service.get_version()
+        return ok("health", {
+            "bridge": "alive",
+            "cdp": "connected",
+            "browser": version.get("Browser"),
+            "protocolVersion": version.get("Protocol-Version"),
+        })
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/version")
+def version():
+    try:
+        version = service.get_version()
+        return ok("version", version)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/tabs")
+def tabs():
+    try:
+        return ok("tabs", service.list_tabs())
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/open")
+def open_url(req: OpenRequest):
+    try:
+        return ok("open", service.open_url(req.url))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/activate")
+def activate(req: ActivateRequest):
+    try:
+        return ok("activate", service.activate_tab(req.targetId))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/wait")
+def wait(
+    targetId: Optional[str] = Query(None),
+    timeoutSeconds: float = Query(10),
+    intervalSeconds: float = Query(0.5),
+):
+    try:
+        result = service.wait_for_page(
+            target_id=targetId,
+            timeout_seconds=timeoutSeconds,
+            interval_seconds=intervalSeconds,
+        )
+        return ok("wait", result)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/page-info")
+def page_info(targetId: Optional[str] = Query(None)):
+    try:
+        info = service.get_page_info(targetId)
+        if info is None:
+            raise HTTPException(status_code=404, detail="page not found")
+        return ok("page-info", info)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/page-content")
+def page_content(targetId: Optional[str] = Query(None), maxChars: int = Query(4000)):
+    try:
+        info = service.get_page_content(targetId, max_chars=maxChars)
+        if info is None:
+            raise HTTPException(status_code=404, detail="page not found")
+        return ok("page-content", info)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/screenshot")
+def screenshot(req: ScreenshotRequest):
+    try:
+        result = service.capture_screenshot(target_id=req.targetId, fmt=req.format)
+        if result is None:
+            raise HTTPException(status_code=404, detail="page not found")
+        return ok("screenshot", result)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/query")
+def query(
+    selector: str = Query(...),
+    targetId: Optional[str] = Query(None),
+    limit: int = Query(20),
+):
+    try:
+        result = service.query_elements(selector, target_id=targetId, limit=limit)
+        if result is None:
+            raise HTTPException(status_code=404, detail="page not found")
+        return ok("query", result)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/click")
+def click(req: ClickRequest):
+    try:
+        result = service.click_selector(
+            req.selector,
+            target_id=req.targetId,
+            wait_after=req.waitAfter,
+        )
+        if result is None:
+            raise HTTPException(status_code=404, detail="page not found")
+        return ok("click", result)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/fill")
+def fill(req: FillRequest):
+    try:
+        result = service.fill_selector(
+            req.selector,
+            req.text,
+            target_id=req.targetId,
+        )
+        if result is None:
+            raise HTTPException(status_code=404, detail="page not found")
+        return ok("fill", result)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 def run():
-    server = HTTPServer((BRIDGE_HOST, BRIDGE_PORT), Handler)
-    print(f"browser-bridge listening on http://{BRIDGE_HOST}:{BRIDGE_PORT}")
-    server.serve_forever()
+    uvicorn.run(app, host=BRIDGE_HOST, port=BRIDGE_PORT)

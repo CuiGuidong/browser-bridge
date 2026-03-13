@@ -57,11 +57,13 @@ google-chrome --remote-debugging-port=9333
 cd bridge
 python3 -m venv .venv
 source .venv/bin/activate
-pip install websockets==16.0
+pip install -r ../requirements.txt
 python -m app.server
 ```
 
 Bridge 监听 `http://127.0.0.1:17777`
+
+API 文档：`http://127.0.0.1:17777/docs`
 
 ### 3. 调用示例
 
@@ -92,7 +94,7 @@ curl -X POST http://127.0.0.1:17777/click -H "Content-Type: application/json" -d
 
 ## 技术栈
 
-- Python 3.13+ (标准库 `http.server`)
+- Python 3.13+ (FastAPI + uvicorn)
 - WebSocket (`websockets==16.0`)
 - CDP (Chrome DevTools Protocol)
 
