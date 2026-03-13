@@ -33,11 +33,25 @@ Real Chrome / Edge Browser
 | `POST /activate` | 切换 tab |
 | `GET /page-info` | 获取页面 title/url |
 | `GET /page-content` | 获取页面文本内容 |
-| `GET /screenshot` | 截图 |
+| `POST /screenshot` | 截图 |
 | `GET /query` | CSS 选择器查询 DOM |
 | `POST /click` | 点击元素 |
 | `POST /fill` | 输入文本 |
 | `GET /wait` | 等待页面稳定 |
+
+### Playwright 路径 (Path C)
+
+复杂页面操作使用 Playwright attach：
+
+| 端点 | 功能 |
+|------|------|
+| `POST /playwright/connect` | 连接 Playwright 到浏览器 |
+| `POST /playwright/disconnect` | 断开连接 |
+| `GET /playwright/pages` | 获取所有页面 |
+| `POST /playwright/click` | Playwright 点击 |
+| `POST /playwright/fill` | Playwright 填值 |
+| `POST /playwright/evaluate` | 执行 JavaScript |
+| `GET /playwright/wait-selector` | 等待元素出现 |
 
 ## 快速开始
 

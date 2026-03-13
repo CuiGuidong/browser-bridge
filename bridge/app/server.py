@@ -5,11 +5,13 @@ import uvicorn
 
 from .config import BRIDGE_HOST, BRIDGE_PORT
 from .cdp_service import BrowserBridgeService
+from .playwright_client import get_playwright_client, reset_playwright_client
 from .schemas import ok, fail
 
 
 app = FastAPI(title="Browser Bridge API", version="1.0.0")
 service = BrowserBridgeService()
+playwright_client = get_playwright_client()
 
 
 # Request/Response models
@@ -188,6 +190,101 @@ def fill(req: FillRequest):
         return ok("fill", result)
     except HTTPException:
         raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# === Playwright routes (Path C: complex page operations) ===
+
+class PlaywrightConnectRequest(BaseModel):
+    browserWsUrl: str  # WebSocket URL from CDP
+
+
+class PlaywrightClickRequest(BaseModel):
+    selector: str
+
+
+class PlaywrightFillRequest(BaseModel):
+    selector: str
+    text: str
+
+
+class PlaywrightEvaluateRequest(BaseModel):
+    expression: str
+
+
+@app.post("/playwright/connect")
+def playwright_connect(req: PlaywrightConnectRequest):
+    """Connect Playwright to existing browser via CDP WebSocket."""
+    try:
+        success = playwright_client.connect(req.browserWsUrl)
+        if success:
+            return ok("playwright-connect", {"connected": True})
+        else:
+            raise HTTPException(status_code=500, detail="Failed to connect")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/playwright/disconnect")
+def playwright_disconnect():
+    """Disconnect Playwright from browser."""
+    try:
+        reset_playwright_client()
+        return ok("playwright-disconnect", {"connected": False})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/playwright/pages")
+def playwright_pages():
+    """Get all pages from Playwright-connected browser."""
+    try:
+        pages = playwright_client.get_all_pages()
+        return ok("playwright-pages", {"pages": pages})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/playwright/click")
+def playwright_click(req: PlaywrightClickRequest):
+    """Click element using Playwright (more robust for complex pages)."""
+    try:
+        result = playwright_client.click(req.selector)
+        return ok("playwright-click", result)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/playwright/fill")
+def playwright_fill(req: PlaywrightFillRequest):
+    """Fill element using Playwright (more robust for complex pages)."""
+    try:
+        result = playwright_client.fill(req.selector, req.text)
+        return ok("playwright-fill", result)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/playwright/evaluate")
+def playwright_evaluate(req: PlaywrightEvaluateRequest):
+    """Execute JavaScript using Playwright."""
+    try:
+        result = playwright_client.evaluate(req.expression)
+        return ok("playwright-evaluate", {"result": result})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/playwright/wait-selector")
+def playwright_wait_selector(
+    selector: str = Query(...),
+    timeout: int = Query(5000),
+):
+    """Wait for selector using Playwright."""
+    try:
+        found = playwright_client.wait_for_selector(selector, timeout=timeout)
+        return ok("playwright-wait-selector", {"found": found, "selector": selector})
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
