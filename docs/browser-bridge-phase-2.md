@@ -1,10 +1,12 @@
-# Browser Bridge · Phase 2 执行指南（临时文档）
+# Browser Bridge · Phase 2 执行指南（历史文档）
 
-_Last updated: 2026-03-12_
-_Status: active_
+_Last updated: 2026-03-19_
+_Status: obsolete / historical reference only_
 
-> 这是当前阶段的执行参考文档，主要给开发过程使用。
-> 本阶段完成后，可删除或归档。
+> 这是早期 Phase 2 的执行参考文档。
+> **不要**把它当作当前项目的主入口文档。
+> 新接手开发请先读：`docs/README-FIRST-HANDOFF.md`。
+> 本文档保留仅作为历史参考。 
 
 ---
 

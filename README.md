@@ -2,6 +2,8 @@
 
 让 AI Agent 控制你真实浏览器（Chrome/Edge）的 HTTP API 桥。
 
+> 新接手开发前，请先读：`docs/README-FIRST-HANDOFF.md`
+
 ## 目标
 
 在**真实登录态、真实浏览器环境**下，帮助 AI Agent 完成简单网页操作：
