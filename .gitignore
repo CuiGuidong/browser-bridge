@@ -41,6 +41,10 @@ Thumbs.db
 *.log
 *.pid
 
+# Temporary artifacts
+*_screenshot.png
+x_screenshot*.png
+
 # OpenClaw (local only, not for public)
 .clawhub/
 .openclaw/
