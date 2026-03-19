@@ -2,8 +2,6 @@
 
 让 AI Agent 控制你真实浏览器（Chrome/Edge）的 HTTP API 桥。
 
-> 新接手开发前，请先读：`docs/README-FIRST-HANDOFF.md`
-
 ## 目标
 
 在**真实登录态、真实浏览器环境**下，帮助 AI Agent 完成简单网页操作：
@@ -63,10 +61,10 @@ Real Chrome / Edge Browser
 
 ```bash
 # Edge (macOS)
-open -a Microsoft\ Edge --args --remote-debugging-port=9333
+open -a Microsoft\ Edge --args --remote-debugging-port=9222
 
 # Chrome
-google-chrome --remote-debugging-port=9333
+google-chrome --remote-debugging-port=9222
 ```
 
 ### 2. 启动 Bridge
@@ -79,7 +77,7 @@ pip install -r ../requirements.txt
 python -m app.server
 ```
 
-Bridge 监听 `http://127.0.0.1:17777`
+Bridge 默认监听 `http://127.0.0.1:17777`
 
 API 文档：`http://127.0.0.1:17777/docs`
 
@@ -98,9 +96,9 @@ curl -X POST http://127.0.0.1:17777/click -H "Content-Type: application/json" -d
 
 ## 配置
 
-修改 `app/config.py`：
-- `CDP_HOST`: 浏览器 CDP 地址（默认 `host.orb.internal`）
-- `CDP_PORT`: CDP 端口（默认 `9333`）
+修改 `app/config.py` 或通过环境变量配置：
+- `CDP_HOST`: 浏览器 CDP 地址（默认 `127.0.0.1`）
+- `CDP_PORT`: CDP 端口（默认 `9222`）
 - `BRIDGE_PORT`: Bridge 服务端口（默认 `17777`）
 
 ## 安全边界

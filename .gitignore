@@ -45,6 +45,9 @@ Thumbs.db
 *_screenshot.png
 x_screenshot*.png
 
+# Internal Dev Docs
+docs/
+
 # OpenClaw (local only, not for public)
 .clawhub/
 .openclaw/
