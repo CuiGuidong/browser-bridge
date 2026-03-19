@@ -80,10 +80,13 @@ console.log('[Browser Bridge] Content script loaded');
 
 function getRequestProbeState() {
   try {
-    const direct = window.__BROWSER_BRIDGE_PAGE_PROBE__?.getState?.();
-    if (direct) return direct;
     const attr = document.documentElement?.getAttribute('data-browser-bridge-probe');
-    return attr ? JSON.parse(attr) : null;
+    if (!attr) return null;
+    const state = JSON.parse(attr);
+    if (state.lastRequestFinishedAt) {
+      state.quietMs = Date.now() - state.lastRequestFinishedAt;
+    }
+    return state;
   } catch {
     return null;
   }
@@ -112,31 +115,42 @@ function collectGenericSnapshot() {
 }
 
 function cleanXPrimaryText(article, tweetText) {
-  if (tweetText?.innerText?.trim()) return tweetText.innerText.trim();
   const clone = article?.cloneNode(true);
-  if (!clone) return '';
-  clone.querySelectorAll('button, nav, aside, svg, [aria-hidden="true"]').forEach((el) => el.remove());
+  if (!clone) {
+    return tweetText?.innerText?.trim() || '';
+  }
+
+  const noiseSelectors = [
+    'button', 'nav', 'aside', 'svg', '[aria-hidden="true"]',
+    '[data-testid="caret"]', '[data-testid="reply"]', '[data-testid="retweet"]',
+    '[data-testid="like"]', '[data-testid="bookmark"]', '[data-testid="AppTabBar_Explore_Link"]'
+  ];
+  clone.querySelectorAll(noiseSelectors.join(', ')).forEach((el) => el.remove());
+
   let text = (clone.innerText || '').trim();
-  text = text.replace(/^\s*回复\s*/m, '');
-  text = text.replace(/\n{3,}/g, '\n\n');
   const lines = text.split('\n').map((s) => s.trim()).filter(Boolean);
   const filtered = [];
+  
   for (const line of lines) {
-    if (/^(主页|探索|通知|聊天|Grok|书签|更多|发帖|文章|对话|查看新帖子)$/.test(line)) continue;
-    if (/^\d+[\.\d]*[万亿]?$/.test(line)) continue;
-    if (/^(查看|显示)\s*(更多|回复|相关)/.test(line)) continue;
+    if (/^(主页|探索|通知|聊天|Grok|书签|更多|发帖|文章|对话|查看新帖子|订阅|分享)$/i.test(line)) continue;
+    if (/^(Home|Explore|Notifications|Messages|Bookmarks|More|Post|Articles|Subscribe|Share)$/i.test(line)) continue;
+    if (/^[\d\,\.]+([KMBkmb万亿]?)$/.test(line)) continue;
+    if (/^(查看|显示)\s*(更多|回复|相关|此对话)/.test(line)) continue;
+    if (/^Show (more|replies|this thread)/i.test(line)) continue;
+    if (/^\s*回复\s*/.test(line)) continue;
+    if (/^Replying to\s+/i.test(line)) continue;
     filtered.push(line);
   }
-  return filtered.join('\n').trim();
+  
+  let result = filtered.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+  return result || tweetText?.innerText?.trim() || '';
 }
 
 function collectXSnapshot(base) {
   const article = document.querySelector('article');
   const tweetText = document.querySelector('[data-testid="tweetText"]');
   const loginMask = !!document.querySelector('[role="dialog"], [data-testid="sheetDialog"]');
-  const sensitiveGate = !!Array.from(document.querySelectorAll('span,div')).find((el) =>
-    /显示|查看|敏感|sensitive/i.test((el.innerText || '').trim())
-  );
+  const sensitiveGate = /(敏感内容|sensitive content|age-restricted|成人内容|adult content)/i.test(document.body?.innerText || '');
   const primaryText = cleanXPrimaryText(article, tweetText);
   const network = getRequestProbeState();
   const networkQuiet = !network || (network.pending === 0 && (network.quietMs === null || network.quietMs > 800));

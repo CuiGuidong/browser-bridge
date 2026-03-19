@@ -50,16 +50,16 @@ _Status: authoritative next-work list_
 ## In progress / partially complete
 
 ### X adapter precision
-- [ ] Reduce metadata / stats noise further
-- [ ] Better split primary post vs surrounding content
-- [ ] Better handling for sensitive-content gates
-- [ ] Better handling for reply-heavy pages
+- [x] Reduce metadata / stats noise further
+- [x] Better split primary post vs surrounding content
+- [x] Better handling for sensitive-content gates
+- [x] Better handling for reply-heavy pages
 
 ### Request-aware readiness
-- [ ] Request probe exists in architecture
-- [ ] Verify adapter can reliably consume request state
-- [ ] Make `signals.network` stable and non-null when expected
-- [ ] Use network quiet signal in final readiness scoring, not just placeholder logic
+- [x] Request probe exists in architecture
+- [x] Verify adapter can reliably consume request state
+- [x] Make `signals.network` stable and non-null when expected
+- [x] Use network quiet signal in final readiness scoring, not just placeholder logic
 
 ## Not started
 

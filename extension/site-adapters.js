@@ -2,7 +2,13 @@
 
 function getRequestProbeState() {
   try {
-    return window.__BROWSER_BRIDGE_PAGE_PROBE__?.getState?.() || null;
+    const attr = document.documentElement?.getAttribute('data-browser-bridge-probe');
+    if (!attr) return null;
+    const state = JSON.parse(attr);
+    if (state.lastRequestFinishedAt) {
+      state.quietMs = Date.now() - state.lastRequestFinishedAt;
+    }
+    return state;
   } catch {
     return null;
   }
@@ -50,10 +56,32 @@ const xAdapter = {
     const article = document.querySelector('article');
     const tweetText = document.querySelector('[data-testid="tweetText"]');
     const loginMask = !!document.querySelector('[role="dialog"], [data-testid="sheetDialog"]');
-    const sensitiveGate = !!Array.from(document.querySelectorAll('span,div')).find((el) =>
-      /显示|查看|敏感|sensitive/i.test((el.innerText || '').trim())
-    );
-    const primaryText = (tweetText?.innerText || article?.innerText || '').trim();
+    const sensitiveGate = /(敏感内容|sensitive content|age-restricted|成人内容|adult content)/i.test(document.body?.innerText || '');
+    
+    let primaryText = '';
+    if (article) {
+      const clone = article.cloneNode(true);
+      const noiseSelectors = ['button', 'nav', 'aside', 'svg', '[aria-hidden="true"]', '[data-testid="caret"]', '[data-testid="reply"]', '[data-testid="retweet"]', '[data-testid="like"]', '[data-testid="bookmark"]'];
+      clone.querySelectorAll(noiseSelectors.join(', ')).forEach((el) => el.remove());
+      primaryText = (clone.innerText || '').trim();
+      const lines = primaryText.split('\n').map((s) => s.trim()).filter(Boolean);
+      const filtered = [];
+      for (const line of lines) {
+        if (/^(主页|探索|通知|聊天|Grok|书签|更多|发帖|文章|对话|查看新帖子|订阅|分享)$/i.test(line)) continue;
+        if (/^(Home|Explore|Notifications|Messages|Bookmarks|More|Post|Articles|Subscribe|Share)$/i.test(line)) continue;
+        if (/^[\d\,\.]+([KMBkmb万亿]?)$/.test(line)) continue;
+        if (/^(查看|显示)\s*(更多|回复|相关|此对话)/.test(line)) continue;
+        if (/^Show (more|replies|this thread)/i.test(line)) continue;
+        if (/^\s*回复\s*/.test(line)) continue;
+        if (/^Replying to\s+/i.test(line)) continue;
+        filtered.push(line);
+      }
+      primaryText = filtered.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+    }
+    if (!primaryText && tweetText) {
+      primaryText = tweetText.innerText.trim();
+    }
+
     const isTweetDetail = /\/status\/\d+/.test(location.href);
     const network = getRequestProbeState();
     const networkQuiet = !network || network.pending === 0 && (network.quietMs === null || network.quietMs > 800);
