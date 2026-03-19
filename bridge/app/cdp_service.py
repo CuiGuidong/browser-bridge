@@ -132,11 +132,10 @@ return raw.trim().slice(0, {int(max_chars)});
     value = ((result.get("result") or {}).get("value"))
     return {
         "targetId": target["id"],
-...
-            "title": target.get("title"),
-            "url": target.get("url"),
-            "content": value or "",
-        }
+        "title": target.get("title"),
+        "url": target.get("url"),
+        "content": value or "",
+    }
 
     def capture_screenshot(self, target_id=None, fmt="png"):
         target = self.get_page_info(target_id)
