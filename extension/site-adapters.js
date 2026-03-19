@@ -74,6 +74,8 @@ const xAdapter = {
         if (/^Show (more|replies|this thread)/i.test(line)) continue;
         if (/^\s*回复\s*/.test(line)) continue;
         if (/^Replying to\s+/i.test(line)) continue;
+        if (/点击\s*订阅\s*到/i.test(line)) continue;
+        if (/^\d+[\d\,\.]*[KMBkmb万亿]?\s*(查看|Views?)$/i.test(line)) continue;
         filtered.push(line);
       }
       primaryText = filtered.join('\n').replace(/\n{3,}/g, '\n\n').trim();

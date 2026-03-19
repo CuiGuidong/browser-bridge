@@ -139,6 +139,8 @@ function cleanXPrimaryText(article, tweetText) {
     if (/^Show (more|replies|this thread)/i.test(line)) continue;
     if (/^\s*回复\s*/.test(line)) continue;
     if (/^Replying to\s+/i.test(line)) continue;
+    if (/点击\s*订阅\s*到/i.test(line)) continue; // Filter "点击 订阅 到 xxx"
+    if (/^\d+[\d\,\.]*[KMBkmb万亿]?\s*(查看|Views?)$/i.test(line)) continue; // Filter "583 查看" or "583 Views"
     filtered.push(line);
   }
   
