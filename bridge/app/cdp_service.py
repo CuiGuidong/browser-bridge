@@ -297,9 +297,12 @@ return raw.trim().slice(0, {int(max_chars)});
         if target is None:
             return None
         
-        # Specific handling for X (Twitter) long posts/articles
-        is_x = target.get("url") and ("x.com" in target["url"] or "twitter.com" in target["url"])
-        if is_x:
+        url = target.get("url") or ""
+        is_x = "x.com" in url or "twitter.com" in url
+        is_x_timeline = is_x and ("/home" in url or "/search" in url or "/explore" in url)
+        is_x_post = is_x and ("/status/" in url)
+
+        if is_x_post:
             # Try to expand long post if "Show more" button exists
             expand_expr = '''(() => {
                 const btn = Array.from(document.querySelectorAll('div[role="button"]'))
@@ -313,6 +316,12 @@ return raw.trim().slice(0, {int(max_chars)});
             })()'''
             self.execute_js(expand_expr, target_id=target["id"])
             time.sleep(3.0) # wait for expansion
+            
+        if is_x_timeline:
+            # Execute "Light Scroll" to load a good batch of recent tweets (~20-30) without getting rate-limited
+            for _ in range(3):
+                self.scroll_page(distance=800, behavior="smooth", target_id=target["id"])
+                time.sleep(1.5)
 
         readiness = None
         if wait_for_ready:
