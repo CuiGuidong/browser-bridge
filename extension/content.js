@@ -109,42 +109,56 @@ function collectGenericSnapshot() {
       ready: text.length > 120 && document.readyState === 'complete',
     },
     content: {
-      primaryText: text.slice(0, 4000),
+      primaryText: text,
     },
   };
 }
 
+async function expandXLongPost() {
+  const showMore = Array.from(document.querySelectorAll('div[role="button"]'))
+    .find(el => /显示更多|Show more/i.test(el.innerText));
+  if (showMore) {
+    showMore.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    await new Promise(r => setTimeout(r, 800));
+    showMore.click();
+    return true;
+  }
+  return false;
+}
+
 function cleanXPrimaryText(article, tweetText) {
-  const clone = article?.cloneNode(true);
-  if (!clone) {
-    return tweetText?.innerText?.trim() || '';
+  const container = article || document.querySelector('[data-testid="tweetText"]')?.closest('[role="article"]') || document.body;
+  
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null, false);
+  const fragments = [];
+  const standaloneNoiseRegex = /^(主页|探索|通知|聊天|Grok|书签|更多|发帖|文章|对话|查看新帖子|订阅|分享|Home|Explore|Notifications|Messages|Bookmarks|More|Post|Articles|Subscribe|Share|什么是新鲜事|What’s happening)$/i;
+
+  let node;
+  while(node = walker.nextNode()) {
+    const parent = node.parentElement;
+    if (!parent) continue;
+    
+    const style = window.getComputedStyle(parent);
+    if (style.display === 'none' || style.visibility === 'hidden') continue;
+    if (['SCRIPT', 'STYLE', 'NOSCRIPT', 'NAV', 'HEADER'].includes(parent.tagName)) continue;
+
+    const text = node.nodeValue.trim();
+    if (text.length < 2) continue;
+    
+    if (text.length < 20 && standaloneNoiseRegex.test(text)) continue;
+    if (text.length < 15 && /^[\d\,\.]+([KMBkmb万亿]?)$/.test(text)) continue;
+    if (text.length < 20 && /^(查看|显示)\s*(更多|回复|相关|此对话)/.test(text)) continue;
+
+    fragments.push(text);
   }
 
-  const noiseSelectors = [
-    'button', 'nav', 'aside', 'svg', '[aria-hidden="true"]',
-    '[data-testid="caret"]', '[data-testid="reply"]', '[data-testid="retweet"]',
-    '[data-testid="like"]', '[data-testid="bookmark"]', '[data-testid="AppTabBar_Explore_Link"]'
-  ];
-  clone.querySelectorAll(noiseSelectors.join(', ')).forEach((el) => el.remove());
-
-  let text = (clone.innerText || '').trim();
-  const lines = text.split('\n').map((s) => s.trim()).filter(Boolean);
   const filtered = [];
-  
-  for (const line of lines) {
-    if (/^(主页|探索|通知|聊天|Grok|书签|更多|发帖|文章|对话|查看新帖子|订阅|分享)$/i.test(line)) continue;
-    if (/^(Home|Explore|Notifications|Messages|Bookmarks|More|Post|Articles|Subscribe|Share)$/i.test(line)) continue;
-    if (/^[\d\,\.]+([KMBkmb万亿]?)$/.test(line)) continue;
-    if (/^(查看|显示)\s*(更多|回复|相关|此对话)/.test(line)) continue;
-    if (/^Show (more|replies|this thread)/i.test(line)) continue;
-    if (/^\s*回复\s*/.test(line)) continue;
-    if (/^Replying to\s+/i.test(line)) continue;
-    if (/点击\s*订阅\s*到/i.test(line)) continue; // Filter "点击 订阅 到 xxx"
-    if (/^\d+[\d\,\.]*[KMBkmb万亿]?\s*(查看|Views?)$/i.test(line)) continue; // Filter "583 查看" or "583 Views"
-    filtered.push(line);
+  for (let i = 0; i < fragments.length; i++) {
+    if (i > 0 && fragments[i] === fragments[i-1]) continue;
+    filtered.push(fragments[i]);
   }
-  
-  let result = filtered.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+
+  let result = filtered.join('\n\n').replace(/\n{4,}/g, '\n\n\n').trim();
   return result || tweetText?.innerText?.trim() || '';
 }
 
@@ -160,7 +174,6 @@ function collectXSnapshot(base) {
   const ready = !!(
     document.readyState === 'complete' &&
     isTweetDetail &&
-    article &&
     primaryText.length > 20 &&
     !loginMask &&
     networkQuiet
@@ -180,7 +193,7 @@ function collectXSnapshot(base) {
       ready,
     },
     content: {
-      primaryText: primaryText.slice(0, 4000),
+      primaryText: primaryText,
     },
   };
 }

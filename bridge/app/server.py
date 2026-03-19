@@ -53,7 +53,7 @@ class FillRequest(BaseModel):
 
 class ReadPageRequest(BaseModel):
     targetId: Optional[str] = None
-    maxChars: int = 4000
+    maxChars: int = 40000
     waitForReady: bool = True
     timeoutSeconds: float = 15
     intervalSeconds: float = 1

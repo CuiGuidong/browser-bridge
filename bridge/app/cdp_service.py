@@ -75,18 +75,64 @@ class BrowserBridgeService:
             "elapsed": round(time.time() - start, 2),
         }
 
-    def get_page_content(self, target_id=None, max_chars=4000):
+    def execute_js(self, expression, target_id=None):
         target = self.get_page_info(target_id)
         if target is None:
             return None
         result = self.ws_client.call(
             target["webSocketDebuggerUrl"],
             "Runtime.evaluate",
-            {"expression": f"document.body.innerText.slice(0, {int(max_chars)})", "returnByValue": True},
+            {"expression": expression, "returnByValue": True},
         )
-        value = ((result.get("result") or {}).get("value"))
-        return {
-            "targetId": target["id"],
+        return (result.get("result") or {}).get("value")
+
+    def scroll_page(self, distance=500, behavior="smooth", target_id=None):
+        """Scroll the page to trigger lazy loading."""
+        expression = f'window.scrollBy({{ top: {int(distance)}, left: 0, behavior: "{behavior}" }})'
+        self.execute_js(expression, target_id=target_id)
+        time.sleep(1.0 if behavior == "smooth" else 0.2)
+        return {"scrolled": True, "distance": distance}
+def get_page_content(self, target_id=None, max_chars=40000):
+    target = self.get_page_info(target_id)
+    if target is None:
+        return None
+
+    # Deep extraction expression that pierces Shadow DOM
+    expression = f'''(() => {{
+const extractText = (root) => {{
+let text = "";
+if (root.nodeType === Node.TEXT_NODE) return root.nodeValue;
+if (root.nodeType !== Node.ELEMENT_NODE && root.nodeType !== Node.DOCUMENT_NODE && root.nodeType !== Node.DOCUMENT_FRAGMENT_NODE) return "";
+
+// Skip hidden elements and common noise
+const style = window.getComputedStyle(root);
+if (style && (style.display === "none" || style.visibility === "hidden")) return "";
+
+if (root.tagName === "SCRIPT" || root.tagName === "STYLE" || root.tagName === "NOSCRIPT") return "";
+
+for (const child of root.childNodes) {{
+  text += extractText(child);
+}}
+
+if (root.shadowRoot) {{
+  text += extractText(root.shadowRoot);
+}}
+
+return text + (root.nodeType === Node.ELEMENT_NODE ? "\\n" : "");
+}};
+
+const raw = extractText(document);
+return raw.trim().slice(0, {int(max_chars)});
+}})()'''
+    result = self.ws_client.call(
+        target["webSocketDebuggerUrl"],
+        "Runtime.evaluate",
+        {"expression": expression, "returnByValue": True},
+    )
+    value = ((result.get("result") or {}).get("value"))
+    return {
+        "targetId": target["id"],
+...
             "title": target.get("title"),
             "url": target.get("url"),
             "content": value or "",
@@ -246,10 +292,28 @@ class BrowserBridgeService:
         last_probe["url"] = last_probe.get("url") or target.get("url")
         return last_probe
 
-    def read_page(self, target_id=None, max_chars=4000, wait_for_ready=False, timeout_seconds=15, interval_seconds=1, selector=None):
+    def read_page(self, target_id=None, max_chars=40000, wait_for_ready=False, timeout_seconds=15, interval_seconds=1, selector=None):
         target = self.get_page_info(target_id)
         if target is None:
             return None
+        
+        # Specific handling for X (Twitter) long posts/articles
+        is_x = target.get("url") and ("x.com" in target["url"] or "twitter.com" in target["url"])
+        if is_x:
+            # Try to expand long post if "Show more" button exists
+            expand_expr = '''(() => {
+                const btn = Array.from(document.querySelectorAll('div[role="button"]'))
+                    .find(el => /显示更多|Show more/i.test(el.innerText));
+                if (btn) {
+                    btn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    btn.click();
+                    return true;
+                }
+                return false;
+            })()'''
+            self.execute_js(expand_expr, target_id=target["id"])
+            time.sleep(3.0) # wait for expansion
+
         readiness = None
         if wait_for_ready:
             readiness = self.probe_page_readiness(
