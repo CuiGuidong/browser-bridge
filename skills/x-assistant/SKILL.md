@@ -19,11 +19,27 @@ python3 scripts/search.py "YOUR_KEYWORD"
 **注意：** 如果用户的需求较宽泛，你应该先思考合适的英文/中文关键词，然后分多次调用此脚本，最后自己合并结果。
 
 ### 2. 阅读时间线 (Read Home Feed)
-读取用户首页的推文时间线（推荐或关注流）。脚本会自动进行“轻量滚动”以获取更多推文。
+读取用户首页的推文时间线（推荐流/关注流/双流）。脚本会自动进行低频“轻量滚动”以获取更多推文，并内置风控节流。
 ```bash
+# 默认：同时读取「为你推荐」+「正在关注」，各 20 条
 python3 scripts/feed.py
+
+# 只读取「正在关注」30 条
+python3 scripts/feed.py following 30
+
+# 只读取「为你推荐」50 条
+python3 scripts/feed.py for_you 50
+
+# 连续向下读取（低频滚动，带安全上限）
+python3 scripts/feed.py both 50 --continuous
 ```
 这对于用户让你“看看今天 X 上有什么新鲜事”非常有用。
+
+脚本输出会包含：
+- `feed.mode`：当前实际流模式（`for_you` / `following`）
+- `feed.activeTabText` / `feed.availableTabs`：中英文标签识别结果
+- `result.count`：本次返回条数
+- `items`：结构化推文列表（保留作者、时间、URL、正文）
 
 ### 3. 阅读单篇推文 (Read Single Post)
 如果搜索结果或时间线中有一篇非常长的文章，或者用户直接提供了一个推文链接，你可以使用脚本：
@@ -32,6 +48,9 @@ python3 scripts/read_post.py "https://x.com/..."
 ```
 
 ## 返回数据结构
-脚本执行后，如果成功，将返回 JSON 格式：
-`{"ok": true, "data": [{"authorInfo": "...", "url": "...", "text": "..."}]}`
+`feed.py` 成功后返回稳定结构：
+`{"ok": true, "request": {...}, "feed": {...}, "result": {...}, "items": [...], "data": [...]}`  
+其中 `data` 是向后兼容别名，等同 `items`。
+
+`search.py` 与 `read_post.py` 继续返回 JSON 结构化结果。
 你需要解析这个 JSON，并用人类可读的方式呈现给用户。

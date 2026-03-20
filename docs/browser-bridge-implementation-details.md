@@ -29,3 +29,109 @@ _本文档记录了开发过程中发现的关键实现细节、技术坑点（G
 
 **解决方案：**
 在 `cdp_service.py` 的 `get_page_content` 兜底方法（Path B）中，我们注入并执行了一个递归的 JS 函数。该函数会显式地检查元素是否存在 `.shadowRoot` 属性，如果存在则穿透进去继续遍历。这确保了即使在没有扩展适配器（Path A）帮忙的情况下，纯 CDP 的原始抓取也能尽可能做到最全面、无死角。
+
+## 3. VM -> Bridge -> Host Edge 链路常见误判（高频坑）
+
+这部分是本项目后续接手最容易反复绕圈的地方。
+
+### 坑 1：全局代理变量导致“本地服务假离线”
+
+**现象：**
+- `curl http://127.0.0.1:17777/health` 报错
+- 明明 bridge 已启动，却提示代理/DNS相关错误
+
+**原因：**
+- VM 环境里存在 `http_proxy/https_proxy/all_proxy`
+- 请求被错误转发到代理（例如 `host.orb.internal:7897`）
+
+**做法：**
+- 对本地链路请求统一禁用代理：
+  - `curl --noproxy '*' ...`
+  - Python `urllib` 使用 `ProxyHandler({})`
+
+---
+
+### 坑 2：CDP 对 Host 头严格校验
+
+**现象：**
+- 访问 `http://host.orb.internal:9333/json/version` 失败
+
+**原因：**
+- Edge CDP 在该路径下要求 Host 头匹配本地语义
+
+**做法：**
+- 显式发送：
+  - `Host: 127.0.0.1:9333`
+- 示例：
+  - `curl -H 'Host: 127.0.0.1:9333' http://host.orb.internal:9333/json/version`
+
+---
+
+### 坑 3：`read-page` 首次读取与扩展上报存在时序竞争
+
+**现象：**
+- 第一次 `read-page` 可能返回 `preferredContentSource=cdp` 且内容为空
+- 同一 tab 稍后再读又恢复 `preferredContentSource=extension`
+
+**原因：**
+- 新开页后，Bridge 读取发生在 extension report 到达之前
+- Bridge 里 `_get_extension_hint` 依赖最近上报并做 URL 精确匹配
+
+**做法：**
+- `open` 后先 `activate`
+- 给扩展 1-3 秒上报窗口，再 `read-page`
+- 验证 `GET /extension/state` 的 `lastReport.page.url` 是否与目标页一致
+
+---
+
+### 坑 4：调试环境限制会伪装成“连通问题”
+
+**说明：**
+- 某些 agent 执行沙箱会限制 socket/端口探测
+- 这会让“本机起服务/端口探测命令”在工具侧失败，但不代表业务链路本身不可用
+
+**做法：**
+- 优先以 bridge API 实测为准（`/health`, `/tabs`, `/read-page`）
+- 不要仅凭单次端口命令就判定服务不可达
+
+## 4. 推荐最小验收顺序（先排除连通性假故障）
+
+1. `curl --noproxy '*' http://127.0.0.1:17777/health`
+2. `curl --noproxy '*' -H 'Host: 127.0.0.1:9333' http://host.orb.internal:9333/json/version`
+3. `GET /tabs` 确认能看到真实 Edge tabs
+4. 用固定推文 URL 做单帖读取验收
+5. 若失败，先看 `GET /extension/state`，再判断是否功能层问题
+
+## 5. X Home Feed 封装策略（当前实现）
+
+### 目标
+- 尽量在单个 X tab 内完成任务，减少标签页和内存增长
+- 在“为你推荐/正在关注”两种流之间可稳定切换并识别
+- 支持读取更多推文，但严格限制频率，优先账号安全
+
+### 已落地机制
+1. **Tab 复用优先**
+   - `POST /open` 支持 `reuseExistingTab` 与 `reuseDomain`
+   - 先复用同域 tab 并导航，找不到才新开
+
+2. **流模式识别（中英文兼容）**
+   - 扩展在 `signals` 中上报：
+     - `feedMode` (`for_you` / `following`)
+     - `activeFeedTabText`
+     - `feedTabTexts`
+   - 识别规则兼容 `For you/Following` 与 `为你推荐/正在关注`
+
+3. **读取与切换对齐循环**
+   - 不再“点击一次就读”
+   - 读取后校验 `feedMode`，不匹配则再次切换
+   - 匹配后才持续滚动补量
+
+4. **风控节流参数（保守默认）**
+   - 读取间隔约 `1.6s`
+   - 滚动间隔约 `2.8s`
+   - 最大滚动轮次默认 `12`，连续模式 `30`
+   - 用户请求条数有上限（当前 clamp 到 `200`）
+
+### 默认行为（feed.py）
+- 默认读取双流：`for_you` + `following`，各 20 条
+- 支持自定义条数和连续读取（`--continuous`），但受上述节流与轮次限制

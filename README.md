@@ -18,7 +18,9 @@ OpenClaw / Agent
     ↓
 Browser Bridge (HTTP API)
     ↓
-CDP (Chrome DevTools Protocol)
+Path A: Extension 语义增强
+Path B: CDP (Chrome DevTools Protocol)
+Path C: Playwright attach
     ↓
 Real Chrome / Edge Browser
 ```
@@ -28,9 +30,11 @@ Real Chrome / Edge Browser
 | 端点 | 功能 |
 |------|------|
 | `GET /health` | 健康检查 |
+| `GET /version` | 浏览器/CDP 版本信息 |
 | `GET /tabs` | 列出浏览器 tab |
 | `POST /open` | 打开新页面 |
 | `POST /activate` | 切换 tab |
+| `POST /evaluate` | 在指定 tab 执行 JS |
 | `GET /page-info` | 获取页面 title/url |
 | `GET /page-content` | 获取页面文本内容 |
 | `GET /probe-readiness` | 页面就绪探针 |
@@ -40,6 +44,13 @@ Real Chrome / Edge Browser
 | `POST /click` | 点击元素 |
 | `POST /fill` | 输入文本 |
 | `GET /wait` | 等待页面稳定 |
+
+### Extension 路径 (Path A)
+
+| 端点 | 功能 |
+|------|------|
+| `POST /extension/report` | 扩展上报页面语义信号 |
+| `GET /extension/state` | 查看最近扩展状态 |
 
 ### Playwright 路径 (Path C)
 
@@ -61,10 +72,10 @@ Real Chrome / Edge Browser
 
 ```bash
 # Edge (macOS)
-open -a Microsoft\ Edge --args --remote-debugging-port=9222
+open -a Microsoft\ Edge --args --remote-debugging-port=9333
 
 # Chrome
-google-chrome --remote-debugging-port=9222
+google-chrome --remote-debugging-port=9333
 ```
 
 ### 2. 启动 Bridge
@@ -96,10 +107,11 @@ curl -X POST http://127.0.0.1:17777/click -H "Content-Type: application/json" -d
 
 ## 配置
 
-修改 `app/config.py` 或通过环境变量配置：
-- `CDP_HOST`: 浏览器 CDP 地址（默认 `127.0.0.1`）
-- `CDP_PORT`: CDP 端口（默认 `9222`）
-- `BRIDGE_PORT`: Bridge 服务端口（默认 `17777`）
+修改 `bridge/app/config.py`：
+- `BRIDGE_HOST` / `BRIDGE_PORT`（默认 `127.0.0.1:17777`）
+- `CDP_BASE_URL`（默认 `http://127.0.0.1:9333`）
+- `CDP_HOST_HEADER`（默认 `127.0.0.1:9333`）
+- `CDP_WS_BASE_URL`（默认 `ws://127.0.0.1:9333`）
 
 ## 安全边界
 
@@ -121,7 +133,16 @@ cd extension
 - Popup 状态检查
 - 快速页面操作
 - Bridge 连接状态查看
-- 页面语义信号上报（已实现 X 最小 adapter）
+- 页面语义信号上报（已实现 X adapter，支持时间线结构化抽取）
+
+## X 增强（进行中）
+
+- 时间线读取（`/home`、`/search`、`/explore`）
+- `read-page` 中对 X 时间线的轻量滚动预加载（Light Scroll）
+- `skills/x-assistant/` 下提供 `search.py` / `feed.py` / `read_post.py` 脚本
+- Home Feed 支持区分 `for_you` / `following`（中英文标签兼容）
+- Home Feed 默认双流读取（为你推荐 + 正在关注）各 20 条，可配置条数与连续读取
+- 标签复用优先：优先复用同域 tab，避免每次操作新开标签页
 
 ## 技术栈
 

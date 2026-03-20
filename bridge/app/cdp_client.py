@@ -14,6 +14,10 @@ class CdpHttpClient:
         self.base_url = base_url.rstrip("/")
         self.host_header = host_header
         self.timeout = timeout
+        
+        # Bypass any system proxies (like Clash) for local CDP connections
+        proxy_handler = urllib.request.ProxyHandler({})
+        self.opener = urllib.request.build_opener(proxy_handler)
 
     def get_json(self, path):
         body = self.request_text("GET", path)
@@ -37,7 +41,7 @@ class CdpHttpClient:
         req = urllib.request.Request(url, method=method)
         req.add_header("Host", self.host_header)
         try:
-            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+            with self.opener.open(req, timeout=self.timeout) as resp:
                 return resp.read().decode("utf-8")
         except urllib.error.HTTPError as e:
             details = e.read().decode("utf-8", errors="replace") if hasattr(e, 'read') else ''

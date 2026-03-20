@@ -28,6 +28,8 @@ def _get_extension_hint(target_url: Optional[str] = None):
 # Request/Response models
 class OpenRequest(BaseModel):
     url: str
+    reuseExistingTab: bool = False
+    reuseDomain: Optional[str] = None
 
 
 class ActivateRequest(BaseModel):
@@ -48,6 +50,11 @@ class ClickRequest(BaseModel):
 class FillRequest(BaseModel):
     selector: str
     text: str
+    targetId: Optional[str] = None
+
+
+class EvaluateRequest(BaseModel):
+    expression: str
     targetId: Optional[str] = None
 
 
@@ -103,7 +110,14 @@ def tabs():
 @app.post("/open")
 def open_url(req: OpenRequest):
     try:
-        return ok("open", service.open_url(req.url))
+        return ok(
+            "open",
+            service.open_or_reuse_url(
+                req.url,
+                reuse_existing_tab=req.reuseExistingTab,
+                reuse_domain=req.reuseDomain,
+            ),
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -314,6 +328,19 @@ def fill(req: FillRequest):
         if result is None:
             raise HTTPException(status_code=404, detail="page not found")
         return ok("fill", result)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/evaluate")
+def evaluate(req: EvaluateRequest):
+    try:
+        result = service.execute_js(req.expression, target_id=req.targetId)
+        if result is None:
+            raise HTTPException(status_code=404, detail="page not found")
+        return ok("evaluate", {"result": result})
     except HTTPException:
         raise
     except Exception as e:

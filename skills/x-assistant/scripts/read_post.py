@@ -4,15 +4,22 @@ import urllib.request
 
 BRIDGE_URL = "http://127.0.0.1:17777"
 
+proxy_handler = urllib.request.ProxyHandler({})
+opener = urllib.request.build_opener(proxy_handler)
+
 def read_single_post(url):
     try:
         open_req = urllib.request.Request(
             f"{BRIDGE_URL}/open",
-            data=json.dumps({"url": url}).encode('utf-8'),
+            data=json.dumps({
+                "url": url,
+                "reuseExistingTab": True,
+                "reuseDomain": "x.com"
+            }).encode('utf-8'),
             headers={'Content-Type': 'application/json'},
             method='POST'
         )
-        with urllib.request.urlopen(open_req) as res:
+        with opener.open(open_req) as res:
             open_data = json.loads(res.read())
         
         target_id = open_data.get("data", {}).get("id")
@@ -20,13 +27,15 @@ def read_single_post(url):
             print(json.dumps({"ok": False, "error": "Failed to open post page"}))
             return
 
+        opener.open(urllib.request.Request(f"{BRIDGE_URL}/activate", data=json.dumps({"targetId": target_id}).encode('utf-8'), headers={'Content-Type': 'application/json'}, method='POST'))
+
         read_req = urllib.request.Request(
             f"{BRIDGE_URL}/read-page",
             data=json.dumps({"targetId": target_id, "waitForReady": True, "maxChars": 100000}).encode('utf-8'),
             headers={'Content-Type': 'application/json'},
             method='POST'
         )
-        with urllib.request.urlopen(read_req) as res:
+        with opener.open(read_req) as res:
             read_data = json.loads(res.read())
             
         content = read_data.get("data", {}).get("preferredContent")

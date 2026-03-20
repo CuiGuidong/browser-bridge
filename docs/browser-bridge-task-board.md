@@ -1,6 +1,6 @@
 # Browser Bridge Task Board
 
-_Last updated: 2026-03-19_
+_Last updated: 2026-03-20_
 _Status: authoritative next-work list_
 
 ## Done
@@ -54,19 +54,27 @@ _Status: authoritative next-work list_
 - [x] Better split primary post vs surrounding content
 - [x] Better handling for sensitive-content gates
 - [x] Better handling for reply-heavy pages
+- [ ] Continue reducing timeline noise and empty-fragment cases on edge pages
 
 ### Request-aware readiness
 - [x] Request probe exists in architecture
 - [x] Verify adapter can reliably consume request state
 - [x] Make `signals.network` stable and non-null when expected
 - [x] Use network quiet signal in final readiness scoring, not just placeholder logic
+- [ ] Long-session validation across X home/search/post variants
 
-## Not started
+## Completed since 2026-03-20
 
 ### X Smart Search & Timeline Support
-- [ ] Upgrade X adapter (`content.js`) to extract structured timeline lists
-- [ ] Update `read_page` in Bridge to support "Light Scroll" for timelines
-- [ ] Build OpenClaw Skill Wrapper (`x-smart-assistant`) for multi-lingual search and filtering
+- [x] Upgrade X adapter (`content.js`) to extract structured timeline lists
+- [x] Update `read_page` in Bridge to support "Light Scroll" for timelines
+- [x] Build OpenClaw Skill Wrapper (`x-assistant`) for search/feed/read-post workflows
+- [x] Add feed-mode detection (`for_you` / `following`) with Chinese/English tab compatibility
+- [x] Default home feed behavior: read both streams with configurable target count
+- [x] Add low-frequency scroll/read pacing and bounded rounds for risk control
+- [x] Prefer same-domain tab reuse before opening new tabs to reduce tab/memory growth
+
+## Not started
 
 ### GitHub adapter
 - [ ] Detect issue / PR / discussion pages
@@ -75,8 +83,8 @@ _Status: authoritative next-work list_
 - [ ] Add GitHub-specific readiness hints
 
 ### Skill wrapper
-- [ ] Design OpenClaw-facing skill API
-- [ ] Wrap bridge into reusable skill entrypoint
+- [ ] Design unified OpenClaw-facing bridge skill API (not only X)
+- [ ] Wrap bridge into reusable multi-site skill entrypoint
 - [ ] Separate basic / playwright / safe-auth layers if needed
 
 ### Safety enforcement
@@ -90,9 +98,8 @@ _Status: authoritative next-work list_
 
 ## Recommended next order
 
-1. Finish X adapter precision
-2. Stabilize request-aware readiness
-3. Add GitHub adapter
-4. Add skill wrapper
-5. Add safety enforcement
-6. Finalize deployment model
+1. Harden X extraction quality and long-session readiness stability
+2. Add GitHub adapter
+3. Generalize skill wrapper from X-only to bridge-level suite
+4. Add safety enforcement
+5. Finalize deployment model

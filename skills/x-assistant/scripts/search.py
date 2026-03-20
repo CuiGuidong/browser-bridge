@@ -6,6 +6,9 @@ import time
 
 BRIDGE_URL = "http://127.0.0.1:17777"
 
+proxy_handler = urllib.request.ProxyHandler({})
+opener = urllib.request.build_opener(proxy_handler)
+
 def search_x(keyword):
     encoded_kw = urllib.parse.quote(keyword)
     # Using f=live for latest results, or remove for top results
@@ -15,17 +18,23 @@ def search_x(keyword):
         # 1. Open the search URL
         open_req = urllib.request.Request(
             f"{BRIDGE_URL}/open",
-            data=json.dumps({"url": search_url}).encode('utf-8'),
+            data=json.dumps({
+                "url": search_url,
+                "reuseExistingTab": True,
+                "reuseDomain": "x.com"
+            }).encode('utf-8'),
             headers={'Content-Type': 'application/json'},
             method='POST'
         )
-        with urllib.request.urlopen(open_req) as res:
+        with opener.open(open_req) as res:
             open_data = json.loads(res.read())
         
         target_id = open_data.get("data", {}).get("id")
         if not target_id:
             print(json.dumps({"ok": False, "error": "Failed to open search page"}))
             return
+
+        opener.open(urllib.request.Request(f"{BRIDGE_URL}/activate", data=json.dumps({"targetId": target_id}).encode('utf-8'), headers={'Content-Type': 'application/json'}, method='POST'))
 
         # 2. Read the page (Bridge will auto-scroll timelines to load ~20 results)
         read_req = urllib.request.Request(
@@ -34,7 +43,7 @@ def search_x(keyword):
             headers={'Content-Type': 'application/json'},
             method='POST'
         )
-        with urllib.request.urlopen(read_req) as res:
+        with opener.open(read_req) as res:
             read_data = json.loads(res.read())
             
         timeline = read_data.get("data", {}).get("extensionHint", {}).get("content", {}).get("timeline", [])

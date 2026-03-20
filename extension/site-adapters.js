@@ -71,45 +71,105 @@ function cleanXPrimaryText(article, tweetText) {
 
 function extractXTimeline() {
   const cells = Array.from(document.querySelectorAll('[data-testid="cellInnerDiv"]'));
+  const directTweets = Array.from(document.querySelectorAll('[data-testid="tweet"]'));
+  const articleTweets = Array.from(
+    document.querySelectorAll('article[role="article"]')
+  ).filter((el) => !!(el.querySelector('time') || el.querySelector('[data-testid="tweetText"]')));
+
+  const candidateMap = new Map();
+  const addCandidate = (el) => {
+    if (!el) return;
+    const timeEl = el.querySelector('time');
+    const urlEl = timeEl ? timeEl.closest('a') : null;
+    const key = urlEl?.href || el.innerText?.slice(0, 80) || `anon-${candidateMap.size}`;
+    if (!candidateMap.has(key)) candidateMap.set(key, el);
+  };
+
+  for (const cell of cells) addCandidate(cell.querySelector('[data-testid="tweet"]'));
+  for (const tweetEl of directTweets) addCandidate(tweetEl);
+  for (const articleEl of articleTweets) addCandidate(articleEl);
+
+  const tweetNodes = Array.from(candidateMap.values());
   const timeline = [];
-  for (const cell of cells) {
+  for (const tweetEl of tweetNodes) {
     try {
-      const tweetEl = cell.querySelector('[data-testid="tweet"]');
-      if (!tweetEl) continue;
-      const walker = document.createTreeWalker(tweetEl, NodeFilter.SHOW_TEXT, null, false);
-      const fragments = [];
-      let node;
-      while(node = walker.nextNode()) {
-        const parent = node.parentElement;
-        if (!parent) continue;
-        const style = window.getComputedStyle(parent);
-        if (style.display === 'none' || style.visibility === 'hidden') continue;
-        if (['SCRIPT', 'STYLE', 'NOSCRIPT', 'NAV', 'HEADER'].includes(parent.tagName)) continue;
-        const text = node.nodeValue.trim();
-        if (text.length < 2) continue;
-        if (text.length < 15 && /^[\d\,\.]+([KMBkmb万亿]?)$/.test(text)) continue;
-        if (text.length < 20 && /^(查看|显示)\s*(更多|回复|相关|此对话|Show more)/i.test(text)) continue;
-        fragments.push(text);
-      }
       const timeEl = tweetEl.querySelector('time');
       const urlEl = timeEl ? timeEl.closest('a') : null;
       const url = urlEl ? urlEl.href : null;
       const authorEl = tweetEl.querySelector('[data-testid="User-Name"]');
       const authorInfo = authorEl ? authorEl.innerText.replace(/\n/g, ' ') : '';
-      const filtered = [];
-      for (let i = 0; i < fragments.length; i++) {
-        if (i > 0 && fragments[i] === fragments[i-1]) continue;
-        filtered.push(fragments[i]);
+      const publishedAt = timeEl?.getAttribute('datetime') || null;
+      const publishedLabel = (timeEl?.innerText || '').trim() || null;
+
+      const tweetTextNodes = Array.from(tweetEl.querySelectorAll('[data-testid="tweetText"]'));
+      const bodyFromTweetText = tweetTextNodes
+        .map((el) => (el.innerText || '').trim())
+        .filter(Boolean)
+        .join('\n\n')
+        .replace(/\n{4,}/g, '\n\n\n')
+        .trim();
+
+      let textContent = bodyFromTweetText;
+      const fragments = [];
+      if (!textContent) {
+        const walker = document.createTreeWalker(tweetEl, NodeFilter.SHOW_TEXT, null, false);
+        let node;
+        while(node = walker.nextNode()) {
+          const parent = node.parentElement;
+          if (!parent) continue;
+          const style = window.getComputedStyle(parent);
+          if (style.display === 'none' || style.visibility === 'hidden') continue;
+          if (['SCRIPT', 'STYLE', 'NOSCRIPT', 'NAV', 'HEADER'].includes(parent.tagName)) continue;
+          const text = node.nodeValue.trim();
+          if (text.length < 2) continue;
+          if (text.length < 15 && /^[\d\,\.]+([KMBkmb万亿]?)$/.test(text)) continue;
+          if (text.length < 20 && /^(查看|显示)\s*(更多|回复|相关|此对话|Show more)/i.test(text)) continue;
+          fragments.push(text);
+        }
+        const filtered = [];
+        for (let i = 0; i < fragments.length; i++) {
+          if (i > 0 && fragments[i] === fragments[i-1]) continue;
+          filtered.push(fragments[i]);
+        }
+        textContent = filtered.join('\n\n').replace(/\n{4,}/g, '\n\n\n').trim();
       }
-      const textContent = filtered.join('\n\n').replace(/\n{4,}/g, '\n\n\n').trim();
       if (textContent.length > 0) {
-         timeline.push({ authorInfo, url, text: textContent });
+         timeline.push({ authorInfo, publishedAt, publishedLabel, url, text: textContent });
       }
     } catch (err) {
       console.warn('[Browser Bridge] Failed to parse a tweet in timeline', err);
     }
   }
   return timeline;
+}
+
+function detectXHomeFeedMode() {
+  const tabs = Array.from(document.querySelectorAll('[role="tab"]'));
+  if (!tabs.length) {
+    return {
+      mode: null,
+      activeTabText: null,
+      tabTexts: [],
+    };
+  }
+
+  const selected = tabs.find((el) => el.getAttribute('aria-selected') === 'true') || null;
+  const tabTexts = tabs.map((el) => (el.innerText || '').trim()).filter(Boolean);
+  const activeText = (selected?.innerText || '').trim();
+  const normalized = activeText.toLowerCase();
+
+  let mode = null;
+  if (activeText.includes('正在关注') || normalized.includes('following')) {
+    mode = 'following';
+  } else if (activeText.includes('为你推荐') || normalized.includes('for you')) {
+    mode = 'for_you';
+  }
+
+  return {
+    mode,
+    activeTabText: activeText || null,
+    tabTexts,
+  };
 }
 
 const xAdapter = {
@@ -126,6 +186,7 @@ const xAdapter = {
     
     const isTweetDetail = /\/status\/\d+/.test(location.href);
     const isTimeline = location.pathname === '/home' || location.pathname.startsWith('/search') || location.pathname.startsWith('/explore');
+    const feedModeInfo = isTimeline ? detectXHomeFeedMode() : { mode: null, activeTabText: null, tabTexts: [] };
     
     let primaryText = '';
     let timeline = [];
@@ -155,6 +216,9 @@ const xAdapter = {
         isX: true,
         isTweetDetail,
         isTimeline,
+        feedMode: feedModeInfo.mode,
+        activeFeedTabText: feedModeInfo.activeTabText,
+        feedTabTexts: feedModeInfo.tabTexts,
         articleFound: !!article,
         tweetTextFound: !!tweetText,
         loginMask,

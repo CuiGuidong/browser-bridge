@@ -1,4 +1,5 @@
 from urllib.parse import quote
+from urllib.parse import urlparse
 import time
 import json
 
@@ -27,6 +28,16 @@ class BrowserBridgeService:
             return self._normalize_target(target)
         return {"url": url, "raw": target}
 
+    def open_or_reuse_url(self, url, reuse_existing_tab=False, reuse_domain=None):
+        if reuse_existing_tab:
+            reused = self._try_reuse_tab(url, reuse_domain=reuse_domain)
+            if reused:
+                return reused
+
+        opened = self.open_url(url)
+        opened["reused"] = False
+        return opened
+
     def activate_tab(self, target_id):
         self.client.get_text(f"/json/activate/{target_id}")
         return {"targetId": target_id, "activated": True}
@@ -41,6 +52,46 @@ class BrowserBridgeService:
                     return tab
             return None
         return tabs[0]
+
+    def _try_reuse_tab(self, url, reuse_domain=None):
+        tabs = self.list_tabs()
+        if not tabs:
+            return None
+
+        target_host = (urlparse(url).hostname or "").lower()
+        reuse_domain_norm = (reuse_domain or "").strip().lower()
+        candidate = None
+        for tab in tabs:
+            tab_url = tab.get("url") or ""
+            tab_host = (urlparse(tab_url).hostname or "").lower()
+            if not tab_host:
+                continue
+
+            if reuse_domain_norm:
+                if tab_host == reuse_domain_norm or tab_host.endswith(f".{reuse_domain_norm}"):
+                    candidate = tab
+                    break
+            elif target_host and (tab_host == target_host or tab_host.endswith(f".{target_host}")):
+                candidate = tab
+                break
+
+        if candidate is None:
+            return None
+
+        ws_url = candidate.get("webSocketDebuggerUrl")
+        if not ws_url:
+            return None
+
+        try:
+            self.ws_client.call(ws_url, "Page.enable", {})
+            self.ws_client.call(ws_url, "Page.navigate", {"url": url})
+            self.activate_tab(candidate["id"])
+            time.sleep(0.4)
+            updated = self.get_page_info(candidate["id"]) or candidate
+            updated["reused"] = True
+            return updated
+        except Exception:
+            return None
 
     def wait_for_page(self, target_id=None, timeout_seconds=10, interval_seconds=0.5):
         start = time.time()
@@ -92,13 +143,13 @@ class BrowserBridgeService:
         self.execute_js(expression, target_id=target_id)
         time.sleep(1.0 if behavior == "smooth" else 0.2)
         return {"scrolled": True, "distance": distance}
-def get_page_content(self, target_id=None, max_chars=40000):
-    target = self.get_page_info(target_id)
-    if target is None:
-        return None
+    def get_page_content(self, target_id=None, max_chars=40000):
+        target = self.get_page_info(target_id)
+        if target is None:
+            return None
 
-    # Deep extraction expression that pierces Shadow DOM
-    expression = f'''(() => {{
+        # Deep extraction expression that pierces Shadow DOM
+        expression = f'''(() => {{
 const extractText = (root) => {{
 let text = "";
 if (root.nodeType === Node.TEXT_NODE) return root.nodeValue;
@@ -124,18 +175,18 @@ return text + (root.nodeType === Node.ELEMENT_NODE ? "\\n" : "");
 const raw = extractText(document);
 return raw.trim().slice(0, {int(max_chars)});
 }})()'''
-    result = self.ws_client.call(
-        target["webSocketDebuggerUrl"],
-        "Runtime.evaluate",
-        {"expression": expression, "returnByValue": True},
-    )
-    value = ((result.get("result") or {}).get("value"))
-    return {
-        "targetId": target["id"],
-        "title": target.get("title"),
-        "url": target.get("url"),
-        "content": value or "",
-    }
+        result = self.ws_client.call(
+            target["webSocketDebuggerUrl"],
+            "Runtime.evaluate",
+            {"expression": expression, "returnByValue": True},
+        )
+        value = ((result.get("result") or {}).get("value"))
+        return {
+            "targetId": target["id"],
+            "title": target.get("title"),
+            "url": target.get("url"),
+            "content": value or "",
+        }
 
     def capture_screenshot(self, target_id=None, fmt="png"):
         target = self.get_page_info(target_id)
@@ -344,10 +395,13 @@ return raw.trim().slice(0, {int(max_chars)});
   const text = (document.body?.innerText || '').trim();
   const contentLength = text.length;
   const selectorFound = selector ? !!document.querySelector(selector) : null;
-  const xPost = location.hostname.includes('x.com') || location.hostname.includes('twitter.com');
+  const xHost = location.hostname.includes('x.com') || location.hostname.includes('twitter.com');
+  const xTimeline = xHost && (location.pathname === '/home' || location.pathname.startsWith('/search') || location.pathname.startsWith('/explore'));
+  const xPost = xHost && !xTimeline;
   const xArticle = document.querySelector('article');
   const xTweetText = document.querySelector('[data-testid="tweetText"]');
   const xPostReady = !!(xArticle && (xTweetText || (xArticle.innerText || '').trim().length > 80));
+  const xTimelineReady = document.querySelectorAll('article').length >= 3 || document.querySelectorAll('[data-testid="cellInnerDiv"]').length >= 3;
   const title = document.title || '';
   const url = location.href;
   const readyState = document.readyState;
@@ -355,7 +409,7 @@ return raw.trim().slice(0, {int(max_chars)});
   const urlReady = !url.includes('/i/status/') || url.includes('/status/');
   const contentReady = contentLength > 120;
   const genericReady = readyState === 'complete' && titleReady && urlReady && contentReady && (selector ? !!selectorFound : true);
-  const ready = xPost ? (readyState === 'complete' && titleReady && urlReady && xPostReady) : genericReady;
+  const ready = xHost ? (readyState === 'complete' && titleReady && (xTimeline ? xTimelineReady : xPostReady)) : genericReady;
   return {{
     ready,
     readyState,
