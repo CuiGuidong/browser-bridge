@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Query, HTTPException
 from pydantic import BaseModel
 from typing import Optional, List, Any, Dict
+from urllib.parse import urlparse
 import uvicorn
 
 from .config import BRIDGE_HOST, BRIDGE_PORT
@@ -15,13 +16,108 @@ playwright_client = get_playwright_client()
 extension_state = {"lastReport": None, "reports": []}
 
 
-def _get_extension_hint(target_url: Optional[str] = None):
+def _extract_x_status_id(url: Optional[str]) -> Optional[str]:
+    if not url:
+        return None
+    try:
+        parsed = urlparse(url)
+        if "x.com" not in parsed.netloc and "twitter.com" not in parsed.netloc:
+            return None
+        parts = [p for p in parsed.path.split("/") if p]
+        if "status" in parts:
+            idx = parts.index("status")
+            if idx + 1 < len(parts):
+                return parts[idx + 1]
+    except Exception:
+        return None
+    return None
+
+
+def _normalize_url(url: Optional[str]) -> Optional[str]:
+    if not url:
+        return None
+    try:
+        parsed = urlparse(url)
+        path = parsed.path.rstrip("/")
+        if not path:
+            path = "/"
+        return f"{parsed.scheme}://{parsed.netloc}{path}"
+    except Exception:
+        return url
+
+
+def _is_same_page(report_url: Optional[str], target_url: Optional[str]) -> bool:
+    if not report_url or not target_url:
+        return False
+    if _normalize_url(report_url) == _normalize_url(target_url):
+        return True
+    # X can flip between /i/status/<id> and /<user>/status/<id>.
+    report_status_id = _extract_x_status_id(report_url)
+    target_status_id = _extract_x_status_id(target_url)
+    if report_status_id and target_status_id and report_status_id == target_status_id:
+        return True
+    return False
+
+
+def _match_reason(report_url: Optional[str], target_url: Optional[str]) -> Optional[str]:
+    if not report_url or not target_url:
+        return None
+    if _normalize_url(report_url) == _normalize_url(target_url):
+        return "exact_url"
+    report_status_id = _extract_x_status_id(report_url)
+    target_status_id = _extract_x_status_id(target_url)
+    if report_status_id and target_status_id and report_status_id == target_status_id:
+        return "x_status_id"
+    return None
+
+
+def _find_extension_hint_with_debug(target_url: Optional[str] = None):
     report = extension_state.get("lastReport")
+    debug = {
+        "targetUrl": target_url,
+        "targetStatusId": _extract_x_status_id(target_url),
+        "lastReportUrl": ((report or {}).get("page") or {}).get("url"),
+        "lastReportMatchReason": None,
+        "reportsChecked": 0,
+        "matchFound": False,
+        "matchReason": None,
+        "matchedReportIndexFromEnd": None,
+    }
     if not report:
-        return None
-    page = report.get("page") or {}
-    if target_url and page.get("url") != target_url:
-        return None
+        return None, debug
+
+    if not target_url:
+        debug["matchFound"] = True
+        debug["matchReason"] = "no_target_url_use_last_report"
+        return report, debug
+
+    reason = _match_reason(((report.get("page") or {}).get("url")), target_url)
+    debug["lastReportMatchReason"] = reason
+    if reason:
+        debug["matchFound"] = True
+        debug["matchReason"] = reason
+        debug["matchedReportIndexFromEnd"] = 0
+        return report, debug
+
+    reports = extension_state.get("reports") or []
+    checked = 0
+    for idx, item in enumerate(reversed(reports), start=1):
+        checked = idx
+        item_page = item.get("page") or {}
+        reason = _match_reason(item_page.get("url"), target_url)
+        if reason:
+            debug["reportsChecked"] = checked
+            debug["matchFound"] = True
+            debug["matchReason"] = reason
+            debug["matchedReportIndexFromEnd"] = idx - 1
+            return item, debug
+
+    debug["reportsChecked"] = checked
+    return None, debug
+
+
+def _get_extension_hint(target_url: Optional[str] = None):
+    report, _ = _find_extension_hint_with_debug(target_url)
     return report
 
 
@@ -256,7 +352,7 @@ def extension_report(req: ExtensionReportRequest):
         report = req.model_dump()
         extension_state["lastReport"] = report
         extension_state["reports"].append(report)
-        extension_state["reports"] = extension_state["reports"][-20:]
+        extension_state["reports"] = extension_state["reports"][-120:]
         return ok("extension-report", {"accepted": True})
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -266,6 +362,56 @@ def extension_report(req: ExtensionReportRequest):
 def extension_get_state():
     try:
         return ok("extension-state", extension_state)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/debug/extension-match")
+def debug_extension_match(
+    targetId: Optional[str] = Query(None),
+    targetUrl: Optional[str] = Query(None),
+):
+    try:
+        page = None
+        resolved_url = targetUrl
+        if not resolved_url:
+            page = service.get_page_info(targetId)
+            if page is None:
+                raise HTTPException(status_code=404, detail="page not found")
+            resolved_url = page.get("url")
+
+        hint, debug = _find_extension_hint_with_debug(resolved_url)
+        hint_preview = None
+        if hint:
+            hint_page = hint.get("page") or {}
+            hint_signals = hint.get("signals") or {}
+            hint_content = hint.get("content") or {}
+            hint_preview = {
+                "page": {
+                    "url": hint_page.get("url"),
+                    "title": hint_page.get("title"),
+                },
+                "signals": {
+                    "ready": hint_signals.get("ready"),
+                    "isX": hint_signals.get("isX"),
+                    "isTweetDetail": hint_signals.get("isTweetDetail"),
+                    "isTimeline": hint_signals.get("isTimeline"),
+                },
+                "content": {
+                    "primaryTextLength": len(hint_content.get("primaryText") or ""),
+                    "timelineLength": len(hint_content.get("timeline") or []),
+                },
+            }
+
+        return ok("debug-extension-match", {
+            "targetId": targetId or ((page or {}).get("id")),
+            "targetUrl": resolved_url,
+            "debug": debug,
+            "hintFound": bool(hint),
+            "hintPreview": hint_preview,
+        })
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

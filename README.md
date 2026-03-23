@@ -92,6 +92,26 @@ Bridge 默认监听 `http://127.0.0.1:17777`
 
 API 文档：`http://127.0.0.1:17777/docs`
 
+### 2.1 可选：注册 systemd 系统服务（sudo）
+
+```bash
+cd bridge/systemd
+bash install-system-service.sh
+```
+
+常用管理命令：
+
+```bash
+# 查看状态
+bash bridge/systemd/browser-bridgectl.sh status
+
+# 重启
+bash bridge/systemd/browser-bridgectl.sh restart
+
+# 查看最近日志
+bash bridge/systemd/browser-bridgectl.sh logs 120
+```
+
 ### 3. 调用示例
 
 ```bash

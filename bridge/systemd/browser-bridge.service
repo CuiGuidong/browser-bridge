@@ -1,0 +1,30 @@
+[Unit]
+Description=Browser Bridge FastAPI Service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/cuiguidong/.openclaw/workspace/projects/browser-bridge-project/bridge
+ExecStart=/home/cuiguidong/.openclaw/workspace/projects/browser-bridge-project/bridge/run_bridge.sh
+Restart=always
+RestartSec=2
+TimeoutStartSec=30
+TimeoutStopSec=15
+KillMode=process
+SyslogIdentifier=browser-bridge
+
+# Keep local traffic from being hijacked by proxy envs.
+Environment=http_proxy=
+Environment=https_proxy=
+Environment=all_proxy=
+Environment=HTTP_PROXY=
+Environment=HTTPS_PROXY=
+Environment=ALL_PROXY=
+
+# Persistent logs in journald (query with: journalctl -u browser-bridge.service).
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

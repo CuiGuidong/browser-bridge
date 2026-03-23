@@ -126,31 +126,85 @@ async function expandXLongPost() {
   return false;
 }
 
-function cleanXPrimaryText(article, tweetText) {
-  const container = article || document.querySelector('[data-testid="tweetText"]')?.closest('[role="article"]') || document.body;
+function extractRichText(container) {
+  if (!container) return '';
   
-  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null, false);
   const fragments = [];
-  const standaloneNoiseRegex = /^(主页|探索|通知|聊天|Grok|书签|更多|发帖|文章|对话|查看新帖子|订阅|分享|Home|Explore|Notifications|Messages|Bookmarks|More|Post|Articles|Subscribe|Share|什么是新鲜事|What’s happening)$/i;
+  const standaloneNoiseRegex = /^(主页|探索|通知|聊天|Grok|书签|更多|发帖|文章|对话|查看新帖子|订阅|分享|Home|Explore|Notifications|Messages|Bookmarks|More|Post|Articles|Subscribe|Share|什么是新鲜事|What’s happening|搜索|Search|要查看键盘快捷键，按下问号|键盘快捷键)$/i;
 
-  let node;
-  while(node = walker.nextNode()) {
-    const parent = node.parentElement;
-    if (!parent) continue;
-    
-    const style = window.getComputedStyle(parent);
-    if (style.display === 'none' || style.visibility === 'hidden') continue;
-    if (['SCRIPT', 'STYLE', 'NOSCRIPT', 'NAV', 'HEADER'].includes(parent.tagName)) continue;
+  let currentLine = '';
 
-    const text = node.nodeValue.trim();
-    if (text.length < 2) continue;
-    
-    if (text.length < 20 && standaloneNoiseRegex.test(text)) continue;
-    if (text.length < 15 && /^[\d\,\.]+([KMBkmb万亿]?)$/.test(text)) continue;
-    if (text.length < 20 && /^(查看|显示)\s*(更多|回复|相关|此对话)/.test(text)) continue;
+  const flushLine = () => {
+    let trimmed = currentLine.trim();
+    if (trimmed) {
+      if (trimmed.length < 30 && standaloneNoiseRegex.test(trimmed)) {
+        // noise, ignore
+      } else if (trimmed.length < 15 && /^[\d\,\.]+([KMBkmb万亿]?)$/.test(trimmed)) {
+        // metric noise, ignore
+      } else if (trimmed.length < 20 && /^(查看|显示)\s*(更多|回复|相关|此对话|Show more)/i.test(trimmed)) {
+        // action noise, ignore
+      } else {
+        fragments.push(trimmed);
+      }
+    }
+    currentLine = '';
+  };
 
-    fragments.push(text);
-  }
+  const walk = (node) => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      currentLine += node.nodeValue;
+      return;
+    }
+
+    if (node.nodeType === Node.ELEMENT_NODE) {
+      const tagName = node.tagName.toUpperCase();
+      if (['SCRIPT', 'STYLE', 'NOSCRIPT', 'NAV', 'HEADER', 'SVG', 'PATH'].includes(tagName)) return;
+
+      const blockTags = ['DIV', 'P', 'BR', 'ARTICLE', 'LI', 'UL', 'OL', 'SECTION', 'H1', 'H2', 'H3'];
+      if (blockTags.includes(tagName)) {
+        flushLine();
+      }
+
+      if (tagName === 'IMG') {
+        const src = node.src || '';
+        const alt = node.alt || '';
+        
+        // Filter out UI icons, avatars, and hashflags
+        if (!src.includes('profile_images') && !src.includes('semantic_core') && !src.includes('hashflags') && !src.includes('.svg')) {
+          if (src.includes('emoji')) {
+            currentLine += alt; // handle emojis inline
+          } else {
+            flushLine();
+            let mediaText = `[Image: ${src}]`;
+            if (alt && alt !== 'Image' && alt !== '图片' && alt !== '图像') {
+              mediaText = `[Image: ${src} | Alt: ${alt}]`;
+            }
+            fragments.push(mediaText);
+          }
+        }
+      } else if (tagName === 'VIDEO') {
+        flushLine();
+        const poster = node.getAttribute('poster');
+        if (poster) {
+           fragments.push(`[Video | Poster: ${poster}]`);
+        } else {
+           fragments.push(`[Video]`);
+        }
+      }
+
+      // Recursively process child nodes
+      for (const child of Array.from(node.childNodes)) {
+        walk(child);
+      }
+
+      if (blockTags.includes(tagName)) {
+        flushLine();
+      }
+    }
+  };
+
+  walk(container);
+  flushLine();
 
   const filtered = [];
   for (let i = 0; i < fragments.length; i++) {
@@ -158,8 +212,27 @@ function cleanXPrimaryText(article, tweetText) {
     filtered.push(fragments[i]);
   }
 
-  let result = filtered.join('\n\n').replace(/\n{4,}/g, '\n\n\n').trim();
-  return result || tweetText?.innerText?.trim() || '';
+  return filtered.join('\n\n').trim();
+}
+
+function cleanXPrimaryText(article, tweetText) {
+  // Target X Long Articles (Notes) very specifically first based on the title container or rich text view
+  const xArticleRoot = document.querySelector('[data-testid="twitter-article-title"]')?.closest('[role="article"]') 
+                    || document.querySelector('[data-testid="twitterArticleRichTextView"]')?.closest('[role="article"]');
+  
+  if (xArticleRoot) {
+    return extractRichText(xArticleRoot);
+  }
+
+  // Target regular tweets via the exact tweet text and its parent article
+  const tweetRoot = document.querySelector('[data-testid="tweetText"]')?.closest('[role="article"]');
+  if (tweetRoot) {
+    return extractRichText(tweetRoot);
+  }
+
+  // Final fallback
+  const fallbackContainer = article || document.querySelector('article[role="article"]') || document.body;
+  return extractRichText(fallbackContainer);
 }
 
 function extractXTimeline() {
@@ -198,45 +271,12 @@ function extractXTimeline() {
       const publishedAt = timeEl?.getAttribute('datetime') || null;
       const publishedLabel = (timeEl?.innerText || '').trim() || null;
 
-      // Prefer explicit tweetText blocks for cleaner body formatting.
-      const tweetTextNodes = Array.from(tweetEl.querySelectorAll('[data-testid="tweetText"]'));
-      const bodyFromTweetText = tweetTextNodes
-        .map((el) => (el.innerText || '').trim())
-        .filter(Boolean)
-        .join('\n\n')
-        .replace(/\n{4,}/g, '\n\n\n')
-        .trim();
-
-      let textContent = bodyFromTweetText;
-      const fragments = [];
-      if (!textContent) {
-        const walker = document.createTreeWalker(tweetEl, NodeFilter.SHOW_TEXT, null, false);
-        let node;
-        while(node = walker.nextNode()) {
-          const parent = node.parentElement;
-          if (!parent) continue;
-          const style = window.getComputedStyle(parent);
-          if (style.display === 'none' || style.visibility === 'hidden') continue;
-          if (['SCRIPT', 'STYLE', 'NOSCRIPT', 'NAV', 'HEADER'].includes(parent.tagName)) continue;
-          const text = node.nodeValue.trim();
-          if (text.length < 2) continue;
-          if (text.length < 15 && /^[\d\,\.]+([KMBkmb万亿]?)$/.test(text)) continue;
-          if (text.length < 20 && /^(查看|显示)\s*(更多|回复|相关|此对话|Show more)/i.test(text)) continue;
-          fragments.push(text);
-        }
-
-        const filtered = [];
-        for (let i = 0; i < fragments.length; i++) {
-          if (i > 0 && fragments[i] === fragments[i-1]) continue;
-          filtered.push(fragments[i]);
-        }
-        textContent = filtered.join('\n\n').replace(/\n{4,}/g, '\n\n\n').trim();
-      }
+      let textContent = extractRichText(tweetEl);
 
       if (textContent.length > 0) {
          timeline.push({ authorInfo, publishedAt, publishedLabel, url, text: textContent });
       } else {
-         timeline.push({ authorInfo, publishedAt, publishedLabel, url, text: "EMPTY_TEXT_FRAGMENTS", debug: fragments });
+         timeline.push({ authorInfo, publishedAt, publishedLabel, url, text: "EMPTY_TEXT_FRAGMENTS" });
       }
     } catch (err) {
       console.warn('[Browser Bridge] Failed to parse a tweet in timeline', err);
@@ -276,7 +316,7 @@ function detectXHomeFeedMode() {
 }
 
 function collectXSnapshot(base) {
-  const article = document.querySelector('article');
+  const article = document.querySelector('article[role="article"]');
   const tweetText = document.querySelector('[data-testid="tweetText"]');
   const loginMask = !!document.querySelector('[role="dialog"], [data-testid="sheetDialog"]');
   const sensitiveGate = /(敏感内容|sensitive content|age-restricted|成人内容|adult content)/i.test(document.body?.innerText || '');

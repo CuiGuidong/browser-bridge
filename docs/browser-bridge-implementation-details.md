@@ -135,3 +135,40 @@ _本文档记录了开发过程中发现的关键实现细节、技术坑点（G
 ### 默认行为（feed.py）
 - 默认读取双流：`for_you` + `following`，各 20 条
 - 支持自定义条数和连续读取（`--continuous`），但受上述节流与轮次限制
+
+## 6. systemd 系统服务化启动坑（OrbStack/LXC 环境）
+
+### 坑 1：`StandardOutput=append:/path/file` 可能早于 `ExecStartPre`
+
+**现象：**
+- 服务启动失败，`status=209/STDOUT`
+- 日志中出现 `Failed to set up standard output: No such file or directory`
+
+**原因：**
+- systemd 在执行 `ExecStartPre` 之前就会先处理 stdout/stderr 目标
+- 当日志目录尚不存在时，服务直接在 STDOUT 阶段失败
+
+**做法：**
+- 在该环境下优先使用 `StandardOutput=journal` / `StandardError=journal`
+- 用 `journalctl -u browser-bridge.service` 查看日志
+
+### 坑 2：启动脚本未设置可执行位
+
+**现象：**
+- 服务启动失败，`status=203/EXEC`
+- 日志出现 `Permission denied` 或 `Failed at step EXEC`
+
+**原因：**
+- `run_bridge.sh` 没有 `+x`
+
+**做法：**
+- `chmod +x bridge/run_bridge.sh`
+- 然后执行：
+  - `sudo systemctl reset-failed browser-bridge.service`
+  - `sudo systemctl restart browser-bridge.service`
+
+### 推荐排障顺序（systemd 模式）
+
+1. `systemctl status browser-bridge.service --no-pager -l`
+2. `journalctl -u browser-bridge.service -n 120 --no-pager`
+3. `curl --noproxy '*' http://127.0.0.1:17777/health`

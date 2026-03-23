@@ -1,6 +1,29 @@
+---
+name: x-assistant
+description: >-
+  Use this skill whenever the user asks anything about X (Twitter) content retrieval.
+  Hard triggers include any x.com/twitter.com URL, "read this tweet/post/thread",
+  "看这条推文", "阅读推文", "总结这条X", "X搜索", "搜推文", "看首页时间线", and "for you/following".
+  Route single-post reads to scripts/read_post.py first, searches to scripts/search.py,
+  and home feed reads to scripts/feed.py. Prefer this skill over generic web reading for X tasks.
+version: 1.1.0
+---
+
 # X (Twitter) Smart Assistant
 
 这是一个专为 OpenClaw Agent 设计的 X (Twitter) 高级助理 Skill。它通过底层的 `browser-bridge` 与用户真实的浏览器交互，实现极高安全性的“拟人化”信息获取。
+
+## Trigger Rules (Hard)
+以下情况必须优先调用本技能，不要先走通用网页抓取：
+1. 用户给出 `https://x.com/...` 或 `https://twitter.com/...` 链接（尤其含 `/status/`）。
+2. 用户要求“阅读/总结/解释这条推文（tweet/post/thread）”。
+3. 用户要求 X 内搜索（如“搜 X 上关于 xxx 的讨论”）。
+4. 用户要求读取 X 首页流（`for_you` / `following` / 双流）。
+
+路由规则：
+1. 单帖阅读：`python3 scripts/read_post.py "<x_status_url>"`
+2. 搜索：`python3 scripts/search.py "<keyword>"`
+3. 首页时间线：`python3 scripts/feed.py [for_you|following|both] [count] [--continuous]`
 
 ## 你的角色 (The "Smart" Orchestrator)
 你作为 Agent，是这个过程中的“大脑”。底层脚本只负责提取 DOM 中的推文（“手”和“眼睛”）。你必须负责：
@@ -54,3 +77,9 @@ python3 scripts/read_post.py "https://x.com/..."
 
 `search.py` 与 `read_post.py` 继续返回 JSON 结构化结果。
 你需要解析这个 JSON，并用人类可读的方式呈现给用户。
+
+## Gotchas（高频坑）
+1. `open` 后第一轮 `read-page` 可能拿不到扩展内容（上报时序竞争），应短重试。
+2. `activate` 后也可能出现焦点和扩展上报不一致，必要时从 `/extension/state` 回捞对应页面数据。
+3. 某些 X 页面 CDP 纯文本可能为空，不能只依赖 `preferredContent` 一次读取。
+4. 搜索场景优先结构化 `timeline`，无结构化结果时再降级到原始文本并显式标注 `warning`。

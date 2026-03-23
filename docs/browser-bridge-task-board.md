@@ -76,12 +76,6 @@ _Status: authoritative next-work list_
 
 ## Not started
 
-### GitHub adapter
-- [ ] Detect issue / PR / discussion pages
-- [ ] Extract primary issue / PR body
-- [ ] Detect comments timeline separately
-- [ ] Add GitHub-specific readiness hints
-
 ### Skill wrapper
 - [ ] Design unified OpenClaw-facing bridge skill API (not only X)
 - [ ] Wrap bridge into reusable multi-site skill entrypoint
@@ -99,7 +93,6 @@ _Status: authoritative next-work list_
 ## Recommended next order
 
 1. Harden X extraction quality and long-session readiness stability
-2. Add GitHub adapter
-3. Generalize skill wrapper from X-only to bridge-level suite
-4. Add safety enforcement
-5. Finalize deployment model
+2. Generalize skill wrapper from X-only to bridge-level suite
+3. Add safety enforcement
+4. Finalize deployment model
