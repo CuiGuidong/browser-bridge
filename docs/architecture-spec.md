@@ -57,11 +57,9 @@ Agent / OpenClaw skill
 - 将扩展层上报的数据 (hints) 与 CDP 兜底抓取的数据进行合并
 
 ### 4.4 扩展层 (Extension Layer)
-职责：
-- 观察并理解页面语义
-- 包含特定网站的适配器 (site-specific adapters)
-- 向 Bridge 持续上报当前活跃页面的状态
-- 提供高频网站的数据解析（目前已实现 X / Twitter）
+扩展层采用**依赖反转的插件注册表模式 (Plugin Registry Pattern)**进行构建：
+- **核心生命引擎 (`content.js`)**：注入所有网页，提供网络探针、DOM `MutationObserver` 监听、基础页面快照及通信能力。它在全局维护一个注册表 `window.BrowserBridgeAdapters = []`。
+- **网站插件 (`adapters/*.js`)**：通过 `manifest.json` 按需加载（例如只在 `x.com` 注入 `x-adapter.js`）。插件负责执行极其复杂的 DOM 树解析，并将自身挂载到底座的注册表中，与底座完全解耦。
 
 ### 4.5 Playwright 附加层
 职责：
@@ -123,15 +121,11 @@ Bridge **绝不能**把单纯的死等 (`sleep`) 作为主要的加载判断策�
 ## 7. 网站适配器模型 (Site Adapter Model)
 
 适配器抽象必须支持以下功能：
-- `match()`: 匹配域名
-- `collect()`: 收集页面数据
-- 对页面进行语义分类
-- 提取页面的核心内容 (Primary content extraction)
-- 专属网站的就绪状态判断
+- `match()`: 匹配当前环境是否适用此适配器。
+- `collect(baseSnapshot)`: 接收通用底座生成的快照基础信息，并在其上叠加专属的结构化内容、语义分类、及自定义的就绪状态判断。
 
 当前的适配器：
-- `generic` (通用)
-- `x` (Twitter)
+- `adapters/x-adapter.js` (深度解析 X 的长文章及图文混排结构)
 
 针对 X 的专有 Skill 封装：
 - `skills/x-assistant` (包含搜索、首页流、单帖读取脚本)
