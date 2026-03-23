@@ -70,11 +70,16 @@ Real Chrome / Edge Browser
 
 ### 1. 启动带 CDP 的浏览器
 
+**非常重要：Bridge 必须依赖宿主机浏览器开启 CDP 端口运行！**
+
 ```bash
 # Edge (macOS)
-open -a Microsoft\ Edge --args --remote-debugging-port=9333
+open -a "Microsoft Edge" --args --remote-debugging-port=9333
 
-# Chrome
+# Chrome (macOS)
+open -a "Google Chrome" --args --remote-debugging-port=9333
+
+# Chrome (Linux)
 google-chrome --remote-debugging-port=9333
 ```
 
@@ -133,6 +138,14 @@ curl -X POST http://127.0.0.1:17777/click -H "Content-Type: application/json" -d
 - `CDP_HOST_HEADER`（默认 `127.0.0.1:9333`）
 - `CDP_WS_BASE_URL`（默认 `ws://127.0.0.1:9333`）
 
+## ⚠️ 常见排障与避坑 (Troubleshooting)
+
+1. **服务连通性报错 / Connection Refused (HTTP 500)**
+   * **症状**：AI Agent 调用 `open` 或 `read_page` 脚本时，一直循环报错甚至直接抛出 `Connection refused` 500 错误。
+   * **根因**：**宿主机的浏览器没有启动，或者没有开启调试端口！** AI Agent 常常误以为是 bridge 的代码写错了或扩展坏了。
+   * **解决**：立即让用户在宿主机运行启动命令：`open -a "Microsoft Edge" --args --remote-debugging-port=9333`。
+2. **更多深度技术坑点**：请阅读 `docs/implementation-guide.md`。
+
 ## 安全边界
 
 以下动作**必须人工确认**：
@@ -153,13 +166,13 @@ cd extension
 - Popup 状态检查
 - 快速页面操作
 - Bridge 连接状态查看
-- 页面语义信号上报（已实现 X adapter，支持时间线结构化抽取）
+- 页面语义信号上报（已实现 X adapter，支持时间线与多媒体图文结构化抽取）
 
 ## X 增强（进行中）
 
 - 时间线读取（`/home`、`/search`、`/explore`）
 - `read-page` 中对 X 时间线的轻量滚动预加载（Light Scroll）
-- `skills/x-assistant/` 下提供 `search.py` / `feed.py` / `read_post.py` 脚本
+- `skills/x-assistant/` 下提供 `search.py` / `feed.py` / `read_post.py` 脚本，支持广告过滤与降噪
 - Home Feed 支持区分 `for_you` / `following`（中英文标签兼容）
 - Home Feed 默认双流读取（为你推荐 + 正在关注）各 20 条，可配置条数与连续读取
 - 标签复用优先：优先复用同域 tab，避免每次操作新开标签页
