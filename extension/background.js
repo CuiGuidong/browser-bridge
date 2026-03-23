@@ -1,5 +1,4 @@
 // Background service worker for Browser Bridge Extension
-importScripts('site-adapters.js');
 
 const BRIDGE_URL = 'http://127.0.0.1:17777';
 const X_OBSERVE_WINDOW_MS = 15000;

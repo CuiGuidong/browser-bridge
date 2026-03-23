@@ -1,39 +1,15 @@
-// Site adapter registry for Browser Bridge Extension
+// X (Twitter) Adapter for Browser Bridge
 
-function getRequestProbeState() {
-  try {
-    const attr = document.documentElement?.getAttribute('data-browser-bridge-probe');
-    if (!attr) return null;
-    const state = JSON.parse(attr);
-    if (state.lastRequestFinishedAt) {
-      state.quietMs = Date.now() - state.lastRequestFinishedAt;
-    }
-    return state;
-  } catch {
-    return null;
+async function expandXLongPost() {
+  const showMore = Array.from(document.querySelectorAll('div[role="button"]'))
+    .find(el => /显示更多|Show more/i.test(el.innerText));
+  if (showMore) {
+    showMore.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    await new Promise(r => setTimeout(r, 800));
+    showMore.click();
+    return true;
   }
-}
-
-function collectGenericSnapshot() {
-  const text = (document.body?.innerText || '').trim();
-  const network = getRequestProbeState();
-  return {
-    site: location.hostname,
-    page: {
-      url: location.href,
-      title: document.title || '',
-      hostname: location.hostname,
-    },
-    signals: {
-      readyState: document.readyState,
-      bodyTextLength: text.length,
-      network,
-      ready: text.length > 120 && document.readyState === 'complete',
-    },
-    content: {
-      primaryText: text,
-    },
-  };
+  return false;
 }
 
 function extractRichText(container) {
@@ -150,7 +126,9 @@ function extractXTimeline() {
   const directTweets = Array.from(document.querySelectorAll('[data-testid="tweet"]'));
   const articleTweets = Array.from(
     document.querySelectorAll('article[role="article"]')
-  ).filter((el) => !!(el.querySelector('time') || el.querySelector('[data-testid="tweetText"]')));
+  ).filter((el) => {
+    return !!(el.querySelector('time') || el.querySelector('[data-testid="tweetText"]'));
+  });
 
   const candidateMap = new Map();
   const addCandidate = (el) => {
@@ -181,9 +159,12 @@ function extractXTimeline() {
 
       if (textContent.length > 0) {
          timeline.push({ authorInfo, publishedAt, publishedLabel, url, text: textContent });
+      } else {
+         timeline.push({ authorInfo, publishedAt, publishedLabel, url, text: "EMPTY_TEXT_FRAGMENTS" });
       }
     } catch (err) {
       console.warn('[Browser Bridge] Failed to parse a tweet in timeline', err);
+      timeline.push({ error: err.toString(), message: err.message, stack: err.stack });
     }
   }
   return timeline;
@@ -223,9 +204,7 @@ const xAdapter = {
   match() {
     return location.hostname.includes('x.com') || location.hostname.includes('twitter.com');
   },
-  collect() {
-    const base = collectGenericSnapshot();
-    
+  collect(baseSnapshot) {
     const article = document.querySelector('article[role="article"]');
     const tweetText = document.querySelector('[data-testid="tweetText"]');
     const loginMask = !!document.querySelector('[role="dialog"], [data-testid="sheetDialog"]');
@@ -247,19 +226,21 @@ const xAdapter = {
       timeline = extractXTimeline();
     }
 
-    const network = getRequestProbeState();
-    const networkQuiet = !network || network.pending === 0 && (network.quietMs === null || network.quietMs > 800);
+    const network = baseSnapshot.signals.network;
+    const networkQuiet = !network || (network.pending === 0 && (network.quietMs === null || network.quietMs > 800));
+    
     const ready = !!(
       document.readyState === 'complete' &&
       ((isTweetDetail && primaryText.length > 20) || (isTimeline && timeline.length > 0) || (!isTweetDetail && !isTimeline && document.body.innerText.length > 100)) &&
       !loginMask &&
       networkQuiet
     );
+    
     return {
       site: 'x',
-      page: base.page,
+      page: baseSnapshot.page,
       signals: {
-        ...base.signals,
+        ...baseSnapshot.signals,
         isX: true,
         isTweetDetail,
         isTimeline,
@@ -278,14 +259,9 @@ const xAdapter = {
         timeline: timeline,
       },
     };
-  },
+  }
 };
 
-function getActiveAdapter() {
-  const adapters = [xAdapter, genericAdapter];
-  return adapters.find((adapter) => adapter.match()) || genericAdapter;
-}
-
-function collectActiveSiteSnapshot() {
-  return getActiveAdapter().collect();
-}
+// Auto-register to the global registry
+window.BrowserBridgeAdapters = window.BrowserBridgeAdapters || [];
+window.BrowserBridgeAdapters.push(xAdapter);
