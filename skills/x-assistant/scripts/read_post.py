@@ -3,6 +3,7 @@ import json
 import urllib.request
 import time
 from urllib.parse import urlparse
+from image_utils import process_and_spawn_downloads
 
 BRIDGE_URL = "http://127.0.0.1:17777"
 
@@ -129,6 +130,8 @@ def read_single_post(url):
         if not content:
             print(json.dumps({"ok": False, "error": "No content found after retries. Page might be restricted or loading failed."}))
             return
+
+        content = process_and_spawn_downloads(content)
 
         print(json.dumps({
             "ok": True, 
