@@ -312,7 +312,6 @@ def read_page(req: ReadPageRequest):
         page = service.get_page_info(req.targetId)
         if page is None:
             raise HTTPException(status_code=404, detail="page not found")
-        extension_hint = _get_extension_hint(page.get("url"))
         result = service.read_page(
             target_id=req.targetId,
             max_chars=req.maxChars,
@@ -323,14 +322,21 @@ def read_page(req: ReadPageRequest):
         )
         if result is None:
             raise HTTPException(status_code=404, detail="page not found")
+            
+        extension_hint = _get_extension_hint(page.get("url"))
+        
         if extension_hint:
+            hint_signals = extension_hint.get("signals") or {}
+            hint_content = extension_hint.get("content") or {}
+            
             result["extensionHint"] = {
                 "page": extension_hint.get("page"),
-                "signals": extension_hint.get("signals"),
-                "content": extension_hint.get("content"),
+                "signals": hint_signals,
+                "content": hint_content,
             }
-            content = (extension_hint.get("content") or {}).get("primaryText")
-            if content:
+            content = hint_content.get("primaryText")
+            
+            if content and hint_signals.get("ready") is True:
                 result["preferredContent"] = content[: req.maxChars]
                 result["preferredContentSource"] = "extension"
             else:
