@@ -1,39 +1,84 @@
 ---
 name: x-assistant
 description: >-
-  Use this skill whenever the user asks anything about X (Twitter) content retrieval.
-  Hard triggers include any x.com/twitter.com URL, "read this tweet/post/thread",
-  "看这条推文", "阅读推文", "总结这条X", "X搜索", "搜推文", "看首页时间线", and "for you/following".
-  Route single-post reads to scripts/read_post.py first, searches to scripts/search.py,
-  and home feed reads to scripts/feed.py. Prefer this skill over generic web reading for X tasks.
-version: 1.1.0
+  Use this skill whenever the user asks anything about X (Twitter): reading posts,
+  searching, home feed, bookmarks, following or unfollowing users, and adding or removing bookmarks.
+  Hard triggers include any x.com/twitter.com URL, "read this tweet/post/thread", "看这条推文",
+  "X搜索", "首页时间线", "书签", "关注作者", "取关", "加书签", and "移除书签".
+version: 2.0.0
 ---
 
-# X (Twitter) Smart Assistant
+# X Assistant
 
-## 1. 路由执行规则 (Routing Rules)
+## 1. 路由规则
 
-命中以下场景时，直接执行对应的专属脚本：
+命中以下场景时，直接执行对应脚本：
 
-*   **场景 A：用户提供推文链接 (含 `/status/`)，或要求“阅读这条推文”**
-    *   **执行：** `python3 skills/x-assistant/scripts/read_post.py "<URL>"`
+- 阅读单条推文：
+  `python3 skills/x-assistant/scripts/read_post.py "<URL>"`
 
-*   **场景 B：在 X 上搜索内容 (例如：“搜一下关于 xxx 的讨论”)**
-    *   **执行：** `python3 skills/x-assistant/scripts/search.py "<keyword>"`
-    *   *说明：* 对宽泛概念（如“AI智能体”），须将其拆解为中英双语精准关键词（如 "AI Agents" 和 "AI智能体"），分多次调用本脚本，最后由你合并去重。一次任务最多搜索 3 次。
+- 在 X 搜索：
+  `python3 skills/x-assistant/scripts/search.py "<keyword>"`
 
-*   **场景 C：查看首页、刷时间线 (例如：“看看今天 X 上有什么新鲜事”)**
-    *   **执行：** `python3 skills/x-assistant/scripts/feed.py [for_you|following|both] [count]`
+- 查看首页时间线：
+  `python3 skills/x-assistant/scripts/feed.py [for_you|following|both] [count]`
 
-## 2. 多模态与图片阅读 (Vision & Images)
+- 查看书签列表：
+  `python3 skills/x-assistant/scripts/bookmarks.py [count]`
 
-当推文包含配图时，底层脚本已在后台异步下载这些图片，并在 JSON 文本中插入双锚点标签：
+- 关注用户：
+  `python3 skills/x-assistant/scripts/follow_user.py "<handle|profile_url>"`
+
+- 取消关注用户：
+  `python3 skills/x-assistant/scripts/unfollow_user.py "<handle|profile_url>"`
+
+- 添加书签：
+  `python3 skills/x-assistant/scripts/add_bookmark.py "<post_url>"`
+
+- 移除书签：
+  `python3 skills/x-assistant/scripts/remove_bookmark.py "<post_url>"`
+
+## 2. 上下文推断
+
+当用户说这些相对指代时，可以优先从当前对话里最近一次 X 结果推断：
+
+- “关注作者 / follow 这个作者”
+- “取消关注这个作者”
+- “把这条加入书签”
+- “把这条从书签移除”
+
+推断规则：
+
+- 如果上一条是 `read_post.py` 结果，优先使用其中的 `author.handle` 或 `post.url`
+- 如果上一条是搜索、时间线、书签列表结果，只有在用户明确指向某一条时才执行
+- 如果指向不明确，就先问一个简短澄清问题，不要猜
+
+## 3. 风险与约束
+
+- `follow_user`、`unfollow_user`、`add_bookmark`、`remove_bookmark` 都会改账号状态
+- 这些动作已经有桥端节流和操作日志，但仍应保持低频
+- 执行状态变更动作后，应在答复里明确说出：
+  - 是否真的发生变化
+  - 是否验证成功
+
+## 4. 图片处理
+
+当推文正文包含图片标签时，底层脚本会把：
+
+`[Image: URL]`
+
+替换成：
+
 `[Image Local: /tmp/browser-bridge-cache/xxxx.jpg | Remote: https://...]`
 
-*   **看图机制：** 请根据用户的需求，自行判断是否需要查看图片内容来辅助回答问题。你可以直接读取标签中的 `Local` 绝对路径来获取图片。
+需要看图时，可直接读取 `Local` 路径。
 
-## 3. 数据处理与输出要求
+## 5. 输出要求
 
-1. 脚本会返回结构化的 JSON 数据。
-2. 请解析 JSON 并提取核心信息（如 `text`, `authorInfo`）。
-3. 根据用户的提问，用自然、流畅的语言（如 Markdown、列表）进行总结或解答。
+- 脚本返回的是 JSON
+- 优先提取结构化字段，不要只复述整段文本
+- 阅读类请求要总结核心内容
+- 动作类请求要明确：
+  - `changed`
+  - `verified`
+  - 目标是谁或哪条推文

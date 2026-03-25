@@ -1,34 +1,19 @@
-import sys
+import hashlib
 import json
-import urllib.request
+import sys
 import time
 from datetime import datetime, timezone
-import hashlib
 
-BRIDGE_URL = "http://127.0.0.1:17777"
+from bridge_client import open_and_activate, post_json, site_action, site_read
+from image_utils import process_and_spawn_downloads
+from x_item_utils import dedup_and_score
 
-# Bypass system proxies for local bridge requests
-proxy_handler = urllib.request.ProxyHandler({})
-opener = urllib.request.build_opener(proxy_handler)
 
-# Safety/risk-control defaults
 READ_INTERVAL_SECONDS = 1.6
 SCROLL_INTERVAL_SECONDS = 2.8
 MAX_SCROLL_ROUNDS_DEFAULT = 12
 MAX_SCROLL_ROUNDS_CONTINUOUS = 30
 
-def _post_json(path, payload, timeout=90):
-    try:
-        req = urllib.request.Request(
-            f"{BRIDGE_URL}{path}",
-            data=json.dumps(payload).encode('utf-8'),
-            headers={'Content-Type': 'application/json'},
-            method='POST'
-        )
-        with opener.open(req, timeout=timeout) as res:
-            return json.loads(res.read())
-    except Exception as e:
-        return {"error": str(e)}
 
 def _normalize_feed_type(feed_type):
     val = (feed_type or "").strip().lower()
@@ -40,147 +25,41 @@ def _normalize_feed_type(feed_type):
         return "both"
     return "for_you"
 
+
 def _open_home_target():
-    open_data = _post_json(
-        "/open",
-        {
-            "url": "https://x.com/home",
-            "reuseExistingTab": True,
-            "reuseDomain": "x.com"
-        },
+    target_id, _ = open_and_activate(
+        "https://x.com/home",
+        reuse_domain="x.com",
+        reuse_existing_tab=True,
         timeout=40,
+        expected_url_substring="/home",
     )
-    target_id = open_data.get("data", {}).get("id")
     if not target_id:
         raise RuntimeError("Failed to open home page")
-    _post_json("/activate", {"targetId": target_id}, timeout=30)
-    
-    # Base wait for page rendering and extension
-    time.sleep(1.5)
     return target_id
 
-def _build_switch_script(desired_mode):
-    is_following = desired_mode == "following"
-    tab_text_zh = "正在关注" if is_following else "为你推荐"
-    tab_text_en = "Following" if is_following else "For you"
-    return f'''(() => {{
-        const tabs = Array.from(document.querySelectorAll('[role="tab"]'));
-        const selected = tabs.find(el => el.getAttribute('aria-selected') === 'true') || null;
-        const selectedText = selected ? (selected.innerText || '').trim() : null;
-        const target = tabs.find(el => {{
-            const txt = (el.innerText || '').trim();
-            const lower = txt.toLowerCase();
-            return txt.includes("{tab_text_zh}") || txt.includes("{tab_text_en}") || lower.includes("{tab_text_en}".toLowerCase());
-        }});
-        if (target) {{
-            const beforeText = (target.innerText || '').trim();
-            target.click();
-            return {{
-                clicked: true,
-                targetText: beforeText || null,
-                selectedText,
-                allTabs: tabs.map(el => (el.innerText || '').trim()).filter(Boolean)
-            }};
-        }}
-        return {{
-            clicked: false,
-            selectedText,
-            allTabs: tabs.map(el => (el.innerText || '').trim()).filter(Boolean)
-        }};
-    }})()'''
 
 def _scroll_script():
-    return '''(() => {
+    return """(() => {
         window.scrollBy({ top: 950, left: 0, behavior: 'smooth' });
         return true;
-    })()'''
+    })()"""
+
 
 def _read_page(target_id):
-    # Try 3 times to get extension data with 1.5s interval
-    for attempt in range(3):
-        read_data = _post_json(
-            "/read-page",
-            {"targetId": target_id, "waitForReady": True, "maxChars": 100000},
-            timeout=90,
-        )
-        if "error" not in read_data:
-            source = read_data.get("data", {}).get("preferredContentSource")
-            timeline = read_data.get("data", {}).get("extensionHint", {}).get("content", {}).get("timeline", [])
-            # For feed, we really want that extension timeline
-            if source == "extension" and timeline:
-                return read_data
-        
-        if attempt < 2:
-            time.sleep(1.5)
-            
-    # Return whatever we got as fallback
-    return read_data
+    return site_read(
+        "x",
+        "read_timeline",
+        params={
+            "waitForReady": True,
+            "intervalSeconds": 1,
+            "maxChars": 100000,
+        },
+        target_id=target_id,
+        timeout_seconds=90,
+        timeout=100,
+    )
 
-def analyze_item(item):
-    text = (item.get("text") or "").strip()
-    author_info = (item.get("authorInfo") or "").strip()
-    
-    is_ad = "Promoted" in text or "赞助" in text or "Ad" in author_info
-    is_retweet = "RT @" in text or "Retweeted" in author_info or "转推了" in author_info
-    
-    # Basic scoring
-    score = 50
-    score += min(len(text) // 10, 30) # Reward length up to a point
-    
-    if "http" in text or "[Image:" in text or "[Video" in text:
-        score += 10 # Reward containing links/media
-        
-    if len(text) < 20 and ("http" in text or "[Image:" in text):
-        score -= 10 # Penalize if it's just a short text with a link (often spam)
-        
-    signal_type = "original"
-    if is_ad:
-        signal_type = "ad"
-        score -= 100
-    elif is_retweet:
-        signal_type = "retweet"
-        score -= 10
-    elif len(text) < 15 and not ("http" in text or "[Image:" in text):
-        signal_type = "low-info"
-        score -= 30
-
-    # Determine click-worthiness
-    worth_reading = score > 40 and not is_ad
-    
-    return {
-        "signal_type": signal_type,
-        "score": score,
-        "is_ad": is_ad,
-        "is_worth_reading": worth_reading
-    }
-
-def dedup_and_score(items):
-    seen_urls = set()
-    seen_texts = set()
-    deduped = []
-    
-    for item in items:
-        url = (item.get("url") or "").strip()
-        text = (item.get("text") or "").strip()
-        
-        # URL dedup
-        if url and url in seen_urls:
-            continue
-        
-        # Text dedup (basic exact match or hash)
-        text_hash = hashlib.md5(text.encode('utf-8')).hexdigest()
-        if text_hash in seen_texts:
-            continue
-            
-        if url: seen_urls.add(url)
-        seen_texts.add(text_hash)
-        
-        item["analysis"] = analyze_item(item)
-        deduped.append(item)
-        
-    # Sort by score descending
-    deduped.sort(key=lambda x: x["analysis"]["score"], reverse=True)
-    return deduped
 
 def _collect_feed_items(target_id, desired_mode, target_count=20, continuous=False):
     seen = set()
@@ -188,8 +67,8 @@ def _collect_feed_items(target_id, desired_mode, target_count=20, continuous=Fal
     last_read_data = {}
     switch_result = None
     scroll_rounds = 0
+    mismatch_rounds = 0
     max_scroll_rounds = MAX_SCROLL_ROUNDS_CONTINUOUS if continuous else MAX_SCROLL_ROUNDS_DEFAULT
-
     consecutive_empty_reads = 0
 
     while True:
@@ -197,12 +76,11 @@ def _collect_feed_items(target_id, desired_mode, target_count=20, continuous=Fal
         if "error" in read_data:
             time.sleep(READ_INTERVAL_SECONDS)
             continue
-            
+
         last_read_data = read_data
         data = read_data.get("data", {})
-        ext = data.get("extensionHint", {}) or {}
-        signals = ext.get("signals", {}) or {}
-        timeline = (ext.get("content", {}) or {}).get("timeline", []) or []
+        signals = data.get("signals", {}) or {}
+        timeline = (data.get("content", {}) or {}).get("timeline", []) or []
         actual_mode = signals.get("feedMode")
 
         if not timeline:
@@ -227,27 +105,30 @@ def _collect_feed_items(target_id, desired_mode, target_count=20, continuous=Fal
 
         if not continuous and len(raw_collected) >= target_count and actual_mode == desired_mode:
             break
-
         if scroll_rounds >= max_scroll_rounds:
             break
 
-        # Mode mismatch: try switching before next read.
         if actual_mode != desired_mode:
-            switch_script = _build_switch_script(desired_mode)
+            mismatch_rounds += 1
+            if mismatch_rounds > 5:
+                break
             try:
-                switch_result = _post_json(
-                    "/evaluate",
-                    {"expression": switch_script, "targetId": target_id},
-                    timeout=30,
+                switch_result = site_action(
+                    "x",
+                    "switch_feed",
+                    params={"mode": desired_mode},
+                    target_id=target_id,
+                    timeout_seconds=30,
+                    timeout=40,
                 )
             except Exception:
                 pass
             time.sleep(READ_INTERVAL_SECONDS)
             continue
+        mismatch_rounds = 0
 
-        # Mode aligned but not enough items: controlled scroll (low frequency).
         try:
-            _post_json("/evaluate", {"expression": _scroll_script(), "targetId": target_id}, timeout=30)
+            post_json("/evaluate", {"expression": _scroll_script(), "targetId": target_id}, timeout=30)
         except Exception:
             pass
         scroll_rounds += 1
@@ -255,32 +136,31 @@ def _collect_feed_items(target_id, desired_mode, target_count=20, continuous=Fal
 
     deduped_items = dedup_and_score(raw_collected)
     final_items = deduped_items if continuous else deduped_items[:target_count]
-
+    deduped_items = process_and_spawn_downloads(deduped_items)
+    final_items = process_and_spawn_downloads(final_items)
     data = (last_read_data or {}).get("data", {}) or {}
-    ext = data.get("extensionHint", {}) or {}
-    signals = ext.get("signals", {}) or {}
-    source = data.get("preferredContentSource")
-    
+
     return {
         "raw_items": raw_collected,
+        "deduped_items": deduped_items,
         "items": final_items,
-        "source": source,
-        "signals": signals,
-        "switch_result": ((switch_result or {}).get("data") or {}).get("result"),
-        "last_read_data": last_read_data,
+        "source": data.get("source"),
+        "signals": data.get("signals", {}) or {},
+        "switch_result": (switch_result or {}).get("data"),
         "scroll_rounds": scroll_rounds,
     }
+
 
 def _format_output(feed_type_raw, feed_type_normalized, target_id, result, target_count, continuous):
     now_iso = datetime.now(timezone.utc).isoformat()
     signals = result.get("signals", {})
     items = result.get("items", [])
     raw_items = result.get("raw_items", [])
-    
+    deduped_items = result.get("deduped_items", [])
     warning = None
     if signals.get("feedMode") != feed_type_normalized:
         warning = f"requested {feed_type_normalized}, got {signals.get('feedMode')}"
-        
+
     return {
         "ok": True,
         "warning": warning,
@@ -300,12 +180,14 @@ def _format_output(feed_type_raw, feed_type_normalized, target_id, result, targe
             "targetId": target_id,
             "source": result.get("source"),
             "raw_count": len(raw_items),
-            "deduped_count": len(items),
+            "deduped_count": len(deduped_items),
+            "returned_count": len(items),
             "scrollRounds": result.get("scroll_rounds"),
             "items": items,
         },
-        "data": items, # For backward compatibility
+        "data": items,
     }
+
 
 def read_home_feed(feed_type="both", target_count=20, continuous=False):
     try:
@@ -313,24 +195,14 @@ def read_home_feed(feed_type="both", target_count=20, continuous=False):
         normalized = _normalize_feed_type(feed_type)
 
         if normalized == "both":
-            for_you_result = _collect_feed_items(
-                target_id=target_id,
-                desired_mode="for_you",
-                target_count=target_count,
-                continuous=continuous,
-            )
+            for_you_result = _collect_feed_items(target_id, "for_you", target_count, continuous)
             time.sleep(READ_INTERVAL_SECONDS)
-            following_result = _collect_feed_items(
-                target_id=target_id,
-                desired_mode="following",
-                target_count=target_count,
-                continuous=continuous,
-            )
+            following_result = _collect_feed_items(target_id, "following", target_count, continuous)
             now_iso = datetime.now(timezone.utc).isoformat()
-            
+
             fy_formatted = _format_output("For you", "for_you", target_id, for_you_result, target_count, continuous)
             fl_formatted = _format_output("following", "following", target_id, following_result, target_count, continuous)
-            
+
             payload = {
                 "ok": True,
                 "request": {
@@ -349,32 +221,16 @@ def read_home_feed(feed_type="both", target_count=20, continuous=False):
             print(json.dumps(payload, ensure_ascii=False))
             return
 
-        result = _collect_feed_items(
-            target_id=target_id,
-            desired_mode=normalized,
-            target_count=target_count,
-            continuous=continuous,
-        )
+        result = _collect_feed_items(target_id, normalized, target_count, continuous)
         print(json.dumps(
-            _format_output(
-                feed_type_raw=feed_type,
-                feed_type_normalized=normalized,
-                target_id=target_id,
-                result=result,
-                target_count=target_count,
-                continuous=continuous,
-            ),
+            _format_output(feed_type, normalized, target_id, result, target_count, continuous),
             ensure_ascii=False,
         ))
     except Exception as e:
         print(json.dumps({"ok": False, "error": str(e)}))
 
+
 if __name__ == "__main__":
-    # Usage:
-    #   python3 feed.py
-    #   python3 feed.py following
-    #   python3 feed.py both 30
-    #   python3 feed.py for_you 50 --continuous
     raw_args = sys.argv[1:]
     continuous = "--continuous" in raw_args
     args = [a for a in raw_args if a != "--continuous"]
@@ -385,6 +241,5 @@ if __name__ == "__main__":
             count = int(args[1])
         except Exception:
             count = 20
-    # Hard clamp for risk control.
     count = max(1, min(count, 200))
     read_home_feed(feed_type=feed_type, target_count=count, continuous=continuous)

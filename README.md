@@ -1,76 +1,175 @@
 # Browser Bridge
 
-让 AI Agent 控制你真实浏览器（Chrome/Edge）的 HTTP API 桥。
+让 Agent / skill 通过 HTTP API 操作**真实浏览器**的本地桥。
 
-## 目标
+## 项目定位
 
-在**真实登录态、真实浏览器环境**下，帮助 AI Agent 完成简单网页操作：
-- 访问链接、读取页面内容
-- 点击、输入、表单提交
-- 截图、执行 JS
+Browser Bridge 的目标不是做一个平台化浏览器自动化系统，而是提供一套适合个人项目长期维护的本地桥接能力：
 
-核心原则：**账号安全优先于效率**，高风险动作需人工确认。
+- 使用真实 Chrome / Edge
+- 复用真实登录态
+- 通过结构化 HTTP API 提供读取与操作能力
+- 把浏览器控制、站点语义、任务编排明确分层
 
-## 架构
+当前项目已经从“CDP + 扩展混合堆逻辑”逐步收敛为：
 
+- `CDP`：浏览器控制与诊断
+- `Extension + Adapter`：站点语义
+- `Bridge`：统一编排
+- `Skill`：开放式高层任务
+
+## 核心原则
+
+- 账号安全优先于效率
+- 高风险动作必须低频并可审计
+- `CDP` 和扩展是协作关系，不是默认主备 fallback 关系
+- 新站点能力优先沉到 adapter，不要把站点逻辑散落在 bridge/CDP 层
+
+## 当前架构
+
+```text
+Skill / Script / Agent
+  -> Browser Bridge HTTP API
+    -> Application Layer
+      -> Browser Runtime (CDP)
+      -> Extension Runtime (RPC + State)
+      -> Site Registry
+      -> Site Adapter
+      -> Site Workflow
 ```
-OpenClaw / Agent
-    ↓
-Browser Bridge (HTTP API)
-    ↓
-Path A: Extension 语义增强
-Path B: CDP (Chrome DevTools Protocol)
-Path C: Playwright attach
-    ↓
-Real Chrome / Edge Browser
-```
 
-## 当前能力
+### 角色划分
+
+`CDP`
+- 打开页面
+- 复用 tab
+- 激活 tab
+- 获取页面基础信息
+- 截图
+- 执行基础 JS
+- 提供浏览器状态与页面基础状态诊断
+
+`Extension + Adapter`
+- 页面 `ready` 判断
+- 站点语义读取
+- 站点语义动作
+- 动作结果校验
+
+`Bridge`
+- 路由
+- 目标页定位
+- source 标记
+- timeout / retry
+- 统一结果结构
+
+`Skill`
+- 阅读后决策
+- 基于上下文调用关注/书签等动作
+- 书签整理等开放式任务编排
+
+## 当前已落地能力
+
+### 基础 Bridge API
 
 | 端点 | 功能 |
 |------|------|
 | `GET /health` | 健康检查 |
-| `GET /version` | 浏览器/CDP 版本信息 |
+| `GET /version` | 浏览器 / CDP 版本信息 |
 | `GET /tabs` | 列出浏览器 tab |
-| `POST /open` | 打开新页面 |
-| `POST /activate` | 切换 tab |
-| `POST /evaluate` | 在指定 tab 执行 JS |
-| `GET /page-info` | 获取页面 title/url |
-| `GET /page-content` | 获取页面文本内容 |
-| `GET /probe-readiness` | 页面就绪探针 |
-| `POST /read-page` | 带就绪判断的页面读取 |
-| `POST /screenshot` | 截图 |
-| `GET /query` | CSS 选择器查询 DOM |
-| `POST /click` | 点击元素 |
-| `POST /fill` | 输入文本 |
+| `POST /open` | 打开或复用页面 |
+| `POST /activate` | 激活 tab |
 | `GET /wait` | 等待页面稳定 |
+| `GET /page-info` | 获取页面信息 |
+| `GET /page-content` | 获取基础文本内容 |
+| `GET /probe-readiness` | 通用页面就绪探针（浏览器级诊断） |
+| `POST /screenshot` | 截图 |
+| `GET /query` | 基础 DOM 查询（浏览器级工具） |
+| `POST /evaluate` | 执行 JS（浏览器级工具） |
 
-### Extension 路径 (Path A)
+### 新架构 API
 
 | 端点 | 功能 |
 |------|------|
-| `POST /extension/report` | 扩展上报页面语义信号 |
+| `GET /site/capabilities` | 查询站点能力 |
+| `POST /site/read` | 调用站点读取能力 |
+| `POST /site/action` | 调用站点动作能力 |
+| `POST /workflow/run` | 调用固定流程 workflow |
+
+补充说明：
+
+- 新增站点语义能力时，优先接入 `/site/read` / `/site/action`
+- 不要再把新站点逻辑接到浏览器级工具接口上
+- `/query` / `/evaluate` 属于浏览器级工具接口，不是站点语义接口
+
+### 扩展集成 API
+
+| 端点 | 功能 |
+|------|------|
+| `POST /extension/report` | 扩展被动上报页面状态 |
 | `GET /extension/state` | 查看最近扩展状态 |
+| `GET /extension/pull` | 扩展主动拉取桥端命令 |
+| `POST /extension/result` | 扩展回传主动命令结果 |
 
-### Playwright 路径 (Path C)
+### Playwright API
 
-复杂页面操作使用 Playwright attach：
+复杂页面附加控制仍保留：
 
-| 端点 | 功能 |
-|------|------|
-| `POST /playwright/connect` | 连接 Playwright 到浏览器 |
-| `POST /playwright/disconnect` | 断开连接 |
-| `GET /playwright/pages` | 获取所有页面 |
-| `POST /playwright/click` | Playwright 点击 |
-| `POST /playwright/fill` | Playwright 填值 |
-| `POST /playwright/evaluate` | 执行 JavaScript |
-| `GET /playwright/wait-selector` | 等待元素出现 |
+- `POST /playwright/connect`
+- `POST /playwright/disconnect`
+- `GET /playwright/pages`
+- `POST /playwright/click`
+- `POST /playwright/fill`
+- `POST /playwright/evaluate`
+- `GET /playwright/wait-selector`
+
+## 当前 X 站点能力
+
+### 读取类
+
+- `read_post`
+- `read_timeline`
+- `list_bookmarks`
+
+### 操作类
+
+- `expand_post`
+- `switch_feed`
+- `add_bookmark`
+- `remove_bookmark`
+- `follow_user`
+- `unfollow_user`
+
+### workflow
+
+- `read_post`
+
+### 已重构的 x-assistant skill
+
+`skills/x-assistant/` 目前已提供：
+
+- `read_post.py`
+- `search.py`
+- `feed.py`
+- `bookmarks.py`
+- `follow_user.py`
+- `unfollow_user.py`
+- `add_bookmark.py`
+- `remove_bookmark.py`
+
+这意味着当前系统已经能直接支撑：
+
+- 阅读单条推文
+- X 搜索
+- 查看首页时间线
+- 查看书签
+- 加书签 / 移除书签
+- 关注 / 取消关注
 
 ## 快速开始
 
 ### 1. 启动带 CDP 的浏览器
 
-**非常重要：Bridge 必须依赖宿主机浏览器开启 CDP 端口运行！**
+**非常重要：Bridge 必须依赖宿主机浏览器开启 CDP。**
 
 ```bash
 # Edge (macOS)
@@ -93,18 +192,22 @@ pip install -r ../requirements.txt
 python -m app.server
 ```
 
-Bridge 默认监听 `http://127.0.0.1:17777`
+Bridge 默认监听：
 
-API 文档：`http://127.0.0.1:17777/docs`
+- `http://127.0.0.1:17777`
 
-### 2.1 可选：注册 systemd 系统服务（sudo）
+API 文档：
+
+- `http://127.0.0.1:17777/docs`
+
+### 3. 可选：注册 systemd 服务
 
 ```bash
 cd bridge/systemd
 bash install-system-service.sh
 ```
 
-常用管理命令：
+常用命令：
 
 ```bash
 # 查看状态
@@ -117,71 +220,95 @@ bash bridge/systemd/browser-bridgectl.sh restart
 bash bridge/systemd/browser-bridgectl.sh logs 120
 ```
 
-### 3. 调用示例
-
-```bash
-# 获取 tabs
-curl http://127.0.0.1:17777/tabs
-
-# 打开页面
-curl -X POST http://127.0.0.1:17777/open -H "Content-Type: application/json" -d '{"url":"https://example.com"}'
-
-# 点击元素
-curl -X POST http://127.0.0.1:17777/click -H "Content-Type: application/json" -d '{"selector":"a","targetId":"xxx"}'
-```
-
-## 配置
-
-修改 `bridge/app/config.py`：
-- `BRIDGE_HOST` / `BRIDGE_PORT`（默认 `127.0.0.1:17777`）
-- `CDP_BASE_URL`（默认 `http://127.0.0.1:9333`）
-- `CDP_HOST_HEADER`（默认 `127.0.0.1:9333`）
-- `CDP_WS_BASE_URL`（默认 `ws://127.0.0.1:9333`）
-
-## ⚠️ 常见排障与避坑 (Troubleshooting)
-
-1. **服务连通性报错 / Connection Refused (HTTP 500)**
-   * **症状**：AI Agent 调用 `open` 或 `read_page` 脚本时，一直循环报错甚至直接抛出 `Connection refused` 500 错误。
-   * **根因**：**宿主机的浏览器没有启动，或者没有开启调试端口！** AI Agent 常常误以为是 bridge 的代码写错了或扩展坏了。
-   * **解决**：立即让用户在宿主机运行启动命令：`open -a "Microsoft Edge" --args --remote-debugging-port=9333`。
-2. **更多深度技术坑点**：请阅读 `docs/implementation-guide.md`。
-
-## 安全边界
-
-以下动作**必须人工确认**：
-- 登录/登出、2FA/MFA、验证码
-- 改密码、支付、发布内容
-- 删除数据、授权第三方应用
-
-## 扩展 (可选)
-
-项目包含一个 Chrome/Edge 扩展作为轻量增强层：
+## 扩展加载
 
 ```bash
 cd extension
-# 在 chrome://extensions 加载此目录
+# 在 chrome://extensions 或 edge://extensions 加载此目录
 ```
 
-扩展提供：
-- Popup 状态检查
-- 快速页面操作
-- Bridge 连接状态查看
-- 页面语义信号上报（已实现 X adapter，支持时间线与多媒体图文结构化抽取）
+扩展当前负责：
 
-## X 增强（进行中）
+- 页面探针
+- 页面状态上报
+- 主动 RPC 执行
+- X 站点语义读取和动作
 
-- 时间线读取（`/home`、`/search`、`/explore`）
-- `read-page` 中对 X 时间线的轻量滚动预加载（Light Scroll）
-- `skills/x-assistant/` 下提供 `search.py` / `feed.py` / `read_post.py` 脚本，支持广告过滤与降噪
-- Home Feed 支持区分 `for_you` / `following`（中英文标签兼容）
-- Home Feed 默认双流读取（为你推荐 + 正在关注）各 20 条，可配置条数与连续读取
-- 标签复用优先：优先复用同域 tab，避免每次操作新开标签页
+## 开发时最重要的操作纪律
 
-## 技术栈
+### 改了扩展代码之后
 
-- Python 3.13+ (FastAPI + uvicorn)
-- WebSocket (`websockets==16.0`)
-- CDP (Chrome DevTools Protocol)
+必须：
+
+1. 重载扩展
+2. 刷新目标页面
+
+否则测试结果不可信。
+
+### 改了 bridge 代码之后
+
+必须重启 bridge：
+
+```bash
+sudo systemctl restart browser-bridge.service
+```
+
+### 测试真实浏览器链路时
+
+优先使用宿主侧验证，不要在沙箱里反复猜。
+
+## 新站点扩展建议
+
+以后扩微博、小红书等站点时，建议严格按这个顺序：
+
+1. 先定义页面类型
+2. 先做 `match()` / `getPageType()` / `probeReady()`
+3. 先做读取类能力
+4. 再做低风险动作
+5. 再做状态变更动作
+6. 最后再判断是否需要 workflow
+
+重要判断：
+
+- 固定流程 -> workflow
+- 开放式高层任务 -> skill
+
+所以像“整理书签”这种任务，推荐：
+
+- Bridge 提供原子能力
+- skill 负责决策与编排
+
+## 文档入口
+
+如果要继续接手开发，优先读这三份：
+
+- [README.md](/home/cuiguidong/.openclaw/workspace/projects/browser-bridge-project/README.md)
+- [architecture-spec.md](/home/cuiguidong/.openclaw/workspace/projects/browser-bridge-project/docs/architecture-spec.md)
+- [implementation-guide.md](/home/cuiguidong/.openclaw/workspace/projects/browser-bridge-project/docs/implementation-guide.md)
+
+建议阅读顺序：
+
+1. 先读 README，建立项目全貌
+2. 再读 architecture-spec，理解正式分层与扩展规范
+3. 最后读 implementation-guide，避免重复踩坑
+
+## 安全边界
+
+以下动作必须保持谨慎，必要时要求人工明确确认：
+
+- 登录 / 登出
+- 2FA / MFA
+- 验证码
+- 改密码 / 改邮箱 / 改手机号
+- 支付 / 转账
+- 发布内容 / 删除内容
+- 第三方授权
+
+## 当前已知残余风险
+
+- `follow_user / unfollow_user` 的按钮定位仍然依赖 DOM 启发式，不是绝对刚性定位
+- 真实浏览器页面状态偶尔会有时序波动，因此少量明确目的的等待 / 重试仍然存在
+- 旧接口还在保留，后续继续扩功能时不要回流到旧接口上堆站点特判
 
 ## License
 

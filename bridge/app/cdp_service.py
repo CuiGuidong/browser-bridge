@@ -137,12 +137,6 @@ class BrowserBridgeService:
         )
         return (result.get("result") or {}).get("value")
 
-    def scroll_page(self, distance=500, behavior="smooth", target_id=None):
-        """Scroll the page to trigger lazy loading."""
-        expression = f'window.scrollBy({{ top: {int(distance)}, left: 0, behavior: "{behavior}" }})'
-        self.execute_js(expression, target_id=target_id)
-        time.sleep(1.0 if behavior == "smooth" else 0.2)
-        return {"scrolled": True, "distance": distance}
     def get_page_content(self, target_id=None, max_chars=40000):
         target = self.get_page_info(target_id)
         if target is None:
@@ -237,70 +231,6 @@ return raw.trim().slice(0, {int(max_chars)});
             "elements": value,
         }
 
-    def click_selector(self, selector, target_id=None, wait_after=0):
-        target = self.get_page_info(target_id)
-        if target is None:
-            return None
-        before = {"title": target.get("title"), "url": target.get("url")}
-        safe_selector = selector.replace('\\', '\\\\').replace('"', '\\"')
-        expression = f'''(() => {{
-  const el = document.querySelector("{safe_selector}");
-  if (!el) return {{ ok: false, reason: "not found" }};
-  el.click();
-  return {{ ok: true, tag: el.tagName, text: (el.innerText || el.textContent || "").trim().slice(0, 200) }};
-}})()'''
-        result = self.ws_client.call(
-            target["webSocketDebuggerUrl"],
-            "Runtime.evaluate",
-            {"expression": expression, "returnByValue": True},
-        )
-        value = ((result.get("result") or {}).get("value")) or {}
-        after = None
-        if wait_after and value.get("ok"):
-            after = self.wait_for_page(target_id=target["id"], timeout_seconds=wait_after, interval_seconds=0.5)
-        return {
-            "targetId": target["id"],
-            "title": target.get("title"),
-            "url": target.get("url"),
-            "selector": selector,
-            "before": before,
-            "result": value,
-            "after": after,
-        }
-
-    def fill_selector(self, selector, text, target_id=None):
-        target = self.get_page_info(target_id)
-        if target is None:
-            return None
-        safe_selector = selector.replace('\\', '\\\\').replace('"', '\\"')
-        safe_text = text.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n')
-        expression = f'''(() => {{
-  const el = document.querySelector("{safe_selector}");
-  if (!el) return {{ ok: false, reason: "not found" }};
-  const canFill = ('value' in el) || el.isContentEditable;
-  if (!canFill) return {{ ok: false, reason: "not fillable", tag: el.tagName }};
-  el.focus();
-  if ('value' in el) el.value = "{safe_text}";
-  else el.textContent = "{safe_text}";
-  el.dispatchEvent(new Event('input', {{ bubbles: true }}));
-  el.dispatchEvent(new Event('change', {{ bubbles: true }}));
-  return {{ ok: true, tag: el.tagName, value: ('value' in el ? el.value : el.textContent || '') }};
-}})()'''
-        result = self.ws_client.call(
-            target["webSocketDebuggerUrl"],
-            "Runtime.evaluate",
-            {"expression": expression, "returnByValue": True},
-        )
-        value = ((result.get("result") or {}).get("value")) or {}
-        return {
-            "targetId": target["id"],
-            "title": target.get("title"),
-            "url": target.get("url"),
-            "selector": selector,
-            "text": text,
-            "result": value,
-        }
-
     def probe_page_readiness(self, target_id=None, timeout_seconds=15, interval_seconds=1, selector=None):
         target = self.get_page_info(target_id)
         if target is None:
@@ -324,7 +254,6 @@ return raw.trim().slice(0, {int(max_chars)});
                 probe.get("title"),
                 probe.get("contentLengthBucket"),
                 probe.get("selectorFound"),
-                probe.get("xPostReady"),
             )
             if signature == last_signature:
                 stable_count += 1
@@ -342,52 +271,6 @@ return raw.trim().slice(0, {int(max_chars)});
         last_probe["url"] = last_probe.get("url") or target.get("url")
         return last_probe
 
-    def read_page(self, target_id=None, max_chars=40000, wait_for_ready=False, timeout_seconds=15, interval_seconds=1, selector=None):
-        target = self.get_page_info(target_id)
-        if target is None:
-            return None
-        
-        url = target.get("url") or ""
-        is_x = "x.com" in url or "twitter.com" in url
-        is_x_timeline = is_x and ("/home" in url or "/search" in url or "/explore" in url)
-        is_x_post = is_x and ("/status/" in url)
-
-        if is_x_post:
-            # Try to expand long post if "Show more" button exists
-            expand_expr = '''(() => {
-                const btn = Array.from(document.querySelectorAll('div[role="button"]'))
-                    .find(el => /显示更多|Show more/i.test(el.innerText));
-                if (btn) {
-                    btn.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    btn.click();
-                    return true;
-                }
-                return false;
-            })()'''
-            self.execute_js(expand_expr, target_id=target["id"])
-            time.sleep(3.0) # wait for expansion
-            
-        if is_x_timeline:
-            # Execute "Light Scroll" to load a good batch of recent tweets (~20-30) without getting rate-limited
-            for _ in range(3):
-                self.scroll_page(distance=800, behavior="smooth", target_id=target["id"])
-                time.sleep(1.5)
-
-        readiness = None
-        if wait_for_ready:
-            readiness = self.probe_page_readiness(
-                target_id=target["id"],
-                timeout_seconds=timeout_seconds,
-                interval_seconds=interval_seconds,
-                selector=selector,
-            )
-            target = self.get_page_info(target["id"]) or target
-        content = self.get_page_content(target["id"], max_chars=max_chars)
-        if content is None:
-            return None
-        content["readiness"] = readiness
-        return content
-
     def _collect_probe(self, websocket_debugger_url, selector=None):
         safe_selector = json.dumps(selector) if selector else "null"
         expression = f'''(() => {{
@@ -395,21 +278,13 @@ return raw.trim().slice(0, {int(max_chars)});
   const text = (document.body?.innerText || '').trim();
   const contentLength = text.length;
   const selectorFound = selector ? !!document.querySelector(selector) : null;
-  const xHost = location.hostname.includes('x.com') || location.hostname.includes('twitter.com');
-  const xTimeline = xHost && (location.pathname === '/home' || location.pathname.startsWith('/search') || location.pathname.startsWith('/explore'));
-  const xPost = xHost && !xTimeline;
-  const xArticle = document.querySelector('article');
-  const xTweetText = document.querySelector('[data-testid="tweetText"]');
-  const xPostReady = !!(xArticle && (xTweetText || (xArticle.innerText || '').trim().length > 80));
-  const xTimelineReady = document.querySelectorAll('article').length >= 3 || document.querySelectorAll('[data-testid="cellInnerDiv"]').length >= 3;
   const title = document.title || '';
   const url = location.href;
   const readyState = document.readyState;
   const titleReady = !/^X$/.test(title) && title.trim().length > 3;
-  const urlReady = !url.includes('/i/status/') || url.includes('/status/');
+  const urlReady = !!url && !/^about:blank/.test(url);
   const contentReady = contentLength > 120;
-  const genericReady = readyState === 'complete' && titleReady && urlReady && contentReady && (selector ? !!selectorFound : true);
-  const ready = xHost ? (readyState === 'complete' && titleReady && (xTimeline ? xTimelineReady : xPostReady)) : genericReady;
+  const ready = readyState === 'complete' && titleReady && urlReady && contentReady && (selector ? !!selectorFound : true);
   return {{
     ready,
     readyState,
@@ -419,8 +294,6 @@ return raw.trim().slice(0, {int(max_chars)});
     contentLengthBucket: Math.floor(contentLength / 100),
     selector,
     selectorFound,
-    xPost,
-    xPostReady,
     signals: {{ titleReady, urlReady, contentReady }}
   }};
 }})()'''

@@ -1,20 +1,52 @@
 # Browser Bridge Extension
 
-Chrome/Edge 扩展，提供浏览器内快速语义抓取与操作入口。它也是 Browser Bridge 系统实现高级内容理解（Path A）的核心基石。
+Chrome/Edge 扩展，负责页面内常驻执行、站点语义读取、站点语义动作，以及和 Bridge 的主动 RPC 通信。
 
-## 架构：核心底座与插件注册模式
+## 当前分工
 
-为了保证极高的维护性与对 AI Agent 的友好度，本扩展采取了**按需加载的插件注册制 (Plugin Registry Pattern)**：
+- `content.js`
+  - 页面内常驻执行者
+  - 采集通用快照
+  - 匹配当前页面 adapter
+  - 分发 `capabilities / probe_ready / read / act / verify`
+  - 通过 `background.js` 与 Bridge 通信
 
-- **`content.js`**: 通用的生命周期底座。它注入到 `<all_urls>`，负责监听页面变动、劫持网络请求探针、执行基础的文字快照，并将数据定时上报给 Bridge 服务端。它维护着全局注册表 `window.BrowserBridgeAdapters = []`。
-- **`adapters/*.js`**: 网站专属适配器。它们通过 `manifest.json` 在特定的域名下被**优先注入**，执行极高难度的 DOM 解析任务（如 X 的富文本图文混排提取），并在文件末尾将自己挂载到全局注册表中。
+- `background.js`
+  - 只负责和 Bridge 转发消息
+  - 不再承担站点语义采集与页面内动作执行
 
-### 如何添加新网站的支持？
+- `adapters/*.js`
+  - 站点专属语义能力实现
+  - 当前主实现是 `x-adapter.js`
 
-假设你要添加对 YouTube 的支持：
-1. 在 `adapters/` 目录下新建 `youtube-adapter.js`。
-2. 实现带有 `id`, `match()`, `collect(baseSnapshot)` 的 Adapter 对象，并在文件尾部执行 `window.BrowserBridgeAdapters.push(youtubeAdapter);`。
-3. 修改 `manifest.json` 的 `content_scripts`，将 `adapters/youtube-adapter.js` 匹配到 `*://*.youtube.com/*`，并**确保它放在 `content.js` 的配置之前**。
+## Adapter 接口规范
+
+新站点 adapter 至少应实现：
+
+- `id`
+- `match()`
+- `getPageType()`
+- `capabilities()`
+- `probeReady(context)`
+- `read(kind, params, context)`
+- `act(kind, params, context)`
+- `verify(kind, params, context, actionResult)`
+
+如果仍然只有 `collect(baseSnapshot)` 而没有这些主动接口，说明还停留在旧模型，不符合当前正式架构。
+
+## 如何添加新网站支持
+
+假设你要添加微博：
+
+1. 新建 `adapters/weibo-adapter.js`
+2. 实现上面的完整 adapter 接口
+3. 在文件尾部执行：
+   `window.BrowserBridgeAdapters.push(weiboAdapter);`
+4. 修改扩展加载配置，确保该 adapter 会在微博页面注入
+5. 完成后再补 Bridge 侧的：
+   - `bridge/app/sites/weibo/models.py`
+   - `bridge/app/sites/weibo/site.py`
+   - `bridge/app/server.py` 的注册入口
 
 ## 安装
 
@@ -33,8 +65,8 @@ Chrome/Edge 扩展，提供浏览器内快速语义抓取与操作入口。它�
 ## 文件结构
 
 - `manifest.json` - 扩展配置与权限声明
-- `background.js` - 后台服务 Worker（仅做消息中转）
-- `content.js` - 核心通用内容注入脚本（引擎）
+- `background.js` - 后台服务 Worker（只做桥接转发）
+- `content.js` - 页面内常驻运行时与 RPC 分发器
 - `adapters/` - 特定网站专属解析器存放目录
-  - `x-adapter.js` - X/Twitter 深度解析器
+  - `x-adapter.js` - X/Twitter 站点语义实现
 - `popup.html` / `popup.js` - 弹窗 UI

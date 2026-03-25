@@ -12,6 +12,122 @@ async function expandXLongPost() {
   return false;
 }
 
+function extractStatusId(url) {
+  try {
+    const parsed = new URL(url, location.origin);
+    const parts = parsed.pathname.split('/').filter(Boolean);
+    const index = parts.indexOf('status');
+    if (index >= 0 && parts[index + 1]) return parts[index + 1];
+  } catch {}
+  return null;
+}
+
+function findArticleByStatusUrl(url) {
+  const statusId = extractStatusId(url);
+  if (!statusId) return null;
+  const articles = Array.from(document.querySelectorAll('article[role="article"]'));
+  return articles.find((article) => {
+    return Array.from(article.querySelectorAll('a[href*="/status/"]')).some((link) => extractStatusId(link.href) === statusId);
+  }) || null;
+}
+
+function findRemoveBookmarkControl(article) {
+  if (!article) return null;
+  const direct = article.querySelector('[data-testid="removeBookmark"]');
+  if (direct) return direct;
+  const controls = Array.from(article.querySelectorAll('button,[role="button"]'));
+  return controls.find((el) => {
+    const text = [
+      el.getAttribute('aria-label') || '',
+      el.getAttribute('data-testid') || '',
+      el.getAttribute('title') || '',
+      el.innerText || '',
+    ].join(' ').trim();
+    return /(移除书签|取消书签|remove bookmark|bookmarked)/i.test(text);
+  }) || null;
+}
+
+function findAddBookmarkControl(article) {
+  if (!article) return null;
+  const direct = article.querySelector('[data-testid="bookmark"]');
+  if (direct) return direct;
+  const controls = Array.from(article.querySelectorAll('button,[role="button"]'));
+  return controls.find((el) => {
+    const text = [
+      el.getAttribute('aria-label') || '',
+      el.getAttribute('data-testid') || '',
+      el.getAttribute('title') || '',
+      el.innerText || '',
+    ].join(' ').trim();
+    return /(添加书签|加入书签|bookmark post|bookmark)/i.test(text) && !/(移除书签|取消书签|remove bookmark|bookmarked)/i.test(text);
+  }) || null;
+}
+
+function extractProfileHandle(url = location.href) {
+  try {
+    const parsed = new URL(url, location.origin);
+    const parts = parsed.pathname.split('/').filter(Boolean);
+    if (parts.length !== 1) return null;
+    const handle = parts[0];
+    if (/^(home|search|explore|notifications|messages|i|compose|settings)$/i.test(handle)) return null;
+    return handle;
+  } catch {}
+  return null;
+}
+
+function getFollowState(control) {
+  if (!control) return null;
+  const text = [
+    control.getAttribute('aria-label') || '',
+    control.getAttribute('data-testid') || '',
+    control.getAttribute('title') || '',
+    control.innerText || '',
+  ].join(' ').trim();
+  if (/(正在关注|已关注|following|following @|unfollow)/i.test(text)) return 'following';
+  if (/(关注|follow)/i.test(text) && !/(正在关注|已关注|following)/i.test(text)) return 'not_following';
+  return null;
+}
+
+function isElementVisible(el) {
+  if (!el) return false;
+  const rect = el.getBoundingClientRect();
+  return rect.width > 0 && rect.height > 0;
+}
+
+function findProfileFollowControl() {
+  const main = document.querySelector('main') || document.body;
+  const controls = Array.from(main.querySelectorAll('button,[role="button"]'))
+    .filter((el) => isElementVisible(el))
+    .filter((el) => !el.closest('article[role="article"]'))
+    .map((el) => ({ el, state: getFollowState(el) }))
+    .filter((item) => !!item.state);
+  const anchor = document.querySelector('[data-testid="UserName"]');
+  const anchorTop = anchor ? anchor.getBoundingClientRect().top : null;
+  const scoped = anchorTop === null
+    ? controls
+    : controls.filter((item) => {
+        const top = item.el.getBoundingClientRect().top;
+        return top >= anchorTop - 80 && top <= anchorTop + 420;
+      });
+  const candidates = scoped.length ? scoped : controls;
+  candidates.sort((a, b) => a.el.getBoundingClientRect().top - b.el.getBoundingClientRect().top);
+  return candidates[0] || null;
+}
+
+function findUnfollowConfirmControl() {
+  const dialog = document.querySelector('[role="dialog"]') || document.body;
+  const controls = Array.from(dialog.querySelectorAll('button,[role="button"]'));
+  return controls.find((el) => {
+    const text = [
+      el.getAttribute('aria-label') || '',
+      el.getAttribute('data-testid') || '',
+      el.getAttribute('title') || '',
+      el.innerText || '',
+    ].join(' ').trim();
+    return /(取消关注|unfollow)/i.test(text);
+  }) || null;
+}
+
 function extractRichText(container) {
   if (!container) return '';
   
@@ -199,10 +315,50 @@ function detectXHomeFeedMode() {
   };
 }
 
+async function switchXFeed(mode) {
+  const tabs = Array.from(document.querySelectorAll('[role="tab"]'));
+  const targetRegex = mode === 'following'
+    ? /(正在关注|following)/i
+    : /(为你推荐|for you)/i;
+  const target = tabs.find((el) => targetRegex.test((el.innerText || '').trim()));
+  if (!target) {
+    return { ok: false, error: 'feed tab not found', mode };
+  }
+
+  const before = detectXHomeFeedMode();
+  target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  target.click();
+  await new Promise((resolve) => setTimeout(resolve, 800));
+  const after = detectXHomeFeedMode();
+  return {
+    ok: true,
+    action: 'switch_feed',
+    mode,
+    changed: before.mode !== after.mode,
+    before,
+    after,
+  };
+}
+
 const xAdapter = {
   id: 'x',
   match() {
     return location.hostname.includes('x.com') || location.hostname.includes('twitter.com');
+  },
+  getPageType() {
+    if (/\/status\/\d+/.test(location.href)) return 'post';
+    if (location.pathname === '/home') return 'home';
+    if (location.pathname.startsWith('/search')) return 'search';
+    if (location.pathname.startsWith('/explore')) return 'explore';
+    if (location.pathname.startsWith('/i/bookmarks')) return 'bookmarks';
+    if (/^\/[^/]+$/.test(location.pathname)) return 'profile';
+    return 'other';
+  },
+  capabilities() {
+    return {
+      read: ['read_post', 'read_timeline', 'list_bookmarks'],
+      act: ['expand_post', 'switch_feed', 'add_bookmark', 'remove_bookmark', 'follow_user', 'unfollow_user'],
+    };
   },
   collect(baseSnapshot) {
     const article = document.querySelector('article[role="article"]');
@@ -211,7 +367,8 @@ const xAdapter = {
     const sensitiveGate = /(敏感内容|sensitive content|age-restricted|成人内容|adult content)/i.test(document.body?.innerText || '');
     
     const isTweetDetail = /\/status\/\d+/.test(location.href);
-    const isTimeline = location.pathname === '/home' || location.pathname.startsWith('/search') || location.pathname.startsWith('/explore');
+    const isBookmarks = location.pathname.startsWith('/i/bookmarks');
+    const isTimeline = location.pathname === '/home' || location.pathname.startsWith('/search') || location.pathname.startsWith('/explore') || isBookmarks;
     const feedModeInfo = isTimeline ? detectXHomeFeedMode() : { mode: null, activeTabText: null, tabTexts: [] };
     
     let primaryText = '';
@@ -251,6 +408,7 @@ const xAdapter = {
         isX: true,
         isTweetDetail,
         isTimeline,
+        isBookmarks,
         feedMode: feedModeInfo.mode,
         activeFeedTabText: feedModeInfo.activeTabText,
         feedTabTexts: feedModeInfo.tabTexts,
@@ -265,6 +423,285 @@ const xAdapter = {
         primaryText: primaryText,
         timeline: timeline,
       },
+    };
+  },
+  async probeReady(context) {
+    const snap = this.collect(context.baseSnapshot);
+    return {
+      ok: true,
+      site: snap.site,
+      page: snap.page,
+      signals: {
+        ...snap.signals,
+        pageType: this.getPageType(),
+      },
+      content: snap.content,
+    };
+  },
+  async read(kind, _params, context) {
+    const snap = this.collect(context.baseSnapshot);
+    if (kind === 'read_post') {
+      return {
+        ok: true,
+        mode: 'semantic',
+        kind,
+        page: snap.page,
+        signals: snap.signals,
+        content: {
+          primaryText: snap.content.primaryText,
+        },
+      };
+    }
+    if (kind === 'read_timeline' || kind === 'list_bookmarks') {
+      return {
+        ok: true,
+        mode: 'semantic',
+        kind,
+        page: snap.page,
+        signals: snap.signals,
+        content: {
+          timeline: snap.content.timeline,
+        },
+      };
+    }
+    return {
+      ok: false,
+      kind,
+      page: snap.page,
+      signals: snap.signals,
+      error: `Unsupported read kind: ${kind}`,
+    };
+  },
+  async act(kind, params, context) {
+    const snap = this.collect(context.baseSnapshot);
+    if (kind === 'expand_post') {
+      const changed = await expandXLongPost();
+      return {
+        ok: true,
+        action: kind,
+        changed,
+        before: {
+          primaryTextLength: (snap.content.primaryText || '').length,
+        },
+      };
+    }
+    if (kind === 'switch_feed') {
+      return await switchXFeed(params.mode || 'for_you');
+    }
+    if (kind === 'add_bookmark') {
+      const targetUrl = params.url || location.href;
+      const targetStatusId = extractStatusId(targetUrl);
+      const article = findArticleByStatusUrl(targetUrl)
+        || ((targetStatusId && targetStatusId === extractStatusId(location.href))
+          ? document.querySelector('article[role="article"]')
+          : null);
+      if (!article) {
+        return {
+          ok: false,
+          action: kind,
+          page: snap.page,
+          error: 'bookmark article not found',
+        };
+      }
+      const control = findAddBookmarkControl(article);
+      if (!control) {
+        return {
+          ok: false,
+          action: kind,
+          page: snap.page,
+          error: 'add bookmark control not found',
+        };
+      }
+      const beforeText = extractRichText(article).slice(0, 500);
+      const authorInfo = (article.querySelector('[data-testid="User-Name"]')?.innerText || '').replace(/\n/g, ' ');
+      control.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      control.click();
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      return {
+        ok: true,
+        action: kind,
+        changed: true,
+        before: {
+          url: targetUrl,
+          authorInfo,
+          text: beforeText,
+        },
+      };
+    }
+    if (kind === 'remove_bookmark') {
+      const targetUrl = params.url || '';
+      const article = findArticleByStatusUrl(targetUrl);
+      if (!article) {
+        return {
+          ok: false,
+          action: kind,
+          page: snap.page,
+          error: 'bookmark article not found',
+        };
+      }
+      const control = findRemoveBookmarkControl(article);
+      if (!control) {
+        return {
+          ok: false,
+          action: kind,
+          page: snap.page,
+          error: 'remove bookmark control not found',
+        };
+      }
+      const beforeText = extractRichText(article).slice(0, 500);
+      const authorInfo = (article.querySelector('[data-testid="User-Name"]')?.innerText || '').replace(/\n/g, ' ');
+      control.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      control.click();
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      return {
+        ok: true,
+        action: kind,
+        changed: true,
+        before: {
+          url: targetUrl,
+          authorInfo,
+          text: beforeText,
+        },
+      };
+    }
+    if (kind === 'follow_user' || kind === 'unfollow_user') {
+      const expectedHandle = (params.handle || '').replace(/^@/, '').trim();
+      const currentHandle = extractProfileHandle(location.href);
+      if (!currentHandle) {
+        return {
+          ok: false,
+          action: kind,
+          page: snap.page,
+          error: 'follow actions only support profile page',
+        };
+      }
+      if (expectedHandle && currentHandle.toLowerCase() !== expectedHandle.toLowerCase()) {
+        return {
+          ok: false,
+          action: kind,
+          page: snap.page,
+          error: 'profile handle mismatch',
+        };
+      }
+      const targetHandle = expectedHandle || currentHandle;
+      const controlInfo = findProfileFollowControl();
+      if (!controlInfo) {
+        return {
+          ok: false,
+          action: kind,
+          page: snap.page,
+          error: 'follow control not found',
+        };
+      }
+      const beforeState = controlInfo.state;
+      if (kind === 'follow_user' && beforeState === 'following') {
+        return {
+          ok: true,
+          action: kind,
+          changed: false,
+          before: { handle: targetHandle, state: beforeState },
+        };
+      }
+      if (kind === 'unfollow_user' && beforeState === 'not_following') {
+        return {
+          ok: true,
+          action: kind,
+          changed: false,
+          before: { handle: targetHandle, state: beforeState },
+        };
+      }
+
+      controlInfo.el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      controlInfo.el.click();
+
+      if (kind === 'unfollow_user') {
+        await new Promise((resolve) => setTimeout(resolve, 600));
+        const confirm = findUnfollowConfirmControl();
+        if (confirm) {
+          confirm.click();
+        }
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 1200));
+      return {
+        ok: true,
+        action: kind,
+        changed: true,
+        before: {
+          handle: targetHandle,
+          state: beforeState,
+        },
+      };
+    }
+    return {
+      ok: false,
+      action: kind,
+      page: snap.page,
+      error: `Unsupported action kind: ${kind}`,
+    };
+  },
+  async verify(kind, params, context, actionResult) {
+    const snap = this.collect(context.baseSnapshot);
+    if (kind === 'switch_feed') {
+      const expectedMode = params.mode || 'for_you';
+      return {
+        ok: true,
+        verified: snap.signals.feedMode === expectedMode,
+        after: {
+          feedMode: snap.signals.feedMode,
+        },
+        actionResult,
+      };
+    }
+    if (kind === 'remove_bookmark') {
+      const targetUrl = params.url || ((actionResult || {}).get('before') || {}).url || '';
+      const afterArticle = findArticleByStatusUrl(targetUrl);
+      return {
+        ok: true,
+        verified: !afterArticle || !findRemoveBookmarkControl(afterArticle),
+        after: {
+          url: targetUrl,
+          stillVisible: !!afterArticle,
+        },
+        actionResult,
+      };
+    }
+    if (kind === 'add_bookmark') {
+      const targetUrl = params.url || ((actionResult || {}).get('before') || {}).url || location.href;
+      const afterArticle = findArticleByStatusUrl(targetUrl) || document.querySelector('article[role="article"]');
+      return {
+        ok: true,
+        verified: !!afterArticle && !!findRemoveBookmarkControl(afterArticle),
+        after: {
+          url: targetUrl,
+          visible: !!afterArticle,
+        },
+        actionResult,
+      };
+    }
+    if (kind === 'follow_user' || kind === 'unfollow_user') {
+      const currentHandle = extractProfileHandle(location.href);
+      const expectedHandle = (params.handle || currentHandle || '').replace(/^@/, '').trim();
+      const controlInfo = findProfileFollowControl();
+      const state = controlInfo ? controlInfo.state : null;
+      const expectedState = kind === 'follow_user' ? 'following' : 'not_following';
+      return {
+        ok: true,
+        verified: state === expectedState,
+        after: {
+          handle: expectedHandle || null,
+          state,
+        },
+        actionResult,
+      };
+    }
+    return {
+      ok: true,
+      verified: !!actionResult?.ok,
+      actionResult,
     };
   }
 };
