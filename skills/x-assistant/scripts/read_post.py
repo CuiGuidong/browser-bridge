@@ -79,7 +79,10 @@ def _open_target(url: str, reuse_existing_tab: bool):
     return target_id
 
 def _attempt_read_with_target(target_id: str, status_id: str):
-    # Base initial wait to let page load and extension run
+    # CRITICAL GOTCHA: SPA Race Condition Mitigation
+    # X.com is highly dynamic. We must wait for the extension to parse the DOM, assemble the 
+    # rich text (including images), and report back `ready=true` to the Bridge server.
+    # A single immediate fetch will often return CDP fallback text (missing images) or a skeleton page.
     time.sleep(1.5)
     
     content = ""

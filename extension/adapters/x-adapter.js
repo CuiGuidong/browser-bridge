@@ -229,9 +229,16 @@ const xAdapter = {
     const network = baseSnapshot.signals.network;
     const networkQuiet = !network || (network.pending === 0 && (network.quietMs === null || network.quietMs > 800));
     
+    // CRITICAL GOTCHA: Guard against SPA "Fake Ready" states.
+    // X.com renders the shell (sidebar/nav) instantly, which could trigger a primaryText > 20 chars
+    // while the actual tweet is still fetching via GraphQL. We MUST force the extension to remain `ready: false` 
+    // until the absolute core content container (either a tweet or a long article) explicitly appears in the DOM.
+    const isXArticle = !!document.querySelector('[data-testid="twitter-article-title"]') || !!document.querySelector('[data-testid="twitterArticleRichTextView"]');
+    const hasCoreContent = isXArticle || !!tweetText;
+
     const ready = !!(
       document.readyState === 'complete' &&
-      ((isTweetDetail && primaryText.length > 20) || (isTimeline && timeline.length > 0) || (!isTweetDetail && !isTimeline && document.body.innerText.length > 100)) &&
+      ((isTweetDetail && hasCoreContent && primaryText.length > 20) || (isTimeline && timeline.length > 0) || (!isTweetDetail && !isTimeline && document.body.innerText.length > 100)) &&
       !loginMask &&
       networkQuiet
     );

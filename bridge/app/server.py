@@ -336,6 +336,11 @@ def read_page(req: ReadPageRequest):
             }
             content = hint_content.get("primaryText")
             
+            # CRITICAL GOTCHA: Never blindly accept extension content just because it exists.
+            # Single Page Applications (SPAs) like X.com often render an empty skeleton (e.g. sidebar only)
+            # which might have length > 0. The extension explicitly sets `ready: false` until the TRUE payload
+            # (e.g., tweetText) is found in the DOM. Ignoring the `ready` flag here causes Fake Ready bugs
+            # where the Python polling loop is prematurely bypassed.
             if content and hint_signals.get("ready") is True:
                 result["preferredContent"] = content[: req.maxChars]
                 result["preferredContentSource"] = "extension"
