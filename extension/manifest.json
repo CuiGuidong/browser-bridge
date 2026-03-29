@@ -17,6 +17,11 @@
   },
   "content_scripts": [
     {
+      "matches": ["*://*.xiaohongshu.com/*"],
+      "js": ["adapters/xiaohongshu-adapter.js"],
+      "run_at": "document_idle"
+    },
+    {
       "matches": ["*://*.x.com/*", "*://*.twitter.com/*"],
       "js": ["adapters/x-adapter.js"],
       "run_at": "document_idle"

@@ -17,4 +17,11 @@ ACTION_KINDS = [
 
 WORKFLOWS = [
     "read_post",
+    "search",
+    "list_bookmarks",
+    "read_home",
+    "follow_user",
+    "unfollow_user",
+    "add_bookmark",
+    "remove_bookmark",
 ]

@@ -1,41 +1,32 @@
 import json
 import sys
+from pathlib import Path
 
-from bridge_client import open_and_activate, site_read
-from image_utils import process_and_spawn_downloads
+from bridge_client import workflow_run
 from x_item_utils import dedup_and_score
 
 
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 def list_bookmarks(limit=20):
-    target_id, _ = open_and_activate(
-        "https://x.com/i/bookmarks",
-        reuse_domain="x.com",
-        reuse_existing_tab=True,
-        timeout=40,
-        expected_url_substring="/i/bookmarks",
-    )
-    if not target_id:
-        print(json.dumps({"ok": False, "error": "Failed to open bookmarks page"}))
-        return
-    read_data = site_read(
+    workflow_data = workflow_run(
         "x",
         "list_bookmarks",
-        target_id=target_id,
-        params={"waitForReady": True, "intervalSeconds": 1, "maxChars": 100000},
+        params={"waitForReady": True, "intervalSeconds": 1},
         timeout_seconds=25,
         timeout=35,
     )
-    payload = read_data.get("data") or {}
+    payload = workflow_data.get("data") or {}
     timeline = ((payload.get("content") or {}).get("timeline") or [])
     deduped_items = dedup_and_score(timeline)
     items = deduped_items[:limit]
-    deduped_items = process_and_spawn_downloads(deduped_items)
-    items = process_and_spawn_downloads(items)
 
     print(json.dumps({
         "ok": bool(payload.get("ok")),
-        "source": payload.get("source"),
-        "pageType": payload.get("pageType"),
+        "source": (payload.get("summary") or {}).get("source"),
+        "pageType": (payload.get("summary") or {}).get("pageType"),
         "results": {
             "raw_count": len(timeline),
             "deduped_count": len(deduped_items),

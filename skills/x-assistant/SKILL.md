@@ -5,7 +5,7 @@ description: >-
   searching, home feed, bookmarks, following or unfollowing users, and adding or removing bookmarks.
   Hard triggers include any x.com/twitter.com URL, "read this tweet/post/thread", "看这条推文",
   "X搜索", "首页时间线", "书签", "关注作者", "取关", "加书签", and "移除书签".
-version: 2.0.0
+version: 2.1.0
 ---
 
 # X Assistant
@@ -37,6 +37,8 @@ version: 2.0.0
 
 - 移除书签：
   `python3 skills/x-assistant/scripts/remove_bookmark.py "<post_url>"`
+
+当前这些固定读取/动作流程都已下沉到 Bridge workflow。
 
 ## 2. 上下文推断
 

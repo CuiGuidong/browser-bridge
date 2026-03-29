@@ -18,12 +18,35 @@ Browser Bridge 的目标不是做一个平台化浏览器自动化系统，而�
 - `Bridge`：统一编排
 - `Skill`：开放式高层任务
 
+固定流程当前还进一步收敛为：
+
+- workflow 负责页面生命周期
+- skill 脚本只做参数解析、调用 workflow、结果整理
+
 ## 核心原则
 
 - 账号安全优先于效率
 - 高风险动作必须低频并可审计
 - `CDP` 和扩展是协作关系，不是默认主备 fallback 关系
 - 新站点能力优先沉到 adapter，不要把站点逻辑散落在 bridge/CDP 层
+
+## 当前参考模式
+
+当前新增站点时，应优先沿用 X 和小红书已经落地的共同模式：
+
+- adapter 负责页面识别、ready 判断、结构化读取、页面内动作与校验
+- workflow 负责固定流程、页面生命周期和临时标签页管理
+- skill 脚本只负责参数解析、输入归一化、调用 workflow、结果整理
+- 输入归一化可以放在 skill 层，但短链最终跳转解析应交给真实浏览器完成
+
+如果新站点的实现需要把：
+
+- 页面打开
+- 页面等待
+- 临时标签页关闭
+- 站点级 DOM 规则
+
+重新放回 skill 脚本层，通常说明实现开始偏离当前基线。
 
 ## 当前架构
 
@@ -58,6 +81,7 @@ Skill / Script / Agent
 `Bridge`
 - 路由
 - 目标页定位
+- 固定流程下的临时标签页开关
 - source 标记
 - timeout / retry
 - 统一结果结构
@@ -97,9 +121,40 @@ Skill / Script / Agent
 
 补充说明：
 
+- 当前固定流程优先走 `/workflow/run`
 - 新增站点语义能力时，优先接入 `/site/read` / `/site/action`
 - 不要再把新站点逻辑接到浏览器级工具接口上
 - `/query` / `/evaluate` 属于浏览器级工具接口，不是站点语义接口
+
+### 当前 workflow 参数约定
+
+X：
+
+- `read_post`
+  - 必填：`url`
+  - 常用可选：`waitForReady`、`intervalSeconds`
+- `search`
+  - 必填：`keyword`
+  - 常用可选：`waitForReady`、`intervalSeconds`
+- `list_bookmarks`
+  - 常用可选：`waitForReady`、`intervalSeconds`
+- `read_home`
+  - 常用可选：`mode`(`for_you|following`)、`targetCount`、`continuous`
+- `follow_user` / `unfollow_user`
+  - 必填：`handle`
+- `add_bookmark` / `remove_bookmark`
+  - 必填：`url`
+
+小红书：
+
+- `read_post`
+  - 必填：`url` 或 `noteId`
+  - 常用可选：`waitForReady`、`intervalSeconds`
+- `read_home`
+  - 常用可选：`waitForReady`、`intervalSeconds`
+- `search`
+  - 必填：`keyword`
+  - 常用可选：`waitForReady`、`intervalSeconds`
 
 ### 扩展集成 API
 
@@ -142,6 +197,13 @@ Skill / Script / Agent
 ### workflow
 
 - `read_post`
+- `search`
+- `list_bookmarks`
+- `read_home`
+- `follow_user`
+- `unfollow_user`
+- `add_bookmark`
+- `remove_bookmark`
 
 ### 已重构的 x-assistant skill
 
@@ -164,6 +226,41 @@ Skill / Script / Agent
 - 查看书签
 - 加书签 / 移除书签
 - 关注 / 取消关注
+
+## 当前小红书站点能力
+
+### 读取类
+
+- `read_post`
+- `read_home`
+- `search`
+
+### workflow
+
+- `read_post`
+- `read_home`
+- `search`
+
+### 已封装的小红书 skill
+
+`skills/xiaohongshu-assistant/` 目前已提供：
+
+- `read_post.py`
+- `home.py`
+- `search.py`
+
+这意味着当前系统已经能直接支撑：
+
+- 阅读单篇小红书笔记
+- 查看小红书首页推荐流
+- 按关键词搜索小红书
+
+小红书 `read_post` 当前还兼容这些输入形态：
+
+- 纯 `note_id`
+- PC 长链接
+- `xhslink.com` 短链
+- 带分享文案的整段文本（先提取链接，再交给真实浏览器跳转）
 
 ## 快速开始
 
@@ -233,6 +330,7 @@ cd extension
 - 页面状态上报
 - 主动 RPC 执行
 - X 站点语义读取和动作
+- 小红书站点语义读取
 
 ## 开发时最重要的操作纪律
 
@@ -257,6 +355,24 @@ sudo systemctl restart browser-bridge.service
 
 优先使用宿主侧验证，不要在沙箱里反复猜。
 
+### 当前固定流程的标签页策略
+
+- workflow 默认允许新开临时标签页
+- 浏览器页签总数达到上限时，强制复用同站点标签页
+- workflow 结束后会关闭本次新开的临时标签页
+- 如果返回的 `targetId` 为 `null`，表示本次临时页已经在 workflow 内关闭
+
+补充说明：
+
+- 当前默认页签上限是 `30`
+- workflow 只关闭“本次新开出来的临时页”
+- 如果 workflow 复用了已有标签页，则不会关闭该页
+- `targetId` 当前主要保留给底层调试和特殊场景，固定 workflow 默认不建议依赖它
+- 如果传入 `targetId`，表示“在这个标签容器里执行 workflow”
+- 这不意味着保留当前页原样执行；workflow 仍会把该 tab 导航到自己的目标 URL
+- 对于小红书 `xhslink.com` 这类短链，skill 只负责提取链接
+- 最终跳转解析交给真实浏览器完成，而不是由脚本自己做 HTTP 解析
+
 ## 新站点扩展建议
 
 以后扩微博、小红书等站点时，建议严格按这个顺序：
@@ -267,6 +383,11 @@ sudo systemctl restart browser-bridge.service
 4. 再做低风险动作
 5. 再做状态变更动作
 6. 最后再判断是否需要 workflow
+
+当前最关键的两个注册点：
+
+- 扩展注入配置：`extension/manifest.json`
+- Bridge 站点注册：`bridge/app/server.py`
 
 重要判断：
 
@@ -307,6 +428,8 @@ sudo systemctl restart browser-bridge.service
 ## 当前已知残余风险
 
 - `follow_user / unfollow_user` 的按钮定位仍然依赖 DOM 启发式，不是绝对刚性定位
+- 小红书视频笔记当前只做视频存在标记，不缓存视频文件
+- 小红书媒体提取仍然依赖页面结构启发式，后续页面改版时可能需要跟进
 - 真实浏览器页面状态偶尔会有时序波动，因此少量明确目的的等待 / 重试仍然存在
 - 旧接口还在保留，后续继续扩功能时不要回流到旧接口上堆站点特判
 

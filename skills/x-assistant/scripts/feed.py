@@ -1,19 +1,15 @@
-import hashlib
 import json
 import sys
-import time
 from datetime import datetime, timezone
+from pathlib import Path
 
-from bridge_client import open_and_activate, post_json, site_action, site_read
-from image_utils import process_and_spawn_downloads
+from bridge_client import workflow_run
 from x_item_utils import dedup_and_score
 
 
-READ_INTERVAL_SECONDS = 1.6
-SCROLL_INTERVAL_SECONDS = 2.8
-MAX_SCROLL_ROUNDS_DEFAULT = 12
-MAX_SCROLL_ROUNDS_CONTINUOUS = 30
-
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 def _normalize_feed_type(feed_type):
     val = (feed_type or "").strip().lower()
@@ -26,137 +22,13 @@ def _normalize_feed_type(feed_type):
     return "for_you"
 
 
-def _open_home_target():
-    target_id, _ = open_and_activate(
-        "https://x.com/home",
-        reuse_domain="x.com",
-        reuse_existing_tab=True,
-        timeout=40,
-        expected_url_substring="/home",
-    )
-    if not target_id:
-        raise RuntimeError("Failed to open home page")
-    return target_id
-
-
-def _scroll_script():
-    return """(() => {
-        window.scrollBy({ top: 950, left: 0, behavior: 'smooth' });
-        return true;
-    })()"""
-
-
-def _read_page(target_id):
-    return site_read(
-        "x",
-        "read_timeline",
-        params={
-            "waitForReady": True,
-            "intervalSeconds": 1,
-            "maxChars": 100000,
-        },
-        target_id=target_id,
-        timeout_seconds=90,
-        timeout=100,
-    )
-
-
-def _collect_feed_items(target_id, desired_mode, target_count=20, continuous=False):
-    seen = set()
-    raw_collected = []
-    last_read_data = {}
-    switch_result = None
-    scroll_rounds = 0
-    mismatch_rounds = 0
-    max_scroll_rounds = MAX_SCROLL_ROUNDS_CONTINUOUS if continuous else MAX_SCROLL_ROUNDS_DEFAULT
-    consecutive_empty_reads = 0
-
-    while True:
-        read_data = _read_page(target_id)
-        if "error" in read_data:
-            time.sleep(READ_INTERVAL_SECONDS)
-            continue
-
-        last_read_data = read_data
-        data = read_data.get("data", {})
-        signals = data.get("signals", {}) or {}
-        timeline = (data.get("content", {}) or {}).get("timeline", []) or []
-        actual_mode = signals.get("feedMode")
-
-        if not timeline:
-            consecutive_empty_reads += 1
-            if consecutive_empty_reads > 3:
-                break
-        else:
-            consecutive_empty_reads = 0
-
-        for item in timeline:
-            url = (item.get("url") or "").strip()
-            text = (item.get("text") or "").strip()
-            key_base = url or text
-            if not key_base:
-                continue
-            if not url:
-                key_base = hashlib.sha1(key_base.encode("utf-8", errors="ignore")).hexdigest()
-            if key_base in seen:
-                continue
-            seen.add(key_base)
-            raw_collected.append(item)
-
-        if not continuous and len(raw_collected) >= target_count and actual_mode == desired_mode:
-            break
-        if scroll_rounds >= max_scroll_rounds:
-            break
-
-        if actual_mode != desired_mode:
-            mismatch_rounds += 1
-            if mismatch_rounds > 5:
-                break
-            try:
-                switch_result = site_action(
-                    "x",
-                    "switch_feed",
-                    params={"mode": desired_mode},
-                    target_id=target_id,
-                    timeout_seconds=30,
-                    timeout=40,
-                )
-            except Exception:
-                pass
-            time.sleep(READ_INTERVAL_SECONDS)
-            continue
-        mismatch_rounds = 0
-
-        try:
-            post_json("/evaluate", {"expression": _scroll_script(), "targetId": target_id}, timeout=30)
-        except Exception:
-            pass
-        scroll_rounds += 1
-        time.sleep(SCROLL_INTERVAL_SECONDS)
-
-    deduped_items = dedup_and_score(raw_collected)
-    final_items = deduped_items if continuous else deduped_items[:target_count]
-    deduped_items = process_and_spawn_downloads(deduped_items)
-    final_items = process_and_spawn_downloads(final_items)
-    data = (last_read_data or {}).get("data", {}) or {}
-
-    return {
-        "raw_items": raw_collected,
-        "deduped_items": deduped_items,
-        "items": final_items,
-        "source": data.get("source"),
-        "signals": data.get("signals", {}) or {},
-        "switch_result": (switch_result or {}).get("data"),
-        "scroll_rounds": scroll_rounds,
-    }
-
-
 def _format_output(feed_type_raw, feed_type_normalized, target_id, result, target_count, continuous):
     now_iso = datetime.now(timezone.utc).isoformat()
+    summary = result.get("summary") or {}
     signals = result.get("signals", {})
-    items = result.get("items", [])
-    raw_items = result.get("raw_items", [])
-    deduped_items = result.get("deduped_items", [])
+    raw_items = ((result.get("content") or {}).get("timeline")) or []
+    deduped_items = dedup_and_score(raw_items)
+    items = deduped_items if continuous else deduped_items[:target_count]
     warning = None
     if signals.get("feedMode") != feed_type_normalized:
         warning = f"requested {feed_type_normalized}, got {signals.get('feedMode')}"
@@ -178,11 +50,12 @@ def _format_output(feed_type_raw, feed_type_normalized, target_id, result, targe
         },
         "results": {
             "targetId": target_id,
-            "source": result.get("source"),
+            "source": summary.get("source"),
+            "pageType": summary.get("pageType"),
             "raw_count": len(raw_items),
             "deduped_count": len(deduped_items),
             "returned_count": len(items),
-            "scrollRounds": result.get("scroll_rounds"),
+            "scrollRounds": ((result.get("debug") or {}).get("scrollRounds")),
             "items": items,
         },
         "data": items,
@@ -191,18 +64,35 @@ def _format_output(feed_type_raw, feed_type_normalized, target_id, result, targe
 
 def read_home_feed(feed_type="both", target_count=20, continuous=False):
     try:
-        target_id = _open_home_target()
         normalized = _normalize_feed_type(feed_type)
-
         if normalized == "both":
-            for_you_result = _collect_feed_items(target_id, "for_you", target_count, continuous)
-            time.sleep(READ_INTERVAL_SECONDS)
-            following_result = _collect_feed_items(target_id, "following", target_count, continuous)
+            for_you_data = workflow_run(
+                "x",
+                "read_home",
+                params={
+                    "mode": "for_you",
+                    "targetCount": target_count,
+                    "continuous": continuous,
+                },
+                timeout_seconds=90,
+                timeout=100,
+            )
+            following_data = workflow_run(
+                "x",
+                "read_home",
+                params={
+                    "mode": "following",
+                    "targetCount": target_count,
+                    "continuous": continuous,
+                },
+                timeout_seconds=90,
+                timeout=100,
+            )
+            fy_payload = for_you_data.get("data") or {}
+            fl_payload = following_data.get("data") or {}
             now_iso = datetime.now(timezone.utc).isoformat()
-
-            fy_formatted = _format_output("For you", "for_you", target_id, for_you_result, target_count, continuous)
-            fl_formatted = _format_output("following", "following", target_id, following_result, target_count, continuous)
-
+            fy_formatted = _format_output("For you", "for_you", fy_payload.get("targetId"), fy_payload, target_count, continuous)
+            fl_formatted = _format_output("following", "following", fl_payload.get("targetId"), fl_payload, target_count, continuous)
             payload = {
                 "ok": True,
                 "request": {
@@ -221,9 +111,20 @@ def read_home_feed(feed_type="both", target_count=20, continuous=False):
             print(json.dumps(payload, ensure_ascii=False))
             return
 
-        result = _collect_feed_items(target_id, normalized, target_count, continuous)
+        workflow_data = workflow_run(
+            "x",
+            "read_home",
+            params={
+                "mode": normalized,
+                "targetCount": target_count,
+                "continuous": continuous,
+            },
+            timeout_seconds=90,
+            timeout=100,
+        )
+        payload = workflow_data.get("data") or {}
         print(json.dumps(
-            _format_output(feed_type, normalized, target_id, result, target_count, continuous),
+            _format_output(feed_type, normalized, payload.get("targetId"), payload, target_count, continuous),
             ensure_ascii=False,
         ))
     except Exception as e:

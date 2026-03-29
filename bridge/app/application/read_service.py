@@ -135,6 +135,8 @@ class ReadService:
             target_url = page.get("url") if page else None
         wait_for_ready = params.get("waitForReady", True)
         interval_seconds = float(params.get("intervalSeconds", 1))
+        last_probe = None
+        ready_observed = not wait_for_ready
         if wait_for_ready:
             started = time.time()
             while time.time() - started < timeout_seconds:
@@ -144,9 +146,25 @@ class ReadService:
                     timeout_seconds=min(5, timeout_seconds),
                     target_url=target_url,
                 )
+                last_probe = probe
                 if probe.get("ok") and ((probe.get("signals") or {}).get("ready") is True):
+                    ready_observed = True
                     break
                 time.sleep(interval_seconds)
+        if not ready_observed:
+            return {
+                "ok": False,
+                "source": "bridge",
+                "site": site,
+                "kind": kind,
+                "error": "page not ready before timeout",
+                "page": ((last_probe or {}).get("page") or {"url": target_url}),
+                "signals": (last_probe or {}).get("signals") or {},
+                "content": (last_probe or {}).get("content") or {},
+                "debug": {
+                    "lastProbe": last_probe,
+                },
+            }
 
         runtime = self.extension_runtime.invoke(
             "read",

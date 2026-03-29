@@ -3,7 +3,6 @@ import sys
 import time
 
 from bridge_client import workflow_run
-from image_utils import process_and_spawn_downloads
 from x_targets import build_author_from_page_url, extract_status_id
 
 
@@ -52,13 +51,11 @@ def read_single_post(url):
             }))
             return
 
-        content = process_and_spawn_downloads(content)
-
         print(json.dumps({
             "ok": True,
             "url": url,
             "canonicalUrl": canonical_url,
-            "source": payload.get("source"),
+            "source": (payload.get("summary") or {}).get("source"),
             "workflow": payload.get("workflow"),
             "author": author,
             "post": {

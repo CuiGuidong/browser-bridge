@@ -1,6 +1,6 @@
 # Browser Bridge 架构规范
 
-_最后更新：2026-03-26_  
+_最后更新：2026-03-30_  
 _状态：正式规范_
 
 ## 1. 文档目的
@@ -127,6 +127,9 @@ Browser Runtime 是**浏览器控制层**，不是站点语义层。
 - `content.js` 是页面内常驻执行者
 - `background.js` 负责和 Bridge 转发消息
 - 主动命令必须带目标页约束，避免跨 tab 串命令
+- 当前目标页匹配规则不是抽象的“任意精确匹配”，而是：
+  - 规范化后的 `exact_url`
+  - 仅 X 额外支持 `x_status_id`
 
 ### 5.3 Site Adapter
 
@@ -170,7 +173,30 @@ Workflow 的职责是处理**步骤固定、目标明确、流程稳定**的任�
 例如：
 
 - `read_post`
+- `search`
+- `list_bookmarks`
+- `read_home`
+- `follow_user`
+- `unfollow_user`
+- `add_bookmark`
+- `remove_bookmark`
 - 以后如果有非常固定的“打开某页 -> 读取 -> 验证”流程，也可以放 workflow
+
+当前实现细节：
+
+- 默认允许新开临时标签页
+- 浏览器页签总数达到上限时，强制复用同站点标签页
+- 当前默认页签上限为 `30`
+- workflow 只关闭“本次新开出来的临时标签页”，不关闭复用来的既有标签页
+- 如果调用方传入 `targetId`，应把它理解成“指定 workflow 在哪个 tab 容器里执行”
+- 这不意味着 workflow 会保留当前页原样执行；workflow 仍会把该 tab 导航到目标 URL
+
+并且当前固定流程默认还负责：
+
+- 打开目标页
+- 必要时新开临时标签页
+- 读取或执行动作
+- 关闭临时标签页
 
 Workflow 不适合做什么：
 
@@ -200,6 +226,25 @@ Skill 是**高语义编排层**，适合处理开放式目标。
 
 - Bridge workflow 负责固定流程
 - skill 负责编排原子能力
+
+### 5.6 已落地参考实现模式
+
+当前 X 与小红书已经形成一套统一实现模式，后续扩站应优先照此推进：
+
+1. adapter
+   - 负责 `collect/getPageType/probeReady/read/act/verify`
+   - 负责站点 DOM 语义，不负责页面生命周期
+
+2. workflow
+   - 负责固定流程
+   - 负责打开目标页、等待最终落地页、关闭临时标签页
+   - 负责把原子能力组织成稳定可复用入口
+
+3. skill
+   - 只做参数解析、输入归一化、调用 workflow、整理输出
+   - 不再自己接管页面生命周期
+
+这套模式比“skill 脚本里手写开页/等待/读/关页”更符合当前项目的正式架构。
 
 ## 6. 当前推荐的数据模型
 
@@ -254,6 +299,7 @@ Skill 是**高语义编排层**，适合处理开放式目标。
   "ok": true,
   "workflow": "read_post",
   "site": "x",
+  "targetId": null,
   "summary": {},
   "items": [],
   "checkpoint": {},
@@ -263,6 +309,13 @@ Skill 是**高语义编排层**，适合处理开放式目标。
 
 注意：本项目不要求所有高层任务都做成 workflow。  
 开放式任务优先由 skill 组合原子能力完成。
+
+补充约束：
+
+- 如果 workflow 在执行过程中临时新开了标签页，并在结束前已关闭该页，则 `targetId` 应返回 `null`
+- 不应假设 workflow 返回的 `targetId` 一定还能继续被下游调用复用
+- `targetId` 当前主要用于底层调试和特殊场景，不建议把它作为固定 workflow 的常规业务参数
+- 如果调用方传入 `targetId`，应把它理解成“指定 workflow 在哪个 tab 容器里执行”
 
 ## 7. API 设计原则
 
@@ -275,6 +328,7 @@ Skill 是**高语义编排层**，适合处理开放式目标。
 
 规范方向：
 
+- 固定流程优先走 `/workflow/run`
 - 新功能优先走 `/site/*` 和 `/workflow/run`
 - 浏览器级工具接口只解决浏览器控制与调试问题
 - 浏览器级工具接口不再承载新的站点语义能力
@@ -289,6 +343,41 @@ Skill 是**高语义编排层**，适合处理开放式目标。
 
 - 外部调用面向语义能力
 - 不是面向 selector API
+
+当前实现补充：
+
+- `/workflow/run` 是固定流程的一等入口
+- `/site/read`、`/site/action` 更多作为 workflow 和调试的原子能力底座
+
+### 7.3 当前已落地 workflow 参数契约
+
+X：
+
+- `read_post`
+  - 必填：`url`
+  - 可选：`waitForReady`、`intervalSeconds`
+- `search`
+  - 必填：`keyword`
+  - 可选：`waitForReady`、`intervalSeconds`
+- `list_bookmarks`
+  - 可选：`waitForReady`、`intervalSeconds`
+- `read_home`
+  - 可选：`mode`(`for_you|following`)、`targetCount`、`continuous`
+- `follow_user` / `unfollow_user`
+  - 必填：`handle`
+- `add_bookmark` / `remove_bookmark`
+  - 必填：`url`
+
+小红书：
+
+- `read_post`
+  - 必填：`url` 或 `noteId`
+  - 可选：`waitForReady`、`intervalSeconds`
+- `read_home`
+  - 可选：`waitForReady`、`intervalSeconds`
+- `search`
+  - 必填：`keyword`
+  - 可选：`waitForReady`、`intervalSeconds`
 
 ## 8. X 作为当前参考站点
 
@@ -324,6 +413,13 @@ Skill 是**高语义编排层**，适合处理开放式目标。
 工作流：
 
 - `read_post`
+- `search`
+- `list_bookmarks`
+- `read_home`
+- `follow_user`
+- `unfollow_user`
+- `add_bookmark`
+- `remove_bookmark`
 
 ### 8.2 当前已验证的 skill 能力
 
@@ -346,6 +442,38 @@ Skill 是**高语义编排层**，适合处理开放式目标。
 - 查看书签
 - 加书签/移除书签
 - 关注/取消关注
+
+### 8.4 小红书作为第二个已落地参考站点
+
+当前已落地的小红书原子能力：
+
+读取类：
+
+- `read_post`
+- `read_home`
+- `search`
+
+工作流：
+
+- `read_post`
+- `read_home`
+- `search`
+
+在 `skills/xiaohongshu-assistant/` 下，当前已提供：
+
+- `read_post.py`
+- `home.py`
+- `search.py`
+
+这说明当前系统已经不再只服务 X，而是已经完成了第二个站点的小规模落地。
+
+当前小红书 `read_post` skill 还负责输入归一化，但这个归一化只处理：
+
+- 从分享文本里提取链接
+- 识别 `note_id`
+- 识别长链接与短链接
+
+而像 `xhslink.com` 这类短链的最终跳转解析，交由真实浏览器完成，不在 skill 里用独立网络请求提前解析。
 
 ### 8.3 关于“整理书签”
 
@@ -445,7 +573,7 @@ extension/adapters/
 
 1. 扩展侧：
    - 新建 `extension/adapters/<site>-adapter.js`
-   - 在扩展加载配置中确保该站点页面会注入该 adapter
+   - 在扩展加载配置中确保该站点页面会注入该 adapter（当前落点：`extension/manifest.json`）
    - 实现 `match/getPageType/probeReady/read/act/verify`
 
 2. Bridge 侧：
@@ -461,6 +589,8 @@ extension/adapters/
 4. Skill 侧：
    - 如果要对用户暴露该站点能力，再新增专用 skill 脚本
    - skill 负责开放式上下文决策，不要把开放式任务硬塞进 bridge workflow
+   - skill 脚本应尽量只做参数解析、调用 workflow、结果整理
+   - 允许在 skill 层做输入归一化，例如从分享文本里提取链接或识别 `note_id`
 
 5. 验证侧：
    - 至少验证一个读取能力

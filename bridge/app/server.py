@@ -13,6 +13,7 @@ from .playwright_client import get_playwright_client, reset_playwright_client
 from .schemas import ok
 from .sites.registry import SiteRegistry
 from .sites.x.site import XSite
+from .sites.xiaohongshu.site import XiaohongshuSite
 
 
 app = FastAPI(title="Browser Bridge API", version="1.0.0")
@@ -20,10 +21,12 @@ browser_runtime = CdpRuntime()
 extension_runtime = ExtensionRuntime()
 site_registry = SiteRegistry()
 site_registry.register("x", XSite())
+site_registry.register("xiaohongshu", XiaohongshuSite())
 read_service = ReadService(browser_runtime, extension_runtime, site_registry=site_registry)
 action_service = ActionService(browser_runtime, extension_runtime, site_registry=site_registry)
 workflow_service = WorkflowService(browser_runtime, extension_runtime, site_registry=site_registry)
 workflow_service.bind_read_service(read_service)
+workflow_service.bind_action_service(action_service)
 playwright_client = get_playwright_client()
 
 

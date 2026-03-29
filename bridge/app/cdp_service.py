@@ -11,6 +11,7 @@ class BrowserBridgeService:
     def __init__(self, client=None, ws_client=None):
         self.client = client or CdpHttpClient()
         self.ws_client = ws_client or CdpWebSocketClient()
+        self._tab_limit = 30
 
     def get_version(self):
         return self.client.get_json("/json/version")
@@ -29,9 +30,17 @@ class BrowserBridgeService:
         return {"url": url, "raw": target}
 
     def open_or_reuse_url(self, url, reuse_existing_tab=False, reuse_domain=None):
+        tabs = self.list_tabs()
         if reuse_existing_tab:
-            reused = self._try_reuse_tab(url, reuse_domain=reuse_domain)
+            reused = self._try_reuse_tab(url, reuse_domain=reuse_domain, tabs=tabs)
             if reused:
+                return reused
+
+        if len(tabs) >= self._tab_limit:
+            reused = self._try_reuse_tab(url, reuse_domain=reuse_domain, tabs=tabs)
+            if reused:
+                reused["reused"] = True
+                reused["forcedReuse"] = True
                 return reused
 
         opened = self.open_url(url)
@@ -41,6 +50,29 @@ class BrowserBridgeService:
     def activate_tab(self, target_id):
         self.client.get_text(f"/json/activate/{target_id}")
         return {"targetId": target_id, "activated": True}
+
+    def navigate_tab(self, target_id, url):
+        target = self.get_page_info(target_id)
+        if target is None:
+            return None
+        ws_url = target.get("webSocketDebuggerUrl")
+        if not ws_url:
+            return None
+        try:
+            self.ws_client.call(ws_url, "Page.enable", {})
+            self.ws_client.call(ws_url, "Page.navigate", {"url": url})
+            self.activate_tab(target_id)
+            time.sleep(0.4)
+            updated = self.get_page_info(target_id) or target
+            updated["reused"] = True
+            updated["navigated"] = True
+            return updated
+        except Exception:
+            return None
+
+    def close_tab(self, target_id):
+        self.client.get_text(f"/json/close/{target_id}")
+        return {"targetId": target_id, "closed": True}
 
     def get_page_info(self, target_id=None):
         tabs = self.list_tabs()
@@ -53,8 +85,8 @@ class BrowserBridgeService:
             return None
         return tabs[0]
 
-    def _try_reuse_tab(self, url, reuse_domain=None):
-        tabs = self.list_tabs()
+    def _try_reuse_tab(self, url, reuse_domain=None, tabs=None):
+        tabs = tabs or self.list_tabs()
         if not tabs:
             return None
 

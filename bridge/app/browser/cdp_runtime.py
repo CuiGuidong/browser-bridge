@@ -21,6 +21,12 @@ class CdpRuntime:
     def activate_tab(self, target_id):
         return self._service.activate_tab(target_id)
 
+    def navigate_tab(self, target_id, url):
+        return self._service.navigate_tab(target_id, url)
+
+    def close_tab(self, target_id):
+        return self._service.close_tab(target_id)
+
     def wait_for_page(self, target_id=None, timeout_seconds=10, interval_seconds=0.5):
         return self._service.wait_for_page(
             target_id=target_id,

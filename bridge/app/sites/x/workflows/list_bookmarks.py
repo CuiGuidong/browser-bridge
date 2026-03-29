@@ -1,55 +1,35 @@
-from .common import close_temporary_tab, response_target_id
+from .common import close_temporary_tab, open_x_page, response_target_id
 from ....media.image_cache import process_and_spawn_downloads
 
 
 def _infer_page_type(read_result):
     page = read_result.get("page") or {}
     url = page.get("url") or ""
-    signals = read_result.get("signals") or {}
-    if "/status/" in url:
-        return "post"
-    if signals.get("isTimeline"):
-        return "timeline"
+    if "/i/bookmarks" in url:
+        return "bookmarks"
     return None
 
 
 def run(read_service, browser_runtime, target_id=None, params=None, timeout_seconds=20):
     params = params or {}
-    opened = None
-    resolved_target_id = target_id
-
-    if resolved_target_id:
-        browser_runtime.activate_tab(resolved_target_id)
-    else:
-        url = params.get("url")
-        if not url:
-            return {
-                "ok": False,
-                "site": "x",
-                "workflow": "read_post",
-                "error": "url is required",
-            }
-        opened = browser_runtime.open_or_reuse_url(
-            url,
-            reuse_existing_tab=False,
-            reuse_domain="x.com",
-        )
-        if not opened:
-            return {
-                "ok": False,
-                "site": "x",
-                "workflow": "read_post",
-                "error": "failed to open page",
-            }
-        resolved_target_id = opened.get("targetId") or opened.get("id")
+    resolved_target_id, opened = open_x_page(
+        browser_runtime,
+        url="https://x.com/i/bookmarks",
+        target_id=target_id,
+    )
+    if not resolved_target_id:
+        return {
+            "ok": False,
+            "site": "x",
+            "workflow": "list_bookmarks",
+            "error": "failed to open page",
+        }
 
     try:
-        read_params = dict(params)
-        read_params.pop("url", None)
         read_result = read_service.site_read(
             site="x",
-            kind="read_post",
-            params=read_params,
+            kind="list_bookmarks",
+            params=params,
             target_id=resolved_target_id,
             timeout_seconds=timeout_seconds,
         )
@@ -57,7 +37,7 @@ def run(read_service, browser_runtime, target_id=None, params=None, timeout_seco
             return {
                 "ok": False,
                 "site": "x",
-                "workflow": "read_post",
+                "workflow": "list_bookmarks",
                 "targetId": response_target_id(opened, resolved_target_id),
                 "error": "site read failed",
             }
@@ -65,7 +45,7 @@ def run(read_service, browser_runtime, target_id=None, params=None, timeout_seco
             return {
                 **read_result,
                 "site": "x",
-                "workflow": "read_post",
+                "workflow": "list_bookmarks",
                 "targetId": response_target_id(opened, resolved_target_id),
                 "debug": {
                     "open": opened,
@@ -73,22 +53,21 @@ def run(read_service, browser_runtime, target_id=None, params=None, timeout_seco
                 },
             }
         actual_page_type = _infer_page_type(read_result)
-        if actual_page_type != "post":
+        if actual_page_type != "bookmarks":
             return {
                 "ok": False,
                 "site": "x",
-                "workflow": "read_post",
+                "workflow": "list_bookmarks",
                 "targetId": response_target_id(opened, resolved_target_id),
                 "error": "unexpected page type",
-                "expectedPageType": "post",
+                "expectedPageType": "bookmarks",
                 "actualPageType": actual_page_type,
                 "page": read_result.get("page") or {},
             }
-
-        result = {
+        return {
             "ok": bool(read_result.get("ok")),
             "site": "x",
-            "workflow": "read_post",
+            "workflow": "list_bookmarks",
             "targetId": response_target_id(opened, resolved_target_id),
             "summary": {
                 "source": read_result.get("source"),
@@ -99,15 +78,14 @@ def run(read_service, browser_runtime, target_id=None, params=None, timeout_seco
             "checkpoint": {},
             "page": read_result.get("page") or {},
             "signals": read_result.get("signals") or {},
-            "content": read_result.get("content") or {},
-            "debug": read_result.get("debug") or {},
+            "content": {
+                **(read_result.get("content") or {}),
+                "timeline": process_and_spawn_downloads(((read_result.get("content") or {}).get("timeline")) or []),
+            },
+            "debug": {
+                "open": opened,
+                **(read_result.get("debug") or {}),
+            },
         }
-        content = result.get("content") or {}
-        if content.get("primaryText"):
-            content["primaryText"] = process_and_spawn_downloads(content["primaryText"])
-        result["content"] = content
-        if opened is not None:
-            result["debug"]["open"] = opened
-        return result
     finally:
         close_temporary_tab(browser_runtime, opened, resolved_target_id)

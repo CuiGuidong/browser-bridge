@@ -1,24 +1,18 @@
 import json
 import sys
 
-from bridge_client import open_and_activate, site_action
+from bridge_client import workflow_run
 
 
 def add_bookmark(url):
-    target_id, _ = open_and_activate(url, reuse_domain="x.com", reuse_existing_tab=True, timeout=40)
-    if not target_id:
-        print(json.dumps({"ok": False, "error": "Failed to open post page"}))
-        return
-
-    action = site_action(
+    workflow_data = workflow_run(
         "x",
         "add_bookmark",
         params={"url": url},
-        target_id=target_id,
         timeout_seconds=25,
         timeout=35,
     )
-    payload = action.get("data") or {}
+    payload = workflow_data.get("data") or {}
     print(json.dumps({
         "ok": bool(payload.get("ok")),
         "url": url,

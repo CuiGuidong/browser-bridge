@@ -23,6 +23,7 @@ Chrome/Edge 扩展，负责页面内常驻执行、站点语义读取、站点�
 
 新站点 adapter 至少应实现：
 
+- `collect(baseSnapshot)`
 - `id`
 - `match()`
 - `getPageType()`
@@ -32,7 +33,11 @@ Chrome/Edge 扩展，负责页面内常驻执行、站点语义读取、站点�
 - `act(kind, params, context)`
 - `verify(kind, params, context, actionResult)`
 
-如果仍然只有 `collect(baseSnapshot)` 而没有这些主动接口，说明还停留在旧模型，不符合当前正式架构。
+说明：
+
+- `collect(baseSnapshot)` 仍然是当前正式运行时必需接口，因为 `content.js` 会在快照/上报链路直接调用它
+- `probeReady/read/act/verify` 是主动 RPC 模型下的正式接口
+- 也就是说，新站点 adapter 不能只实现主动接口而不实现 `collect()`
 
 ## 如何添加新网站支持
 
@@ -43,6 +48,7 @@ Chrome/Edge 扩展，负责页面内常驻执行、站点语义读取、站点�
 3. 在文件尾部执行：
    `window.BrowserBridgeAdapters.push(weiboAdapter);`
 4. 修改扩展加载配置，确保该 adapter 会在微博页面注入
+   - 当前落点是 `extension/manifest.json`
 5. 完成后再补 Bridge 侧的：
    - `bridge/app/sites/weibo/models.py`
    - `bridge/app/sites/weibo/site.py`

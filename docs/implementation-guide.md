@@ -1,6 +1,6 @@
 # Browser Bridge 实现指南与避坑手册
 
-_最后更新：2026-03-26_  
+_最后更新：2026-03-30_  
 _状态：正式指南_
 
 本文档不是架构规范的重复版，而是：
@@ -135,6 +135,21 @@ sudo systemctl restart browser-bridge.service
 
 - 当前新架构下，X 语义读取不再默认走 CDP fallback
 - 扩展失败时，应优先返回错误与诊断，而不是伪装成“CDP 语义成功”
+- 对外暴露固定流程时，优先提供 `/workflow/run`，不要让 skill 脚本重新接管页面生命周期
+
+如果接手者在看固定流程的具体参数：
+
+- X：
+  - `read_post` 需要 `url`
+  - `search` 需要 `keyword`
+  - `list_bookmarks` 不要求业务参数
+  - `read_home` 常用 `mode/targetCount/continuous`
+  - `follow_user/unfollow_user` 需要 `handle`
+  - `add_bookmark/remove_bookmark` 需要 `url`
+- 小红书：
+  - `read_post` 需要 `url` 或 `noteId`
+  - `search` 需要 `keyword`
+  - `read_home` 不要求业务参数
 
 ### 5.2 操作链路
 
@@ -157,11 +172,56 @@ sudo systemctl restart browser-bridge.service
 
 ### 5.3 workflow 链路
 
-当前真正落地的 workflow 只有：
+当前已正式落地的 workflow 分两组：
+
+X：
 
 - `read_post`
+- `search`
+- `list_bookmarks`
+- `read_home`
+- `follow_user`
+- `unfollow_user`
+- `add_bookmark`
+- `remove_bookmark`
 
-其它高层任务，例如“整理书签”，不建议贸然做成 workflow，应优先保留给 skill 编排。
+小红书：
+
+- `read_post`
+- `read_home`
+- `search`
+
+其它高层任务，例如“整理书签”，仍不建议贸然做成 workflow，应优先保留给 skill 编排。
+
+当前实现上，`/workflow/run` 已经是固定流程的一等入口。  
+skill 脚本如果面对的是固定流程，应优先直接调用 workflow，而不是自己重复：
+
+- 打开页面
+- 等待页面稳定
+- 读或执行动作
+- 关闭临时标签页
+
+### 5.4 固定流程的标签页策略
+
+当前固定 workflow 默认遵循：
+
+- 默认允许新开临时标签页
+- 浏览器标签页达到上限时，强制复用同站点标签页
+- workflow 结束后关闭本次新开的临时标签页
+
+调用层需要理解：
+
+- 如果 workflow 返回的 `targetId` 为 `null`，通常表示临时页已在 workflow 内关闭
+- 不应假设 workflow 一定会留下一个可继续操作的标签页句柄
+- `targetId` 当前主要保留给底层调试和特殊场景，固定 workflow 默认不建议依赖它
+- 如果 workflow 接收 `targetId`，应把它理解成“指定执行容器”，而不是“保持当前页内容不变”
+
+实现细节：
+
+- 当前默认标签页上限是 `30`
+- 只关闭“本次 workflow 新开出来的临时页”
+- 如果 workflow 复用了既有标签页，则不会关闭该页
+- 传入 `targetId` 时，workflow 仍会把该 tab 导航到目标 URL
 
 ## 6. 扩展 RPC 的关键实现约束
 
@@ -172,7 +232,7 @@ sudo systemctl restart browser-bridge.service
 必须：
 
 - enqueue 时带 `targetUrl`
-- pull 时按当前页面 URL 精确匹配
+- pull 时按当前页面 URL 匹配
 
 否则会出现：
 
@@ -180,6 +240,14 @@ sudo systemctl restart browser-bridge.service
 - 却被另一个 tab 抢走执行
 
 这是已经踩过的真实坑。
+
+补充说明：
+
+- 当前 Bridge 里的真实匹配规则不是泛化的“所有站点都做复杂匹配”
+- 目前只实现了：
+  - 规范化后的 `exact_url`
+  - 仅 X 额外支持 `x_status_id`
+- 所以像小红书短链这种场景，正确做法不是扩展命令去匹配短链，而是先让浏览器跳到最终长链接页，再进入读取
 
 ### 6.2 content.js 是当前实际执行者
 
@@ -286,6 +354,7 @@ Bridge 当前对状态变更动作做了低频节流。
 - 公共 bridge 访问走 `bridge_client.py`
 - X URL / handle 解析走 `x_targets.py`
 - timeline/bookmark item 打分走 `x_item_utils.py`
+- 固定流程优先走 `workflow_run()`
 
 动作脚本：
 
@@ -294,16 +363,45 @@ Bridge 当前对状态变更动作做了低频节流。
 - `add_bookmark.py`
 - `remove_bookmark.py`
 
-这类脚本不应该各自复制一套：
+这些脚本当前应尽量只负责：
 
-- open
-- activate
-- sleep
-- site_action
+- 参数解析
+- 调 workflow
+- 整理输出 JSON
 
-所以当前已经抽出了 `open_and_activate()`。
+不要再把固定流程里的：
 
-以后继续扩动作脚本时，优先复用公共 helper，而不是再复制一份。
+- 打开页面
+- 激活标签
+- 等待页面
+- 关闭临时标签
+
+重新放回 skill 脚本里。
+
+另外，图片缓存当前已经提到公共模块：
+
+- `bridge/app/media/image_cache.py`
+- `bridge/app/media/async_image_downloader.py`
+
+X 和小红书共用这套媒体后处理能力，不要再各自复制一份下载逻辑。
+
+当前接手者如果要新增站点，最好直接把 X 和小红书当作“参考模板”理解：
+
+- adapter 里放站点 DOM 语义
+- workflow 里放固定流程与标签页生命周期
+- skill 里只做输入归一化、调用 workflow、整理输出
+
+只要守住这三层边界，后续扩微博、知乎等站点时就不容易重新滑回“脚本层补丁编排”。
+
+小红书 skill 还有一个边界需要守住：
+
+- 可以在 `read_post.py` 里做输入判型和链接提取
+- 不要在 skill 里自己请求短链去做最终 URL 解析
+- `xhslink.com` 这类跳转链路应交给真实浏览器打开，再由 workflow 等待最终页落地
+
+另外，如果要修改当前标签页策略，落点在：
+
+- `bridge/app/cdp_service.py`
 
 ## 10. 新站点扩展的开发 SOP
 
@@ -448,6 +546,8 @@ Bridge 当前对状态变更动作做了低频节流。
 ## 13. 当前已知残余风险
 
 - `follow_user / unfollow_user` 仍然依赖 DOM 启发式按钮定位，不是绝对刚性定位
+- 小红书视频笔记当前只保留视频存在标记，不缓存视频文件
+- 小红书媒体提取仍然依赖页面结构启发式，后续页面改版时可能需要调整
 - 真实浏览器页面状态偶尔会有时序波动，因此 skill 层仍需要少量、明确目的的等待与重试
 - 旧接口还在保留，未来继续扩功能时要防止回流到旧接口上继续加站点特判
 

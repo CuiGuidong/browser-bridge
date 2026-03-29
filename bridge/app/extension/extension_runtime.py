@@ -80,6 +80,10 @@ class ExtensionRuntime:
             while key not in self._command_results:
                 remaining = deadline - time.time()
                 if remaining <= 0:
+                    self._pending_commands = [
+                        command for command in self._pending_commands
+                        if str(command.get("id")) != key
+                    ]
                     return {
                         "ok": False,
                         "error": "extension command timed out",
@@ -156,7 +160,8 @@ class ExtensionRuntime:
             path = parsed.path.rstrip("/")
             if not path:
                 path = "/"
-            return f"{parsed.scheme}://{parsed.netloc}{path}"
+            query = f"?{parsed.query}" if parsed.query else ""
+            return f"{parsed.scheme}://{parsed.netloc}{path}{query}"
         except Exception:
             return url
 

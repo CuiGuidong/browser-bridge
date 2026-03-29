@@ -4,9 +4,14 @@ class WorkflowService:
         self.extension_runtime = extension_runtime
         self.site_registry = site_registry
         self.read_service = None
+        self.action_service = None
 
     def bind_read_service(self, read_service):
         self.read_service = read_service
+        return self
+
+    def bind_action_service(self, action_service):
+        self.action_service = action_service
         return self
 
     def status(self):
@@ -46,4 +51,5 @@ class WorkflowService:
             browser_runtime=self.browser_runtime,
             extension_runtime=self.extension_runtime,
             read_service=self.read_service,
+            action_service=self.action_service,
         )

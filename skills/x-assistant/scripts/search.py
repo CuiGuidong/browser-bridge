@@ -1,45 +1,32 @@
 import json
 import sys
-import urllib.parse
+from pathlib import Path
 
-from bridge_client import open_and_activate, site_read
-from image_utils import process_and_spawn_downloads
+from bridge_client import workflow_run
 from x_item_utils import dedup_and_score
 
 
-def search_x(keyword):
-    search_url = f"https://x.com/search?q={urllib.parse.quote(keyword)}&src=typed_query"
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
+def search_x(keyword):
     try:
-        target_id, _ = open_and_activate(
-            search_url,
-            reuse_domain="x.com",
-            reuse_existing_tab=True,
-            timeout=40,
-            expected_url_substring="/search",
-        )
-        if not target_id:
-            print(json.dumps({"ok": False, "error": "Failed to open search page"}))
-            return
-        read_data = site_read(
+        workflow_data = workflow_run(
             "x",
-            "read_timeline",
-            params={
-                "waitForReady": True,
-                "intervalSeconds": 1,
-                "maxChars": 100000,
-            },
-            target_id=target_id,
+            "search",
+            params={"keyword": keyword, "waitForReady": True, "intervalSeconds": 1},
             timeout_seconds=90,
             timeout=100,
         )
-        timeline = (((read_data.get("data") or {}).get("content") or {}).get("timeline") or [])
-        source = (read_data.get("data") or {}).get("source")
+        payload = workflow_data.get("data") or {}
+        timeline = (((payload.get("content") or {}).get("timeline")) or [])
+        summary = payload.get("summary") or {}
+        source = summary.get("source")
 
         if not timeline:
-            fallback = (((read_data.get("data") or {}).get("content") or {}).get("primaryText") or "").strip()
+            fallback = (((payload.get("content") or {}).get("primaryText")) or "").strip()
             if fallback:
-                fallback = process_and_spawn_downloads(fallback)
                 print(json.dumps({
                     "ok": True,
                     "keyword": keyword,
@@ -54,15 +41,15 @@ def search_x(keyword):
                 }))
                 return
 
-            print(json.dumps({"ok": False, "error": "No timeline data found.", "raw_debug": read_data}))
+            print(json.dumps({"ok": False, "error": "No timeline data found.", "raw_debug": workflow_data}))
             return
 
         deduped = dedup_and_score(timeline)
-        deduped = process_and_spawn_downloads(deduped)
         print(json.dumps({
             "ok": True,
             "keyword": keyword,
             "source": source,
+            "pageType": summary.get("pageType"),
             "results": {
                 "raw_count": len(timeline),
                 "deduped_count": len(deduped),
