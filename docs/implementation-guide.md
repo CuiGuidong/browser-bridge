@@ -1,6 +1,6 @@
 # Browser Bridge 实现指南与避坑手册
 
-_最后更新：2026-03-30_  
+_最后更新：2026-03-31_  
 _状态：正式指南_
 
 本文档不是架构规范的重复版，而是：
@@ -11,7 +11,8 @@ _状态：正式指南_
 
 读者对象：
 
-- 未来负责继续扩展微博、小红书等站点的 Agent
+- 需要接手 X、小红书、微博现有实现的人
+- 未来负责继续扩展新站点的 Agent
 - 需要接手 bridge / extension / skill 三层实现的人
 
 ## 1. 开发前必须先建立的心智模型
@@ -150,6 +151,12 @@ sudo systemctl restart browser-bridge.service
   - `read_post` 需要 `url` 或 `noteId`
   - `search` 需要 `keyword`
   - `read_home` 不要求业务参数
+- 微博：
+  - `read_post` 需要 `url`
+  - `search` 需要 `keyword`
+  - `read_home` 常用 `targetCount/scrollRounds`
+  - `read_hot_feed` 常用 `targetCount/scrollRounds`
+  - `read_hot_search` 常用 `targetCount`
 
 ### 5.2 操作链路
 
@@ -172,7 +179,7 @@ sudo systemctl restart browser-bridge.service
 
 ### 5.3 workflow 链路
 
-当前已正式落地的 workflow 分两组：
+当前已正式落地的 workflow 分三组：
 
 X：
 
@@ -189,6 +196,14 @@ X：
 
 - `read_post`
 - `read_home`
+- `search`
+
+微博：
+
+- `read_home`
+- `read_hot_feed`
+- `read_hot_search`
+- `read_post`
 - `search`
 
 其它高层任务，例如“整理书签”，仍不建议贸然做成 workflow，应优先保留给 skill 编排。
@@ -349,7 +364,13 @@ Bridge 当前对状态变更动作做了低频节流。
 
 ## 9. 当前 skill 层实现原则
 
-`skills/x-assistant/` 当前的重构方向已经明确：
+当前 skill 层已落地三组站点脚本：
+
+- `skills/x-assistant/`
+- `skills/xiaohongshu-assistant/`
+- `skills/weibo-assistant/`
+
+其中 `skills/x-assistant/` 的重构方向已经明确：
 
 - 公共 bridge 访问走 `bridge_client.py`
 - X URL / handle 解析走 `x_targets.py`
@@ -383,7 +404,7 @@ Bridge 当前对状态变更动作做了低频节流。
 - `bridge/app/media/image_cache.py`
 - `bridge/app/media/async_image_downloader.py`
 
-X 和小红书共用这套媒体后处理能力，不要再各自复制一份下载逻辑。
+X、小红书和微博当前共用这套媒体后处理入口，不要再各自复制一份下载逻辑。
 
 补充一个已经踩过的真实坑：
 
@@ -405,7 +426,7 @@ X 和小红书共用这套媒体后处理能力，不要再各自复制一份下
 3. 下载器在 bridge 服务环境下是否与交互 shell 环境表现一致
 4. 如 shell 可下载而 bridge 不可下载，优先检查服务环境变量而不是先改站点 DOM 逻辑
 
-当前接手者如果要新增站点，最好直接把 X 和小红书当作“参考模板”理解：
+当前接手者如果要新增站点，最好直接把 X、小红书和微博当作“参考模板”理解：
 
 - adapter 里放站点 DOM 语义
 - workflow 里放固定流程与标签页生命周期

@@ -32,7 +32,7 @@ Browser Bridge 的目标不是做一个平台化浏览器自动化系统，而�
 
 ## 当前参考模式
 
-当前新增站点时，应优先沿用 X 和小红书已经落地的共同模式：
+当前新增站点时，应优先沿用 X、小红书和微博已经落地的共同模式：
 
 - adapter 负责页面识别、ready 判断、结构化读取、页面内动作与校验
 - workflow 负责固定流程、页面生命周期和临时标签页管理
@@ -156,6 +156,21 @@ X：
   - 必填：`keyword`
   - 常用可选：`waitForReady`、`intervalSeconds`
 
+微博：
+
+- `read_post`
+  - 必填：`url`
+  - 常用可选：`waitForReady`、`intervalSeconds`
+- `read_home`
+  - 常用可选：`targetCount`、`scrollRounds`、`waitForReady`、`intervalSeconds`
+- `read_hot_feed`
+  - 常用可选：`targetCount`、`scrollRounds`、`waitForReady`、`intervalSeconds`
+- `read_hot_search`
+  - 常用可选：`targetCount`、`waitForReady`、`intervalSeconds`
+- `search`
+  - 必填：`keyword`
+  - 常用可选：`targetCount`、`waitForReady`、`intervalSeconds`
+
 ### 扩展集成 API
 
 | 端点 | 功能 |
@@ -262,6 +277,49 @@ X：
 - `xhslink.com` 短链
 - 带分享文案的整段文本（先提取链接，再交给真实浏览器跳转）
 
+## 当前微博站点能力
+
+### 读取类
+
+- `read_home`
+- `read_hot_feed`
+- `read_hot_search`
+- `read_post`
+- `search`
+
+### workflow
+
+- `read_home`
+- `read_hot_feed`
+- `read_hot_search`
+- `read_post`
+- `search`
+
+### 已封装的微博 skill
+
+`skills/weibo-assistant/` 目前已提供：
+
+- `read_home.py`
+- `read_hot_feed.py`
+- `read_hot_search.py`
+- `read_post.py`
+- `search.py`
+
+这意味着当前系统已经能直接支撑：
+
+- 查看微博首页微博流
+- 查看热门微博流
+- 查看微博热搜榜
+- 阅读单条微博
+- 按关键词搜索微博
+
+微博 `read_post` 当前兼容这些输入形态：
+
+- PC 长链接
+- `m.weibo.cn/status/...` 移动链接
+- `mapp.api.weibo.cn/...html` 轻享版分享链接
+- 带分享文案的整段文本（先提取链接，再交给真实浏览器跳转）
+
 ## 快速开始
 
 ### 1. 启动带 CDP 的浏览器
@@ -331,6 +389,7 @@ cd extension
 - 主动 RPC 执行
 - X 站点语义读取和动作
 - 小红书站点语义读取
+- 微博站点语义读取
 
 ## 开发时最重要的操作纪律
 
