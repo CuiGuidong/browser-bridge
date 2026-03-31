@@ -52,3 +52,4 @@ docs/
 # OpenClaw (local only, not for public)
 .clawhub/
 .openclaw/
+LOCAL_DEV.md

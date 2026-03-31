@@ -4,8 +4,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-# Avoid proxy side effects for local bridge/CDP traffic.
-unset http_proxy https_proxy all_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY
+# Keep proxy envs so external downloads can use them.
+# Local bridge/CDP traffic should rely on NO_PROXY.
 
 cleanup_port_owner() {
   local port="$1"
