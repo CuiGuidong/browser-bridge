@@ -1,4 +1,4 @@
-from .common import close_temporary_tab, response_target_id
+from .common import close_temporary_tab, response_target_id, wait_for_target_stable
 from ....media.image_cache import process_and_spawn_downloads
 
 
@@ -42,6 +42,7 @@ def run(read_service, browser_runtime, target_id=None, params=None, timeout_seco
                 "error": "failed to open page",
             }
         resolved_target_id = opened.get("targetId") or opened.get("id")
+        wait_for_target_stable(browser_runtime, resolved_target_id)
 
     try:
         read_params = dict(params)

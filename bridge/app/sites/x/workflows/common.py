@@ -1,3 +1,16 @@
+def wait_for_target_stable(browser_runtime, resolved_target_id, timeout_seconds=8, interval_seconds=0.4):
+    if not resolved_target_id:
+        return None
+    try:
+        return browser_runtime.wait_for_page(
+            target_id=resolved_target_id,
+            timeout_seconds=timeout_seconds,
+            interval_seconds=interval_seconds,
+        )
+    except Exception:
+        return None
+
+
 def open_x_page(browser_runtime, url=None, target_id=None):
     opened = None
     resolved_target_id = target_id
@@ -9,6 +22,7 @@ def open_x_page(browser_runtime, url=None, target_id=None):
             resolved_target_id = opened.get("targetId") or opened.get("id") or target_id
         else:
             browser_runtime.activate_tab(resolved_target_id)
+        wait_for_target_stable(browser_runtime, resolved_target_id)
         return resolved_target_id, opened
     if not url:
         return None, None
@@ -20,6 +34,7 @@ def open_x_page(browser_runtime, url=None, target_id=None):
     if not opened:
         return None, None
     resolved_target_id = opened.get("targetId") or opened.get("id")
+    wait_for_target_stable(browser_runtime, resolved_target_id)
     return resolved_target_id, opened
 
 

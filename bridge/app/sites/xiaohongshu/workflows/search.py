@@ -1,6 +1,19 @@
 from urllib.parse import quote
 
 
+def _wait_for_target_stable(browser_runtime, target_id, timeout_seconds=8, interval_seconds=0.4):
+    if not target_id:
+        return None
+    try:
+        return browser_runtime.wait_for_page(
+            target_id=target_id,
+            timeout_seconds=timeout_seconds,
+            interval_seconds=interval_seconds,
+        )
+    except Exception:
+        return None
+
+
 def run(read_service, browser_runtime, target_id=None, params=None, timeout_seconds=20):
     params = params or {}
     keyword = ((params or {}).get("keyword") or "").strip()
@@ -39,6 +52,7 @@ def run(read_service, browser_runtime, target_id=None, params=None, timeout_seco
                 "error": "failed to open page",
             }
         resolved_target_id = opened.get("targetId") or opened.get("id") or target_id
+    _wait_for_target_stable(browser_runtime, resolved_target_id)
     try:
         read_params = dict(params)
         read_params.pop("keyword", None)

@@ -32,6 +32,32 @@ class ReadService:
         matched = hostname in hosts or any(hostname.endswith(f".{host}") for host in hosts)
         return page, matched
 
+    def _refresh_target_context(self, site_module, site, target_id=None):
+        if not target_id:
+            return {
+                "page": None,
+                "matched": True,
+                "targetUrl": None,
+                "mismatch": None,
+            }
+        self.browser_runtime.activate_tab(target_id)
+        page, matched = self._resolve_site_page(site_module, target_id=target_id)
+        mismatch = None
+        if site_module and page and not matched:
+            mismatch = self._site_mismatch_result(site, page)
+        return {
+            "page": page,
+            "matched": matched,
+            "targetUrl": (page or {}).get("url"),
+            "mismatch": mismatch,
+        }
+
+    def _should_retry_runtime(self, runtime):
+        if not runtime or runtime.get("ok"):
+            return False
+        error = (runtime.get("error") or "").strip()
+        return error in {"extension command timed out", "No matching adapter"}
+
     def probe_readiness(
         self,
         target_id=None,
@@ -127,12 +153,12 @@ class ReadService:
         params = params or {}
         site_module = self.site_registry.get(site) if (self.site_registry and site) else None
         target_url = None
+        mismatch_count = 0
         if target_id:
-            self.browser_runtime.activate_tab(target_id)
-            page, matched = self._resolve_site_page(site_module, target_id=target_id)
-            if site_module and not matched:
-                return self._site_mismatch_result(site, page)
-            target_url = page.get("url") if page else None
+            context = self._refresh_target_context(site_module, site, target_id=target_id)
+            if site_module and context.get("page") and not context.get("matched"):
+                return self._site_mismatch_result(site, context.get("page"))
+            target_url = context.get("targetUrl")
         wait_for_ready = params.get("waitForReady", True)
         interval_seconds = float(params.get("intervalSeconds", 1))
         last_probe = None
@@ -140,13 +166,32 @@ class ReadService:
         if wait_for_ready:
             started = time.time()
             while time.time() - started < timeout_seconds:
+                current_target_url = target_url
+                if target_id:
+                    context = self._refresh_target_context(site_module, site, target_id=target_id)
+                    if site_module and context.get("page") and not context.get("matched"):
+                        last_probe = self._site_mismatch_result(site, context.get("page"))
+                        mismatch_count += 1
+                        if mismatch_count >= 2:
+                            return {
+                                **last_probe,
+                                "debug": {
+                                    **(last_probe.get("debug") or {}),
+                                    "mismatchObservedDuringReadyProbe": True,
+                                },
+                            }
+                        time.sleep(min(interval_seconds, 0.5))
+                        continue
+                    mismatch_count = 0
+                    current_target_url = context.get("targetUrl")
                 probe = self.extension_runtime.invoke(
                     "probe_ready",
                     params,
                     timeout_seconds=min(5, timeout_seconds),
-                    target_url=target_url,
+                    target_url=current_target_url,
                 )
                 last_probe = probe
+                target_url = current_target_url
                 if probe.get("ok") and ((probe.get("signals") or {}).get("ready") is True):
                     ready_observed = True
                     break
@@ -166,14 +211,49 @@ class ReadService:
                 },
             }
 
+        current_target_url = target_url
+        if target_id:
+            context = self._refresh_target_context(site_module, site, target_id=target_id)
+            if site_module and context.get("page") and not context.get("matched"):
+                return self._site_mismatch_result(site, context.get("page"))
+            current_target_url = context.get("targetUrl")
         runtime = self.extension_runtime.invoke(
             "read",
             {"kind": kind, **params},
             timeout_seconds=timeout_seconds,
-            target_url=target_url,
+            target_url=current_target_url,
         )
+        retried = False
+        if target_id and self._should_retry_runtime(runtime):
+            time.sleep(min(interval_seconds, 1.0))
+            context = self._refresh_target_context(site_module, site, target_id=target_id)
+            if site_module and context.get("page") and not context.get("matched"):
+                mismatch_result = self._site_mismatch_result(site, context.get("page"))
+                mismatch_result["debug"] = {
+                    **(mismatch_result.get("debug") or {}),
+                    "retriedAfterTargetRefresh": True,
+                }
+                return mismatch_result
+            retry_target_url = context.get("targetUrl")
+            runtime = self.extension_runtime.invoke(
+                "read",
+                {"kind": kind, **params},
+                timeout_seconds=timeout_seconds,
+                target_url=retry_target_url,
+            )
+            retried = True
         if runtime.get("ok"):
             runtime["source"] = "extension-semantic"
             runtime["fallbackUsed"] = False
+            if retried:
+                runtime["debug"] = {
+                    **(runtime.get("debug") or {}),
+                    "retriedAfterTargetRefresh": True,
+                }
             return runtime
+        if retried:
+            runtime["debug"] = {
+                **(runtime.get("debug") or {}),
+                "retriedAfterTargetRefresh": True,
+            }
         return runtime

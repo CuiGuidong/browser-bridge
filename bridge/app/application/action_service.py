@@ -107,6 +107,32 @@ class ActionService:
         matched = hostname in hosts or any(hostname.endswith(f".{host}") for host in hosts)
         return page, matched
 
+    def _refresh_target_context(self, site_module, site, target_id=None):
+        if not target_id:
+            return {
+                "page": None,
+                "matched": True,
+                "targetUrl": None,
+                "mismatch": None,
+            }
+        self.browser_runtime.activate_tab(target_id)
+        page, matched = self._resolve_site_page(site_module, target_id=target_id)
+        mismatch = None
+        if site_module and page and not matched:
+            mismatch = self._site_mismatch_result(site, page)
+        return {
+            "page": page,
+            "matched": matched,
+            "targetUrl": (page or {}).get("url"),
+            "mismatch": mismatch,
+        }
+
+    def _should_retry_runtime(self, runtime):
+        if not runtime or runtime.get("ok"):
+            return False
+        error = (runtime.get("error") or "").strip()
+        return error in {"extension command timed out", "No matching adapter"}
+
     def _is_state_changing(self, site, kind):
         return (site, kind) in self._state_change_actions
 
@@ -167,21 +193,52 @@ class ActionService:
         site_module = self.site_registry.get(site) if (self.site_registry and site) else None
         target_url = None
         if target_id:
-            self.browser_runtime.activate_tab(target_id)
-            page, matched = self._resolve_site_page(site_module, target_id=target_id)
-            if site_module and not matched:
-                return self._site_mismatch_result(site, page)
-            target_url = page.get("url") if page else None
+            context = self._refresh_target_context(site_module, site, target_id=target_id)
+            if site_module and context.get("page") and not context.get("matched"):
+                return self._site_mismatch_result(site, context.get("page"))
+            target_url = context.get("targetUrl")
         if self._is_state_changing(site, kind):
             self._throttle_state_change(site, kind)
 
+        current_target_url = target_url
+        if target_id:
+            context = self._refresh_target_context(site_module, site, target_id=target_id)
+            if site_module and context.get("page") and not context.get("matched"):
+                return self._site_mismatch_result(site, context.get("page"))
+            current_target_url = context.get("targetUrl")
         action_result = self.extension_runtime.invoke(
             "act",
             {"kind": kind, **params},
             timeout_seconds=timeout_seconds,
-            target_url=target_url,
+            target_url=current_target_url,
         )
+        retried_act = False
+        if target_id and self._should_retry_runtime(action_result):
+            time.sleep(0.5)
+            context = self._refresh_target_context(site_module, site, target_id=target_id)
+            if site_module and context.get("page") and not context.get("matched"):
+                mismatch_result = self._site_mismatch_result(site, context.get("page"))
+                mismatch_result["debug"] = {
+                    **(mismatch_result.get("debug") or {}),
+                    "retriedAfterTargetRefresh": True,
+                }
+                return mismatch_result
+            retry_target_url = context.get("targetUrl")
+            action_result = self.extension_runtime.invoke(
+                "act",
+                {"kind": kind, **params},
+                timeout_seconds=timeout_seconds,
+                target_url=retry_target_url,
+            )
+            current_target_url = retry_target_url
+            retried_act = True
         if action_result.get("ok"):
+            verify_target_url = current_target_url
+            if target_id:
+                context = self._refresh_target_context(site_module, site, target_id=target_id)
+                if site_module and context.get("page") and not context.get("matched"):
+                    return self._site_mismatch_result(site, context.get("page"))
+                verify_target_url = context.get("targetUrl")
             verify_result = self.extension_runtime.invoke(
                 "verify",
                 {
@@ -190,16 +247,47 @@ class ActionService:
                     "actionResult": action_result,
                 },
                 timeout_seconds=timeout_seconds,
-                target_url=target_url,
+                target_url=verify_target_url,
             )
+            retried_verify = False
+            if target_id and self._should_retry_runtime(verify_result):
+                time.sleep(0.5)
+                context = self._refresh_target_context(site_module, site, target_id=target_id)
+                if site_module and context.get("page") and not context.get("matched"):
+                    mismatch_result = self._site_mismatch_result(site, context.get("page"))
+                    mismatch_result["debug"] = {
+                        **(mismatch_result.get("debug") or {}),
+                        "retriedAfterTargetRefresh": retried_act,
+                        "retriedVerifyAfterTargetRefresh": True,
+                    }
+                    return mismatch_result
+                retry_target_url = context.get("targetUrl")
+                verify_result = self.extension_runtime.invoke(
+                    "verify",
+                    {
+                        "kind": kind,
+                        **params,
+                        "actionResult": action_result,
+                    },
+                    timeout_seconds=timeout_seconds,
+                    target_url=retry_target_url,
+                )
+                retried_verify = True
             action_result["source"] = "extension-semantic"
             action_result["verified"] = verify_result.get("verified")
             action_result["after"] = verify_result.get("after") or action_result.get("after") or {}
             action_result["debug"] = {
                 "verify": verify_result,
+                "retriedAfterTargetRefresh": retried_act,
+                "retriedVerifyAfterTargetRefresh": retried_verify,
             }
             final_result = action_result
         else:
+            if retried_act:
+                action_result["debug"] = {
+                    **(action_result.get("debug") or {}),
+                    "retriedAfterTargetRefresh": True,
+                }
             final_result = action_result
 
         if self._is_state_changing(site, kind):
