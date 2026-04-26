@@ -283,6 +283,26 @@ X：
 - 当前发布目标固定为图文笔记，不点击最终“发布”
 - workflow 会保留编辑页，返回 `checkpoint.awaitingManualPublish = true`
 
+小红书图文发帖当前已知坑点：
+
+- tab 激活态不能只看 `.creator-tab.active`
+  - 切到“上传图文”时，旧的“上传视频 active”节点可能暂时仍留在 DOM 中
+  - 更稳的判断是优先看上传区 `input[type=file]` 的 `accept` 类型
+- 标签切换后不能立即做后续动作
+  - 需要等待页面真正进入 `image` 流，或已出现图片 file input / 图文编辑器
+- 上传触发不能只做 `DOM.setFileInputFiles`
+  - 需要在同一条 CDP WebSocket 连接内完成 `getDocument -> querySelector -> setFileInputFiles`
+  - 设置文件后还要补发 `input` / `change` 事件，页面才会稳定进入编辑态
+- 标题框和正文编辑器都可能存在多份候选节点
+  - 不能只用第一次 `querySelector()` 命中结果
+  - 需要优先选择“可见且面积最大的”候选节点
+- 标题/正文写入后的校验不能只依赖即时 verify
+  - 小红书前端回显存在延迟
+  - workflow 里应追加一次“写入后重读页面”的确认
+- 图片路径必须传宿主机路径
+  - bridge 运行在 VM，浏览器运行在 mac
+  - 不能在 VM 侧用 `os.path.exists()` 判断宿主机图片是否存在
+
 小红书 `read_post` 当前还兼容这些输入形态：
 
 - 纯 `note_id`
