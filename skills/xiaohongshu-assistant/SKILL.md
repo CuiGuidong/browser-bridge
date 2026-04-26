@@ -23,12 +23,16 @@ version: 1.0.0
 - 在小红书搜索：
   `python3 skills/xiaohongshu-assistant/scripts/search.py "<keyword>" [count]`
 
+- 准备图文发布（停在发布前，不点击发布）：
+  `python3 skills/xiaohongshu-assistant/scripts/prepare_publish.py "<title>" "<content>" "<image_path>" [more_image_paths...]`
+
 ## 2. 范围与约束
 
 - 只支持网页版小红书
 - 默认依赖真实浏览器已登录状态
-- 当前只做只读能力
-- 不做点赞、收藏、关注、评论、发帖等状态变更动作
+- 当前支持只读能力，以及图文发布前准备能力
+- 不做点赞、收藏、关注、评论等状态变更动作
+- 发帖链路默认停在最终“发布”按钮前，等待人工确认
 
 `read_post.py` 当前支持这些输入形态：
 
@@ -59,6 +63,13 @@ version: 1.0.0
   - `excerpt`
   - `cover`
   - `url`
+- 准备发布优先返回：
+  - `targetId`
+  - `pageType`
+  - `activeTab`
+  - `titleLength`
+  - `contentLength`
+  - `checkpoint.awaitingManualPublish`
 
 ## 4. 图片处理
 

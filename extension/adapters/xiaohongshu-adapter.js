@@ -4,7 +4,275 @@ function isXiaohongshuHost() {
   return location.hostname.includes('xiaohongshu.com');
 }
 
+function isCreatorPublishPage() {
+  return location.hostname === 'creator.xiaohongshu.com' && location.pathname.startsWith('/publish/publish');
+}
+
+function normalizeMultilineText(value) {
+  return (value || '')
+    .replace(/\u00a0/g, ' ')
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+    .split('\n')
+    .map((line) => line.trim())
+    .join('\n')
+    .trim();
+}
+
+function shortText(value, maxLength = 160) {
+  return (value || '').replace(/\s+/g, ' ').trim().slice(0, maxLength);
+}
+
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function getElementVisualScore(el) {
+  if (!el) return -1;
+  const rect = el.getBoundingClientRect();
+  const style = window.getComputedStyle(el);
+  const visible = rect.width > 0
+    && rect.height > 0
+    && style.visibility !== 'hidden'
+    && style.display !== 'none'
+    && style.opacity !== '0';
+  return visible ? (rect.width * rect.height) : -1;
+}
+
+function findExactTextButton(text) {
+  return Array.from(document.querySelectorAll('button, [role="button"]'))
+    .find((el) => shortText(el.innerText, 40) === text);
+}
+
+function isElementDisabled(el) {
+  if (!el) return true;
+  const ariaDisabled = (el.getAttribute('aria-disabled') || '').toLowerCase();
+  return !!(el.disabled || ariaDisabled === 'true' || /\bdisabled\b/i.test((el.className || '').toString()));
+}
+
+function normalizeCreatorTabKey(label) {
+  const text = shortText(label, 40);
+  if (text === 'image' || text === 'video' || text === 'article') return text;
+  if (text.includes('上传图文')) return 'image';
+  if (text.includes('上传视频')) return 'video';
+  if (text.includes('写长文')) return 'article';
+  return null;
+}
+
+function getCreatorTabElements() {
+  return Array.from(document.querySelectorAll('.creator-tab'))
+    .filter((el) => {
+      const rect = el.getBoundingClientRect();
+      return rect.width > 0 && rect.height > 0 && rect.top > -1000 && rect.left > -1000;
+    });
+}
+
+function getCreatorTabs() {
+  return getCreatorTabElements()
+    .map((el) => ({
+      key: normalizeCreatorTabKey(el.innerText || ''),
+      text: shortText(el.innerText || '', 40),
+      active: /\bactive\b/i.test((el.className || '').toString()),
+      className: shortText((el.className || '').toString(), 160),
+    }))
+    .filter((item) => item.key);
+}
+
+function getActiveCreatorTab() {
+  const tabs = getCreatorTabs();
+  const active = [...tabs].reverse().find((item) => item.active);
+  return active ? active.key : null;
+}
+
+function getCreatorTabElementByKey(key) {
+  return [...getCreatorTabElements()]
+    .reverse()
+    .find((el) => normalizeCreatorTabKey(el.innerText || '') === key);
+}
+
+function getCreatorImageInput() {
+  return Array.from(document.querySelectorAll('input[type="file"]'))
+    .find((el) => (el.getAttribute('accept') || '').includes('.jpg'));
+}
+
+function getCreatorVideoInput() {
+  return Array.from(document.querySelectorAll('input[type="file"]'))
+    .find((el) => (el.getAttribute('accept') || '').includes('.mp4'));
+}
+
+function getCreatorTitleInput() {
+  const candidates = Array.from(document.querySelectorAll('input[placeholder*="标题"]'));
+  return candidates
+    .sort((a, b) => getElementVisualScore(b) - getElementVisualScore(a))[0] || null;
+}
+
+function getCreatorContentEditor() {
+  const candidates = Array.from(
+    document.querySelectorAll('.tiptap.ProseMirror[contenteditable="true"], .tiptap.ProseMirror, [contenteditable="true"]'),
+  );
+  return candidates
+    .sort((a, b) => getElementVisualScore(b) - getElementVisualScore(a))[0] || null;
+}
+
+function getCreatorPublishButton() {
+  return findExactTextButton('发布');
+}
+
+function getCreatorSaveButton() {
+  return findExactTextButton('暂存离开');
+}
+
+function getCreatorImageUploadSelector() {
+  return 'input[type="file"][accept*=".jpg"]';
+}
+
+function getCreatorPublishPageType() {
+  if (!isCreatorPublishPage()) return null;
+  const tabs = getCreatorTabs();
+  const titleInput = getCreatorTitleInput();
+  const editor = getCreatorContentEditor();
+  const publishButton = getCreatorPublishButton();
+  if (titleInput && editor && publishButton) {
+    return 'creator_publish_editor_image';
+  }
+  if (tabs.length > 0) {
+    return 'creator_publish_entry';
+  }
+  return 'creator_publish';
+}
+
+function collectCreatorPublishState() {
+  if (!isCreatorPublishPage()) return null;
+  const pageType = getCreatorPublishPageType();
+  const tabs = getCreatorTabs();
+  const imageInput = getCreatorImageInput();
+  const videoInput = getCreatorVideoInput();
+  const titleInput = getCreatorTitleInput();
+  const editor = getCreatorContentEditor();
+  const publishButton = getCreatorPublishButton();
+  const saveButton = getCreatorSaveButton();
+  let activeTab = null;
+  if (pageType === 'creator_publish_editor_image') {
+    activeTab = 'image';
+  } else if (imageInput && !videoInput) {
+    activeTab = 'image';
+  } else if (videoInput && !imageInput) {
+    activeTab = 'video';
+  } else {
+    activeTab = getActiveCreatorTab();
+  }
+  const titleValue = titleInput ? (titleInput.value || '') : '';
+  const editorText = editor ? normalizeMultilineText(editor.innerText || editor.textContent || '') : '';
+
+  return {
+    pageType,
+    activeTab,
+    tabs,
+    imageUpload: {
+      exists: !!imageInput,
+      selector: imageInput ? getCreatorImageUploadSelector() : null,
+      accept: imageInput ? (imageInput.getAttribute('accept') || '') : '',
+      multiple: !!imageInput?.multiple,
+      fileCount: imageInput?.files ? imageInput.files.length : 0,
+      firstFileName: imageInput?.files?.[0]?.name || null,
+    },
+    videoUpload: {
+      exists: !!videoInput,
+      accept: videoInput ? (videoInput.getAttribute('accept') || '') : '',
+      multiple: !!videoInput?.multiple,
+    },
+    titleInput: {
+      exists: !!titleInput,
+      placeholder: titleInput ? (titleInput.getAttribute('placeholder') || '') : '',
+      value: titleValue,
+      length: titleValue.length,
+    },
+    contentEditor: {
+      exists: !!editor,
+      text: editorText,
+      length: editorText.length,
+      className: shortText((editor?.className || '').toString(), 160),
+    },
+    publishButton: {
+      exists: !!publishButton,
+      disabled: isElementDisabled(publishButton),
+      text: shortText(publishButton?.innerText || '', 40),
+    },
+    saveButton: {
+      exists: !!saveButton,
+      disabled: isElementDisabled(saveButton),
+      text: shortText(saveButton?.innerText || '', 40),
+    },
+  };
+}
+
+function setNativeInputValue(input, value) {
+  if (!input) return;
+  const descriptor = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value');
+  if (descriptor && descriptor.set) {
+    descriptor.set.call(input, value);
+  } else {
+    input.value = value;
+  }
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+  input.dispatchEvent(new Event('change', { bubbles: true }));
+}
+
+function replaceContentEditableText(editor, value) {
+  if (!editor) return false;
+  const normalized = String(value || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  editor.focus();
+
+  const selection = window.getSelection();
+  const range = document.createRange();
+  range.selectNodeContents(editor);
+  selection.removeAllRanges();
+  selection.addRange(range);
+
+  let execSucceeded = false;
+  try {
+    document.execCommand('selectAll', false, null);
+    execSucceeded = document.execCommand('insertText', false, normalized);
+  } catch {
+    execSucceeded = false;
+  }
+
+  if (!execSucceeded) {
+    editor.innerHTML = '';
+    const lines = normalized.split('\n');
+    for (const line of lines) {
+      const p = document.createElement('p');
+      if (line) {
+        p.textContent = line;
+      } else {
+        p.appendChild(document.createElement('br'));
+      }
+      editor.appendChild(p);
+    }
+    try {
+      editor.dispatchEvent(new InputEvent('beforeinput', {
+        bubbles: true,
+        cancelable: true,
+        inputType: 'insertText',
+        data: normalized,
+      }));
+      editor.dispatchEvent(new InputEvent('input', {
+        bubbles: true,
+        inputType: 'insertText',
+        data: normalized,
+      }));
+    } catch {
+      editor.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+  }
+
+  editor.dispatchEvent(new Event('change', { bubbles: true }));
+  return true;
+}
+
 function getXiaohongshuPageType() {
+  const creatorPageType = getCreatorPublishPageType();
+  if (creatorPageType) return creatorPageType;
   const path = location.pathname || '';
   if (/^\/explore\/[A-Za-z0-9]+/.test(path)) return 'post';
   if (path === '/explore') return 'home';
@@ -16,6 +284,11 @@ function normalizeXiaohongshuUrl(url) {
   if (!url) return '';
   try {
     const parsed = new URL(url, location.origin);
+    // Keep query string for note-detail URLs so xsec_token/xsec_source
+    // can be reused in follow-up read_post calls.
+    if (/^\/explore\/[A-Za-z0-9]+/.test(parsed.pathname || '')) {
+      return `${parsed.origin}${parsed.pathname}${parsed.search || ''}`;
+    }
     return `${parsed.origin}${parsed.pathname}`;
   } catch {
     return url;
@@ -57,8 +330,20 @@ function extractCardCover(card) {
 
 function extractCardUrl(card) {
   if (!card) return null;
-  const link = card.querySelector('a[href*="/explore/"]');
-  return link ? normalizeXiaohongshuUrl(link.href) : null;
+  const links = Array.from(card.querySelectorAll('a[href*="/explore/"]'));
+  if (!links.length) return null;
+
+  // Prefer the signed detail link so follow-up read_post can keep xsec_token.
+  const preferred = links.find((a) => {
+    try {
+      const parsed = new URL(a.href, location.origin);
+      return parsed.searchParams.has('xsec_token');
+    } catch {
+      return false;
+    }
+  }) || links[0];
+
+  return normalizeXiaohongshuUrl(preferred.href);
 }
 
 function collectFeedItems() {
@@ -169,12 +454,21 @@ const xiaohongshuAdapter = {
   },
   capabilities() {
     return {
-      read: ['read_post', 'read_home', 'search'],
-      act: [],
+      read: ['read_post', 'read_home', 'search', 'read_creator_publish_state'],
+      act: [
+        'switch_creator_tab',
+        'locate_creator_image_file_input',
+        'fill_creator_title',
+        'fill_creator_content',
+        'assert_ready_before_publish',
+      ],
     };
   },
   collect(baseSnapshot) {
     const pageType = getXiaohongshuPageType();
+    const creatorPublishState = pageType.startsWith('creator_publish')
+      ? collectCreatorPublishState()
+      : null;
     const noteItems = collectFeedItems();
     const detailDesc = document.querySelector('#detail-desc');
     const postImages = pageType === 'post' ? extractPostImages() : [];
@@ -184,6 +478,8 @@ const xiaohongshuAdapter = {
       document.readyState === 'complete' && (
         (pageType === 'post' && ((detailDesc && (detailDesc.innerText || '').trim().length > 0) || postImages.length > 0 || hasVideo)) ||
         ((pageType === 'home' || pageType === 'search') && noteItems.length > 0) ||
+        ((pageType === 'creator_publish_entry') && (creatorPublishState?.tabs || []).length > 0) ||
+        ((pageType === 'creator_publish_editor_image') && !!creatorPublishState?.titleInput?.exists && !!creatorPublishState?.contentEditor?.exists && !!creatorPublishState?.publishButton?.exists) ||
         (pageType === 'other' && (document.body?.innerText || '').trim().length > 100)
       )
     );
@@ -200,6 +496,9 @@ const xiaohongshuAdapter = {
         searchKeyword: pageType === 'search' ? extractSearchKeyword() : null,
         detailDescFound: !!detailDesc,
         hasVideo,
+        activeCreatorTab: creatorPublishState?.activeTab || null,
+        creatorTabs: creatorPublishState?.tabs || [],
+        creatorEditorReady: !!creatorPublishState?.contentEditor?.exists,
       },
       content: {
         items: noteItems,
@@ -211,6 +510,7 @@ const xiaohongshuAdapter = {
           videos: postVideos,
           url: normalizeXiaohongshuUrl(location.href),
         } : null,
+        creatorPublishState,
       },
     };
   },
@@ -261,6 +561,16 @@ const xiaohongshuAdapter = {
         },
       };
     }
+    if (kind === 'read_creator_publish_state') {
+      return {
+        ok: true,
+        mode: 'semantic',
+        kind,
+        page: snap.page,
+        signals: snap.signals,
+        content: snap.content.creatorPublishState || {},
+      };
+    }
     return {
       ok: false,
       kind,
@@ -269,17 +579,215 @@ const xiaohongshuAdapter = {
       error: `Unsupported read kind: ${kind}`,
     };
   },
-  async act(kind, _params, context) {
+  async act(kind, params, context) {
     const snap = this.collect(context.baseSnapshot);
+    if (kind === 'switch_creator_tab') {
+      const targetTab = normalizeCreatorTabKey(params.tab || params.target || 'image');
+      const before = snap.content.creatorPublishState || {};
+      if (!targetTab) {
+        return {
+          ok: false,
+          action: kind,
+          page: snap.page,
+          signals: snap.signals,
+          error: 'invalid creator tab',
+        };
+      }
+      const tabEl = getCreatorTabElementByKey(targetTab);
+      if (!tabEl) {
+        return {
+          ok: false,
+          action: kind,
+          page: snap.page,
+          signals: snap.signals,
+          error: 'creator tab not found',
+        };
+      }
+      if ((before.activeTab || null) !== targetTab) {
+        tabEl.click();
+        await wait(1000);
+      }
+      return {
+        ok: true,
+        action: kind,
+        changed: (before.activeTab || null) !== targetTab,
+        before: {
+          activeTab: before.activeTab || null,
+          pageType: before.pageType || null,
+        },
+      };
+    }
+    if (kind === 'locate_creator_image_file_input') {
+      const state = snap.content.creatorPublishState || {};
+      if (state.activeTab !== 'image' && state.pageType !== 'creator_publish_editor_image') {
+        return {
+          ok: false,
+          action: kind,
+          page: snap.page,
+          signals: snap.signals,
+          error: 'creator page is not in image flow',
+        };
+      }
+      if (!state.imageUpload?.exists) {
+        return {
+          ok: false,
+          action: kind,
+          page: snap.page,
+          signals: snap.signals,
+          error: 'image file input not found',
+        };
+      }
+      return {
+        ok: true,
+        action: kind,
+        changed: false,
+        before: {
+          activeTab: state.activeTab || null,
+          pageType: state.pageType || null,
+        },
+        selector: state.imageUpload.selector,
+      };
+    }
+    if (kind === 'fill_creator_title') {
+      const text = String(params.text || '');
+      const input = getCreatorTitleInput();
+      if (!input) {
+        return {
+          ok: false,
+          action: kind,
+          page: snap.page,
+          signals: snap.signals,
+          error: 'creator title input not found',
+        };
+      }
+      const beforeValue = input.value || '';
+      input.focus();
+      setNativeInputValue(input, text);
+      await wait(150);
+      input.blur();
+      await wait(150);
+      return {
+        ok: true,
+        action: kind,
+        changed: beforeValue !== text,
+        before: {
+          value: beforeValue,
+        },
+      };
+    }
+    if (kind === 'fill_creator_content') {
+      const text = String(params.text || '');
+      const editor = getCreatorContentEditor();
+      if (!editor) {
+        return {
+          ok: false,
+          action: kind,
+          page: snap.page,
+          signals: snap.signals,
+          error: 'creator content editor not found',
+        };
+      }
+      const beforeText = normalizeMultilineText(editor.innerText || editor.textContent || '');
+      replaceContentEditableText(editor, text);
+      await wait(300);
+      return {
+        ok: true,
+        action: kind,
+        changed: beforeText !== normalizeMultilineText(text),
+        before: {
+          text: beforeText,
+        },
+      };
+    }
+    if (kind === 'assert_ready_before_publish') {
+      const state = snap.content.creatorPublishState || {};
+      return {
+        ok: true,
+        action: kind,
+        changed: false,
+        before: {
+          pageType: state.pageType || null,
+          activeTab: state.activeTab || null,
+        },
+      };
+    }
     return {
       ok: false,
       action: kind,
       page: snap.page,
       signals: snap.signals,
-      error: 'No actions implemented for xiaohongshu',
+      error: `Unsupported action kind: ${kind}`,
     };
   },
-  async verify(_kind, _params, _context, actionResult) {
+  async verify(kind, params, context, actionResult) {
+    const snap = this.collect(context.baseSnapshot);
+    const state = snap.content.creatorPublishState || {};
+    if (kind === 'switch_creator_tab') {
+      const targetTab = normalizeCreatorTabKey(params.tab || params.target || 'image');
+      return {
+        ok: true,
+        verified: state.activeTab === targetTab,
+        after: {
+          activeTab: state.activeTab || null,
+          pageType: state.pageType || null,
+        },
+        actionResult,
+      };
+    }
+    if (kind === 'locate_creator_image_file_input') {
+      return {
+        ok: true,
+        verified: !!state.imageUpload?.exists && !!state.imageUpload?.selector,
+        after: {
+          activeTab: state.activeTab || null,
+          pageType: state.pageType || null,
+          selector: state.imageUpload?.selector || null,
+          accept: state.imageUpload?.accept || '',
+          multiple: !!state.imageUpload?.multiple,
+        },
+        actionResult,
+      };
+    }
+    if (kind === 'fill_creator_title') {
+      return {
+        ok: true,
+        verified: (state.titleInput?.value || '') === String(params.text || ''),
+        after: {
+          value: state.titleInput?.value || '',
+          length: state.titleInput?.length || 0,
+        },
+        actionResult,
+      };
+    }
+    if (kind === 'fill_creator_content') {
+      const expectedText = normalizeMultilineText(String(params.text || ''));
+      return {
+        ok: true,
+        verified: normalizeMultilineText(state.contentEditor?.text || '') === expectedText,
+        after: {
+          text: state.contentEditor?.text || '',
+          length: state.contentEditor?.length || 0,
+        },
+        actionResult,
+      };
+    }
+    if (kind === 'assert_ready_before_publish') {
+      return {
+        ok: true,
+        verified: state.pageType === 'creator_publish_editor_image'
+          && (state.titleInput?.length || 0) > 0
+          && (state.contentEditor?.length || 0) > 0
+          && !!state.publishButton?.exists,
+        after: {
+          pageType: state.pageType || null,
+          activeTab: state.activeTab || null,
+          titleLength: state.titleInput?.length || 0,
+          contentLength: state.contentEditor?.length || 0,
+          publishButton: state.publishButton || {},
+        },
+        actionResult,
+      };
+    }
     return {
       ok: true,
       verified: !!actionResult?.ok,

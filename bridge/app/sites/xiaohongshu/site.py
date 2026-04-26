@@ -1,4 +1,5 @@
 from .models import ACTION_KINDS, READ_KINDS, SITE_ID, WORKFLOWS
+from .workflows.prepare_publish_post import run as run_prepare_publish_post
 from .workflows.read_home import run as run_read_home
 from .workflows.read_post import run as run_read_post
 from .workflows.search import run as run_search
@@ -46,6 +47,15 @@ class XiaohongshuSite:
         if workflow == "search":
             return run_search(
                 read_service=read_service,
+                browser_runtime=browser_runtime,
+                target_id=target_id,
+                params=params,
+                timeout_seconds=timeout_seconds,
+            )
+        if workflow == "prepare_publish_post":
+            return run_prepare_publish_post(
+                read_service=read_service,
+                action_service=action_service,
                 browser_runtime=browser_runtime,
                 target_id=target_id,
                 params=params,

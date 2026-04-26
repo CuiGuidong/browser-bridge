@@ -56,3 +56,10 @@ class CdpRuntime:
 
     def execute_js(self, expression, target_id=None):
         return self._service.execute_js(expression, target_id=target_id)
+
+    def set_file_input_files_by_selector(self, target_id, selector, files):
+        return self._service.set_file_input_files_by_selector(
+            target_id=target_id,
+            selector=selector,
+            files=files,
+        )

@@ -64,6 +64,7 @@ Skill / Script / Agent
 ### 角色划分
 
 `CDP`
+
 - 打开页面
 - 复用 tab
 - 激活 tab
@@ -73,12 +74,14 @@ Skill / Script / Agent
 - 提供浏览器状态与页面基础状态诊断
 
 `Extension + Adapter`
+
 - 页面 `ready` 判断
 - 站点语义读取
 - 站点语义动作
 - 动作结果校验
 
 `Bridge`
+
 - 路由
 - 目标页定位
 - 固定流程下的临时标签页开关
@@ -87,6 +90,7 @@ Skill / Script / Agent
 - 统一结果结构
 
 `Skill`
+
 - 阅读后决策
 - 基于上下文调用关注/书签等动作
 - 书签整理等开放式任务编排
@@ -95,29 +99,29 @@ Skill / Script / Agent
 
 ### 基础 Bridge API
 
-| 端点 | 功能 |
-|------|------|
-| `GET /health` | 健康检查 |
-| `GET /version` | 浏览器 / CDP 版本信息 |
-| `GET /tabs` | 列出浏览器 tab |
-| `POST /open` | 打开或复用页面 |
-| `POST /activate` | 激活 tab |
-| `GET /wait` | 等待页面稳定 |
-| `GET /page-info` | 获取页面信息 |
-| `GET /page-content` | 获取基础文本内容 |
-| `GET /probe-readiness` | 通用页面就绪探针（浏览器级诊断） |
-| `POST /screenshot` | 截图 |
-| `GET /query` | 基础 DOM 查询（浏览器级工具） |
-| `POST /evaluate` | 执行 JS（浏览器级工具） |
+| 端点                     | 功能                |
+| ---------------------- | ----------------- |
+| `GET /health`          | 健康检查              |
+| `GET /version`         | 浏览器 / CDP 版本信息    |
+| `GET /tabs`            | 列出浏览器 tab         |
+| `POST /open`           | 打开或复用页面           |
+| `POST /activate`       | 激活 tab            |
+| `GET /wait`            | 等待页面稳定            |
+| `GET /page-info`       | 获取页面信息            |
+| `GET /page-content`    | 获取基础文本内容          |
+| `GET /probe-readiness` | 通用页面就绪探针（浏览器级诊断）  |
+| `POST /screenshot`     | 截图                |
+| `GET /query`           | 基础 DOM 查询（浏览器级工具） |
+| `POST /evaluate`       | 执行 JS（浏览器级工具）     |
 
 ### 新架构 API
 
-| 端点 | 功能 |
-|------|------|
-| `GET /site/capabilities` | 查询站点能力 |
-| `POST /site/read` | 调用站点读取能力 |
-| `POST /site/action` | 调用站点动作能力 |
-| `POST /workflow/run` | 调用固定流程 workflow |
+| 端点                       | 功能              |
+| ------------------------ | --------------- |
+| `GET /site/capabilities` | 查询站点能力          |
+| `POST /site/read`        | 调用站点读取能力        |
+| `POST /site/action`      | 调用站点动作能力        |
+| `POST /workflow/run`     | 调用固定流程 workflow |
 
 补充说明：
 
@@ -173,11 +177,11 @@ X：
 
 ### 扩展集成 API
 
-| 端点 | 功能 |
-|------|------|
+| 端点                       | 功能         |
+| ------------------------ | ---------- |
 | `POST /extension/report` | 扩展被动上报页面状态 |
-| `GET /extension/state` | 查看最近扩展状态 |
-| `GET /extension/pull` | 扩展主动拉取桥端命令 |
+| `GET /extension/state`   | 查看最近扩展状态   |
+| `GET /extension/pull`    | 扩展主动拉取桥端命令 |
 | `POST /extension/result` | 扩展回传主动命令结果 |
 
 ### Playwright API
@@ -255,6 +259,7 @@ X：
 - `read_post`
 - `read_home`
 - `search`
+- `prepare_publish_post`
 
 ### 已封装的小红书 skill
 
@@ -263,12 +268,20 @@ X：
 - `read_post.py`
 - `home.py`
 - `search.py`
+- `prepare_publish.py`
 
 这意味着当前系统已经能直接支撑：
 
 - 阅读单篇小红书笔记
 - 查看小红书首页推荐流
 - 按关键词搜索小红书
+- 自动切换到“上传图文”、上传图片、填写标题正文，并停在发布前
+
+小红书 `prepare_publish_post` / `prepare_publish.py` 当前约定：
+
+- 必填：`title`、`content`、至少一个宿主机图片路径
+- 当前发布目标固定为图文笔记，不点击最终“发布”
+- workflow 会保留编辑页，返回 `checkpoint.awaitingManualPublish = true`
 
 小红书 `read_post` 当前还兼容这些输入形态：
 
@@ -460,17 +473,19 @@ sudo systemctl restart browser-bridge.service
 
 ## 文档入口
 
-如果要继续接手开发，优先读这三份：
+如果要继续接手开发，默认先完整读这四份：
 
 - [README.md](/home/cuiguidong/.openclaw/workspace/projects/browser-bridge-project/README.md)
 - [architecture-spec.md](/home/cuiguidong/.openclaw/workspace/projects/browser-bridge-project/docs/architecture-spec.md)
 - [implementation-guide.md](/home/cuiguidong/.openclaw/workspace/projects/browser-bridge-project/docs/implementation-guide.md)
+- [new-site-adaptation-guide.md](/home/cuiguidong/.openclaw/workspace/projects/browser-bridge-project/docs/new-site-adaptation-guide.md)
 
 建议阅读顺序：
 
 1. 先读 README，建立项目全貌
 2. 再读 architecture-spec，理解正式分层与扩展规范
-3. 最后读 implementation-guide，避免重复踩坑
+3. 再读 implementation-guide，避免重复踩坑
+4. 最后读 new-site-adaptation-guide，建立 AI 接手新站点适配的方法
 
 ## 安全边界
 

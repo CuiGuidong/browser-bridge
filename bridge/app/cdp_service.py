@@ -169,6 +169,94 @@ class BrowserBridgeService:
         )
         return (result.get("result") or {}).get("value")
 
+    def set_file_input_files_by_selector(self, target_id, selector, files):
+        target = self.get_page_info(target_id)
+        if target is None:
+            return None
+        normalized_files = [str(path) for path in (files or []) if str(path).strip()]
+        if not selector:
+            raise ValueError("selector is required")
+        if not normalized_files:
+            raise ValueError("files is required")
+
+        steps = self.ws_client.call_many(
+            target["webSocketDebuggerUrl"],
+            [
+                {"method": "Page.enable", "params": {}},
+                {"method": "DOM.enable", "params": {}},
+                {
+                    "method": "DOM.getDocument",
+                    "params": {"depth": 1, "pierce": True},
+                },
+                {
+                    "method": "DOM.querySelector",
+                    "params": lambda results: {
+                        "nodeId": (((results[2].get("result") or {}).get("root") or {}).get("nodeId")),
+                        "selector": selector,
+                    },
+                },
+                {
+                    "method": "DOM.setFileInputFiles",
+                    "params": lambda results: {
+                        "nodeId": ((results[3].get("result") or {}).get("nodeId")),
+                        "files": normalized_files,
+                    },
+                },
+                {
+                    "method": "DOM.resolveNode",
+                    "params": lambda results: {
+                        "nodeId": ((results[3].get("result") or {}).get("nodeId")),
+                    },
+                },
+                {
+                    "method": "Runtime.callFunctionOn",
+                    "params": lambda results: {
+                        "objectId": ((((results[5].get("result") or {}).get("object")) or {}).get("objectId")),
+                        "functionDeclaration": """
+                            function() {
+                                this.dispatchEvent(new Event('input', { bubbles: true }));
+                                this.dispatchEvent(new Event('change', { bubbles: true }));
+                                return {
+                                    fileCount: this.files ? this.files.length : 0,
+                                    firstFileName: this.files && this.files[0] ? this.files[0].name : null,
+                                };
+                            }
+                        """,
+                        "returnByValue": True,
+                    },
+                },
+            ],
+        )
+
+        query_result = (steps[3].get("result") or {})
+        node_id = query_result.get("nodeId")
+        if not node_id:
+            return {
+                "ok": False,
+                "targetId": target.get("id"),
+                "title": target.get("title"),
+                "url": target.get("url"),
+                "selector": selector,
+                "files": normalized_files,
+                "error": "file input not found",
+                "debug": {
+                    "steps": steps,
+                },
+            }
+
+        return {
+            "ok": True,
+            "targetId": target.get("id"),
+            "title": target.get("title"),
+            "url": target.get("url"),
+            "selector": selector,
+            "nodeId": node_id,
+            "files": normalized_files,
+            "debug": {
+                "steps": steps,
+            },
+        }
+
     def get_page_content(self, target_id=None, max_chars=40000):
         target = self.get_page_info(target_id)
         if target is None:

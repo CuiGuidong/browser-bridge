@@ -41,22 +41,59 @@ class CdpWebSocketClient:
     def call(self, websocket_debugger_url, method, params=None):
         return asyncio.run(self._call(websocket_debugger_url, method, params or {}))
 
+    def call_many(self, websocket_debugger_url, calls):
+        return asyncio.run(self._call_many(websocket_debugger_url, calls or []))
+
     async def _call(self, websocket_debugger_url, method, params):
-        # We explicitly use 127.0.0.1 here. The monkey patch will redirect it to host.orb.internal at TCP level.
-        ws_url = websocket_debugger_url.replace("ws://host.orb.internal:9333", "ws://127.0.0.1:9333")
+        ws_url = self._normalize_ws_url(websocket_debugger_url)
         try:
             async with websockets.connect(
                 ws_url,
                 open_timeout=self.timeout,
                 close_timeout=self.timeout,
+                max_size=None,
             ) as ws:
-                await ws.send(json.dumps({"id": 1, "method": method, "params": params}))
-                while True:
-                    raw = await asyncio.wait_for(ws.recv(), timeout=self.timeout)
-                    message = json.loads(raw)
-                    if message.get("id") == 1:
-                        if "error" in message:
-                            raise CdpWebSocketClientError(str(message["error"]))
-                        return message.get("result", {})
+                return await self._send_and_wait(ws, 1, method, params)
         except Exception as e:
             raise CdpWebSocketClientError(f"WebSocket CDP call failed: {method}: {e}") from e
+
+    async def _call_many(self, websocket_debugger_url, calls):
+        ws_url = self._normalize_ws_url(websocket_debugger_url)
+        try:
+            async with websockets.connect(
+                ws_url,
+                open_timeout=self.timeout,
+                close_timeout=self.timeout,
+                max_size=None,
+            ) as ws:
+                results = []
+                for index, call in enumerate(calls, start=1):
+                    method = call.get("method")
+                    params = call.get("params", {})
+                    if callable(params):
+                        params = params(results)
+                    result = await self._send_and_wait(ws, index, method, params or {})
+                    results.append({
+                        "method": method,
+                        "params": params or {},
+                        "result": result,
+                    })
+                return results
+        except Exception as e:
+            raise CdpWebSocketClientError(f"WebSocket CDP call sequence failed: {e}") from e
+
+    def _normalize_ws_url(self, websocket_debugger_url):
+        # We explicitly use 127.0.0.1 here. The monkey patch will redirect it
+        # to host.orb.internal at TCP level.
+        return websocket_debugger_url.replace("ws://host.orb.internal:9333", "ws://127.0.0.1:9333")
+
+    async def _send_and_wait(self, ws, request_id, method, params):
+        await ws.send(json.dumps({"id": request_id, "method": method, "params": params}))
+        while True:
+            raw = await asyncio.wait_for(ws.recv(), timeout=self.timeout)
+            message = json.loads(raw)
+            if message.get("id") != request_id:
+                continue
+            if "error" in message:
+                raise CdpWebSocketClientError(str(message["error"]))
+            return message.get("result", {})
