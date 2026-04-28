@@ -49,4 +49,5 @@ temp/
 # OpenClaw (local only, not for public)
 .clawhub/
 .openclaw/
+.codex
 LOCAL_DEV.md

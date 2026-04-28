@@ -5,6 +5,9 @@ description: >-
   searching, home feed, bookmarks, following or unfollowing users, and adding or removing bookmarks.
   Hard triggers include any x.com/twitter.com URL, "read this tweet/post/thread", "看这条推文",
   "X搜索", "首页时间线", "书签", "关注作者", "取关", "加书签", and "移除书签".
+  
+  ⚠️ CRITICAL: When viewing images from tweet output, you MUST use the `read` tool, NOT `image` tool.
+  The `image` tool cannot access `/tmp/browser-bridge-cache/` directory. Always use `read(file_path="...")`.
 version: 2.1.0
 ---
 
@@ -16,15 +19,19 @@ version: 2.1.0
 
 - 阅读单条推文：
   `python3 skills/x-assistant/scripts/read_post.py "<URL>"`
+  - ⚠️ 若输出含 `[Image Local: ...]`，**必须用 `read` 工具读取**，不能用 `image` 工具
 
 - 在 X 搜索：
   `python3 skills/x-assistant/scripts/search.py "<keyword>"`
+  - ⚠️ 若输出含 `[Image Local: ...]`，**必须用 `read` 工具读取**，不能用 `image` 工具
 
 - 查看首页时间线：
   `python3 skills/x-assistant/scripts/feed.py [for_you|following|both] [count]`
+  - ⚠️ 若输出含 `[Image Local: ...]`，**必须用 `read` 工具读取**，不能用 `image` 工具
 
 - 查看书签列表：
   `python3 skills/x-assistant/scripts/bookmarks.py [count]`
+  - ⚠️ 若输出含 `[Image Local: ...]`，**必须用 `read` 工具读取**，不能用 `image` 工具
 
 - 关注用户：
   `python3 skills/x-assistant/scripts/follow_user.py "<handle|profile_url>"`
@@ -63,7 +70,7 @@ version: 2.1.0
   - 是否真的发生变化
   - 是否验证成功
 
-## 4. 图片处理
+## 4. ⚠️ 图片处理（重要）
 
 当推文正文包含图片标签时，底层脚本会把：
 
@@ -73,7 +80,22 @@ version: 2.1.0
 
 `[Image Local: /tmp/browser-bridge-cache/xxxx.jpg | Remote: https://...]`
 
-需要看图时，可直接读取 `Local` 路径。
+### 正确的读取方式
+
+需要看图时，**必须使用 `read` 工具读取 `Local` 路径**：
+```
+read(file_path="/tmp/browser-bridge-cache/xxxx.jpg")
+```
+
+### ❌ 错误 vs ✅ 正确
+
+| ❌ 错误 | ✅ 正确 |
+|--------|--------|
+| `image(file_path="/tmp/browser-bridge-cache/xxxx.jpg")` | `read(file_path="/tmp/browser-bridge-cache/xxxx.jpg")` |
+
+**原因**：`image` 工具无法访问 `/tmp/browser-bridge-cache/` 目录，只有 `read` 工具可以。
+
+**再次强调**：看到 `[Image Local: ...]` 时，用 `read` 工具，不要用 `image` 工具。
 
 ## 5. 输出要求
 

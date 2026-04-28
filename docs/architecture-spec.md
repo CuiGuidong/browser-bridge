@@ -389,6 +389,9 @@ X：
 - `search`
   - 必填：`keyword`
   - 可选：`waitForReady`、`intervalSeconds`
+- `prepare_publish_post`
+  - 必填：`title`、`content`、至少一个宿主机图片路径
+  - 约束：只支持图文发布前准备，workflow 停在最终“发布”按钮前，不点击发布
 
 ## 8. X 作为当前参考站点
 
@@ -469,14 +472,23 @@ X：
 - `read_post`
 - `read_home`
 - `search`
+- `prepare_publish_post`
 
 在 `skills/xiaohongshu-assistant/` 下，当前已提供：
 
 - `read_post.py`
 - `home.py`
 - `search.py`
+- `prepare_publish.py`
 
 这说明当前系统已经不再只服务 X，而是已经完成了第二个站点的小规模落地。
+
+补充：
+
+- 小红书当前除只读能力外，还已落地“图文发布前准备”固定流程
+- 该流程支持传入 1-N 张宿主机图片路径
+- 流程会自动切换到“上传图文”、触发文件上传、填写标题与正文
+- 最终停在“发布”按钮前，等待人工确认，不自动发布
 
 当前小红书 `read_post` skill 还负责输入归一化，但这个归一化只处理：
 
