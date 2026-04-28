@@ -50,4 +50,5 @@ temp/
 .clawhub/
 .openclaw/
 .codex
+AGENTS.md
 LOCAL_DEV.md
