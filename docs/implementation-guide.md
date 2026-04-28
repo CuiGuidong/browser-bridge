@@ -1,6 +1,6 @@
 # Browser Bridge 实现指南与避坑手册
 
-_最后更新：2026-03-31_  
+_最后更新：2026-04-28_  
 _状态：正式指南_
 
 本文档不是架构规范的重复版，而是：
@@ -14,6 +14,13 @@ _状态：正式指南_
 - 需要接手 X、小红书、微博现有实现的人
 - 未来负责继续扩展新站点的 Agent
 - 需要接手 bridge / extension / skill 三层实现的人
+
+相关文档：
+
+- 项目入口与对外说明：`README.md`
+- 当前站点能力矩阵：`docs/site-support.md`
+- 接口与 workflow 参数：`docs/api-reference.md`
+- 正式架构边界：`docs/architecture-spec.md`
 
 ## 1. 开发前必须先建立的心智模型
 
