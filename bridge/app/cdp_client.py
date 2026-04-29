@@ -2,7 +2,7 @@ import json
 import urllib.error
 import urllib.request
 
-from .config import CDP_BASE_URL, CDP_HOST_HEADER, CDP_TIMEOUT_SECONDS
+from .config import CDP_CONNECT_BASE_URL, CDP_HOST_HEADER, CDP_TIMEOUT_SECONDS
 
 
 class CdpClientError(Exception):
@@ -10,7 +10,7 @@ class CdpClientError(Exception):
 
 
 class CdpHttpClient:
-    def __init__(self, base_url=CDP_BASE_URL, host_header=CDP_HOST_HEADER, timeout=CDP_TIMEOUT_SECONDS):
+    def __init__(self, base_url=CDP_CONNECT_BASE_URL, host_header=CDP_HOST_HEADER, timeout=CDP_TIMEOUT_SECONDS):
         self.base_url = base_url.rstrip("/")
         self.host_header = host_header
         self.timeout = timeout

@@ -16,7 +16,7 @@ class PlaywrightClient:
     def connect(self, cdp_url: str) -> bool:
         """
         Connect to existing browser via CDP.
-        cdp_url format: ws://127.0.0.1:9333/devtools/browser/xxx
+        cdp_url format: ws://127.0.0.1:9222/devtools/browser/xxx
         """
         try:
             self.playwright = sync_playwright().start()

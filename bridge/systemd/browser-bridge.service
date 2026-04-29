@@ -5,8 +5,8 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-WorkingDirectory=/home/cuiguidong/.openclaw/workspace/projects/browser-bridge-project/bridge
-ExecStart=/home/cuiguidong/.openclaw/workspace/projects/browser-bridge-project/bridge/run_bridge.sh
+WorkingDirectory=__BRIDGE_WORKDIR__
+ExecStart=__BRIDGE_EXECSTART__
 Restart=always
 RestartSec=2
 TimeoutStartSec=30

@@ -10,11 +10,11 @@ _状态：公开能力说明_
 
 更底层的架构约束见：
 
-- [architecture-spec.md](/home/cuiguidong/.openclaw/workspace/projects/browser-bridge-project/docs/architecture-spec.md)
+- [architecture-spec.md](architecture-spec.md)
 
 更偏实现与踩坑的说明见：
 
-- [implementation-guide.md](/home/cuiguidong/.openclaw/workspace/projects/browser-bridge-project/docs/implementation-guide.md)
+- [implementation-guide.md](implementation-guide.md)
 
 ## 总览
 
@@ -161,4 +161,4 @@ _状态：公开能力说明_
 
 如果你准备新增站点，不要从这份文档开始扩写实现细节，直接读：
 
-- [new-site-adaptation-guide.md](/home/cuiguidong/.openclaw/workspace/projects/browser-bridge-project/docs/new-site-adaptation-guide.md)
+- [new-site-adaptation-guide.md](new-site-adaptation-guide.md)

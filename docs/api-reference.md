@@ -8,13 +8,23 @@ _状态：接口参考_
 - Bridge 暴露了哪些接口
 - 当前 workflow 有哪些主要参数
 
+补充：
+
+- CDP 连接地址当前支持通过环境变量配置
+- 默认假设浏览器 CDP 暴露在 `127.0.0.1:9222`
+- 如本地环境不是默认值，可覆盖：
+  - `CDP_PUBLIC_HOST`
+  - `CDP_CONNECT_HOST`
+  - `CDP_PORT`
+  - `CDP_TIMEOUT_SECONDS`
+
 如果你更关心“这个项目为什么这样分层”，先读：
 
-- [architecture-spec.md](/home/cuiguidong/.openclaw/workspace/projects/browser-bridge-project/docs/architecture-spec.md)
+- [architecture-spec.md](architecture-spec.md)
 
 如果你更关心“真实环境里怎么调试和避坑”，再读：
 
-- [implementation-guide.md](/home/cuiguidong/.openclaw/workspace/projects/browser-bridge-project/docs/implementation-guide.md)
+- [implementation-guide.md](implementation-guide.md)
 
 ## 基础 Bridge API
 
@@ -127,6 +137,6 @@ _状态：接口参考_
 
 ## 什么时候不该直接看这份文档
 
-- 想判断“是代码问题还是宿主环境问题”：读 [implementation-guide.md](/home/cuiguidong/.openclaw/workspace/projects/browser-bridge-project/docs/implementation-guide.md)
-- 想知道当前每个站点到底支持什么：读 [site-support.md](/home/cuiguidong/.openclaw/workspace/projects/browser-bridge-project/docs/site-support.md)
-- 想扩一个新站点：读 [new-site-adaptation-guide.md](/home/cuiguidong/.openclaw/workspace/projects/browser-bridge-project/docs/new-site-adaptation-guide.md)
+- 想判断“是代码问题还是宿主环境问题”：读 [implementation-guide.md](implementation-guide.md)
+- 想知道当前每个站点到底支持什么：读 [site-support.md](site-support.md)
+- 想扩一个新站点：读 [new-site-adaptation-guide.md](new-site-adaptation-guide.md)

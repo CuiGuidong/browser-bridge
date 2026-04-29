@@ -29,7 +29,7 @@ Browser Bridge 解决的不是“如何点页面”，而是如何让 Agent 在�
 
 更细的站点能力、输入兼容形态、当前限制见：
 
-- [site-support.md](/home/cuiguidong/.openclaw/workspace/projects/browser-bridge-project/docs/site-support.md)
+- [site-support.md](docs/site-support.md)
 
 ## 一个最小心智模型
 
@@ -56,7 +56,7 @@ Skill / Agent
 
 正式架构规范见：
 
-- [architecture-spec.md](/home/cuiguidong/.openclaw/workspace/projects/browser-bridge-project/docs/architecture-spec.md)
+- [architecture-spec.md](docs/architecture-spec.md)
 
 ## 当前能做什么
 
@@ -72,13 +72,22 @@ Skill / Agent
 
 ```bash
 # Edge (macOS)
-open -a "Microsoft Edge" --args --remote-debugging-port=9333
+open -a "Microsoft Edge" --args --remote-debugging-port=9222
 
 # Chrome (macOS)
-open -a "Google Chrome" --args --remote-debugging-port=9333
+open -a "Google Chrome" --args --remote-debugging-port=9222
 
 # Chrome (Linux)
-google-chrome --remote-debugging-port=9333
+google-chrome --remote-debugging-port=9222
+```
+
+默认示例使用浏览器常见的 `9222` 端口。  
+如果你的本地环境使用了不同 host / port，可在启动 bridge 前通过环境变量覆盖：
+
+```bash
+export CDP_PUBLIC_HOST=127.0.0.1
+export CDP_CONNECT_HOST=127.0.0.1
+export CDP_PORT=9222
 ```
 
 ### 2. 启动 Bridge
@@ -111,11 +120,11 @@ cd extension
 如果你是：
 
 - 想快速理解项目：先读这份 README
-- 想接手架构设计：读 [architecture-spec.md](/home/cuiguidong/.openclaw/workspace/projects/browser-bridge-project/docs/architecture-spec.md)
-- 想排查真实环境问题：读 [implementation-guide.md](/home/cuiguidong/.openclaw/workspace/projects/browser-bridge-project/docs/implementation-guide.md)
-- 想看站点支持矩阵：读 [site-support.md](/home/cuiguidong/.openclaw/workspace/projects/browser-bridge-project/docs/site-support.md)
-- 想看接口与 workflow 参数：读 [api-reference.md](/home/cuiguidong/.openclaw/workspace/projects/browser-bridge-project/docs/api-reference.md)
-- 想继续扩新站点：读 [new-site-adaptation-guide.md](/home/cuiguidong/.openclaw/workspace/projects/browser-bridge-project/docs/new-site-adaptation-guide.md)
+- 想接手架构设计：读 [architecture-spec.md](docs/architecture-spec.md)
+- 想排查真实环境问题：读 [implementation-guide.md](docs/implementation-guide.md)
+- 想看站点支持矩阵：读 [site-support.md](docs/site-support.md)
+- 想看接口与 workflow 参数：读 [api-reference.md](docs/api-reference.md)
+- 想继续扩新站点：读 [new-site-adaptation-guide.md](docs/new-site-adaptation-guide.md)
 
 ## 安全边界
 

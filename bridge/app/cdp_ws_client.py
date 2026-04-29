@@ -1,39 +1,60 @@
 import asyncio
+import asyncio.base_events
 import json
 import socket
+from urllib.parse import urlsplit, urlunsplit
 
 import websockets
 
-from .config import CDP_HOST_HEADER, CDP_TIMEOUT_SECONDS, CDP_WS_BASE_URL
+from .config import (
+    CDP_CONNECT_HOST,
+    CDP_HOST_HEADER,
+    CDP_PORT,
+    CDP_PUBLIC_HOST,
+    CDP_TIMEOUT_SECONDS,
+    CDP_WS_BASE_URL,
+)
 
 # --- MONKEY PATCH SOCKET FOR WEBSOCKETS ---
 # Edge CDP strictly rejects WS connections if the Host header is not 127.0.0.1/localhost.
 # The websockets library generates the Host header based on the connection URI and doesn't allow cleanly overriding it without duplicates.
-# So we tell websockets to connect to ws://127.0.0.1:9333, but at the TCP level we route it to host.orb.internal.
+# So we expose a public WS URL using CDP_PUBLIC_HOST/CDP_PORT, but may route TCP traffic to CDP_CONNECT_HOST.
 _orig_create_connection = socket.create_connection
+
+
+def _rewrite_connect_target(host, port):
+    if host == CDP_PUBLIC_HOST and port == CDP_PORT and CDP_CONNECT_HOST != CDP_PUBLIC_HOST:
+        return CDP_CONNECT_HOST, port
+    return host, port
+
+
 def _patched_create_connection(address, timeout=socket._GLOBAL_DEFAULT_TIMEOUT, source_address=None, *args, **kwargs):
     host, port = address
-    if host == "127.0.0.1" and port == 9333:
-        host = "host.orb.internal"
+    host, port = _rewrite_connect_target(host, port)
     return _orig_create_connection((host, port), timeout, source_address, *args, **kwargs)
+
+
 socket.create_connection = _patched_create_connection
 
 # Asyncio uses a different create_connection internally
-import asyncio.base_events
 _orig_async_create_connection = asyncio.base_events.BaseEventLoop.create_connection
+
+
 async def _patched_async_create_connection(self, protocol_factory, host=None, port=None, *args, **kwargs):
-    if host == "127.0.0.1" and port == 9333:
-        host = "host.orb.internal"
+    host, port = _rewrite_connect_target(host, port)
     return await _orig_async_create_connection(self, protocol_factory, host, port, *args, **kwargs)
+
+
 asyncio.base_events.BaseEventLoop.create_connection = _patched_async_create_connection
 # ------------------------------------------
+
 
 class CdpWebSocketClientError(Exception):
     pass
 
 
 class CdpWebSocketClient:
-    def __init__(self, ws_base_url="ws://127.0.0.1:9333", host_header=CDP_HOST_HEADER, timeout=CDP_TIMEOUT_SECONDS):
+    def __init__(self, ws_base_url=CDP_WS_BASE_URL, host_header=CDP_HOST_HEADER, timeout=CDP_TIMEOUT_SECONDS):
         self.ws_base_url = ws_base_url.rstrip("/")
         self.host_header = host_header
         self.timeout = timeout
@@ -83,9 +104,11 @@ class CdpWebSocketClient:
             raise CdpWebSocketClientError(f"WebSocket CDP call sequence failed: {e}") from e
 
     def _normalize_ws_url(self, websocket_debugger_url):
-        # We explicitly use 127.0.0.1 here. The monkey patch will redirect it
-        # to host.orb.internal at TCP level.
-        return websocket_debugger_url.replace("ws://host.orb.internal:9333", "ws://127.0.0.1:9333")
+        parsed = urlsplit(websocket_debugger_url)
+        if not parsed.scheme or not parsed.path:
+            return websocket_debugger_url
+        public_netloc = f"{CDP_PUBLIC_HOST}:{CDP_PORT}"
+        return urlunsplit((parsed.scheme, public_netloc, parsed.path, parsed.query, parsed.fragment))
 
     async def _send_and_wait(self, ws, request_id, method, params):
         await ws.send(json.dumps({"id": request_id, "method": method, "params": params}))
