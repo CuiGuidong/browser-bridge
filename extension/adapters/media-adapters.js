@@ -126,6 +126,200 @@
         return path === '/' ? 'search' : 'unknown';
       },
     },
+    1688: {
+      hosts: ['1688.com'],
+      mediaType: 'product',
+      read: ['read_post', 'read_profile_metrics', 'search', 'account_status'],
+      pathType(path, host) {
+        if (host === 's.1688.com' || path.includes('offer_search')) return 'search';
+        if (host.startsWith('detail.') || path.includes('/offer/')) return 'post';
+        if (host.endsWith('.1688.com') && host !== 'www.1688.com') return 'profile';
+        return path === '/' ? 'search' : 'unknown';
+      },
+    },
+    '36kr': {
+      hosts: ['36kr.com'],
+      mediaType: 'article',
+      read: ['read_post', 'read_profile_metrics', 'search', 'account_status'],
+      pathType(path) {
+        if (path.startsWith('/search')) return 'search';
+        if (path.startsWith('/p/')) return 'post';
+        if (path.startsWith('/user/') || path.startsWith('/author/')) return 'profile';
+        return path.startsWith('/hot-list') || path === '/' ? 'search' : 'unknown';
+      },
+    },
+    tieba: {
+      hosts: ['tieba.baidu.com'],
+      mediaType: 'discussion',
+      read: ['read_post', 'read_profile_metrics', 'search', 'account_status'],
+      pathType(path) {
+        if (path.startsWith('/f/search') || path.startsWith('/hottopic')) return 'search';
+        if (path.startsWith('/p/')) return 'post';
+        if (path.startsWith('/home/') || path.startsWith('/f')) return 'profile';
+        return 'unknown';
+      },
+    },
+    aibase: {
+      hosts: ['aibase.com'],
+      mediaType: 'article',
+      read: ['read_post', 'read_profile_metrics', 'search', 'account_status'],
+      pathType(path) {
+        if (path.includes('/search')) return 'search';
+        if (path.includes('/daily/') || path.includes('/news/')) return 'post';
+        if (path.includes('/daily') || path === '/' || path === '/zh') return 'search';
+        return 'unknown';
+      },
+    },
+    bloomberg: {
+      hosts: ['bloomberg.com'],
+      mediaType: 'article',
+      read: ['read_post', 'read_profile_metrics', 'search', 'account_status'],
+      pathType(path) {
+        if (path.startsWith('/search')) return 'search';
+        if (path.includes('/news/articles/') || path.includes('/opinion/articles/')) return 'post';
+        if (path.startsWith('/authors/') || path.startsWith('/profile/')) return 'profile';
+        return path === '/' ? 'search' : 'unknown';
+      },
+    },
+    dianping: {
+      hosts: ['dianping.com'],
+      mediaType: 'commerce',
+      read: ['read_post', 'read_profile_metrics', 'search', 'account_status'],
+      pathType(path) {
+        if (path.startsWith('/search') || path.includes('/search/keyword/')) return 'search';
+        if (path.startsWith('/shop/') || path.includes('/review/')) return 'post';
+        if (path.startsWith('/member/')) return 'profile';
+        return 'unknown';
+      },
+    },
+    google: {
+      hosts: ['google.com'],
+      mediaType: 'search',
+      read: ['read_post', 'read_profile_metrics', 'search', 'account_status'],
+      pathType(path) {
+        if (path.startsWith('/search')) return 'search';
+        return path === '/' ? 'search' : 'unknown';
+      },
+    },
+    'gov.cn': {
+      hosts: ['gov.cn'],
+      mediaType: 'article',
+      read: ['read_post', 'read_profile_metrics', 'search', 'account_status'],
+      pathType(path, host) {
+        if (host.startsWith('sousuo.')) return 'search';
+        if (path.includes('/content_') || path.includes('/zhengce/') || path.includes('/yaowen/')) return 'post';
+        return path === '/' || path.includes('/liebiao/') || path.includes('/index') ? 'search' : 'unknown';
+      },
+    },
+    grok: {
+      hosts: ['grok.com', 'x.ai'],
+      mediaType: 'ai',
+      read: ['read_post', 'read_profile_metrics', 'search', 'account_status'],
+      pathType(path) {
+        if (path.startsWith('/chat') || path.startsWith('/share/')) return 'post';
+        if (path.startsWith('/search')) return 'search';
+        return path === '/' ? 'search' : 'unknown';
+      },
+    },
+    hupu: {
+      hosts: ['hupu.com'],
+      mediaType: 'discussion',
+      read: ['read_post', 'read_profile_metrics', 'search', 'account_status'],
+      pathType(path) {
+        if (path.startsWith('/search') || path.startsWith('/hot')) return 'search';
+        if (path.includes('.html') || path.startsWith('/bbs/')) return 'post';
+        if (path.startsWith('/user/')) return 'profile';
+        return 'unknown';
+      },
+    },
+    imdb: {
+      hosts: ['imdb.com'],
+      mediaType: 'media',
+      read: ['read_post', 'read_profile_metrics', 'search', 'account_status'],
+      pathType(path) {
+        if (path.startsWith('/find')) return 'search';
+        if (path.startsWith('/title/')) return 'post';
+        if (path.startsWith('/name/')) return 'profile';
+        return path === '/' ? 'search' : 'unknown';
+      },
+    },
+    jd: {
+      hosts: ['jd.com', '360buy.com'],
+      mediaType: 'product',
+      read: ['read_post', 'read_profile_metrics', 'search', 'account_status'],
+      pathType(path, host) {
+        if (host.startsWith('search.')) return 'search';
+        if (host.startsWith('item.') || path.includes('/item/')) return 'post';
+        if (host.endsWith('.jd.com') && host !== 'www.jd.com') return 'profile';
+        return path === '/' ? 'search' : 'unknown';
+      },
+    },
+    'linux-do': {
+      hosts: ['linux.do'],
+      mediaType: 'discussion',
+      read: ['read_post', 'read_profile_metrics', 'search', 'account_status'],
+      pathType(path) {
+        if (path.startsWith('/search') || path === '/' || path.startsWith('/latest')) return 'search';
+        if (path.startsWith('/t/')) return 'post';
+        if (path.startsWith('/u/')) return 'profile';
+        return 'unknown';
+      },
+    },
+    v2ex: {
+      hosts: ['v2ex.com'],
+      mediaType: 'discussion',
+      read: ['read_post', 'read_profile_metrics', 'search', 'account_status'],
+      pathType(path) {
+        if (path.startsWith('/search') || path === '/' || path.startsWith('/recent')) return 'search';
+        if (path.startsWith('/t/')) return 'post';
+        if (path.startsWith('/member/')) return 'profile';
+        return 'unknown';
+      },
+    },
+    smzdm: {
+      hosts: ['smzdm.com'],
+      mediaType: 'commerce',
+      read: ['read_post', 'read_profile_metrics', 'search', 'account_status'],
+      pathType(path, host) {
+        if (host.startsWith('search.') || path.startsWith('/search')) return 'search';
+        if (path.includes('/p/') || path.includes('/youhui/') || path.includes('/faxian/')) return 'post';
+        if (path.startsWith('/user/')) return 'profile';
+        return path === '/' ? 'search' : 'unknown';
+      },
+    },
+    taobao: {
+      hosts: ['taobao.com', 'tmall.com'],
+      mediaType: 'product',
+      read: ['read_post', 'read_profile_metrics', 'search', 'account_status'],
+      pathType(path, host) {
+        if (host.startsWith('s.')) return 'search';
+        if (host.startsWith('item.') || path.includes('/item.htm')) return 'post';
+        if (host.endsWith('.taobao.com') && host !== 'www.taobao.com') return 'profile';
+        return path === '/' ? 'search' : 'unknown';
+      },
+    },
+    wikipedia: {
+      hosts: ['wikipedia.org'],
+      mediaType: 'article',
+      read: ['read_post', 'read_profile_metrics', 'search', 'account_status'],
+      pathType(path) {
+        if (path.startsWith('/w/index.php')) return 'search';
+        if (path.startsWith('/wiki/User:')) return 'profile';
+        if (path.startsWith('/wiki/')) return 'post';
+        return path === '/' ? 'search' : 'unknown';
+      },
+    },
+    xianyu: {
+      hosts: ['goofish.com', 'xianyu.taobao.com'],
+      mediaType: 'product',
+      read: ['read_post', 'read_profile_metrics', 'search', 'account_status'],
+      pathType(path) {
+        if (path.startsWith('/search')) return 'search';
+        if (path.startsWith('/item')) return 'post';
+        if (path.startsWith('/personal')) return 'profile';
+        return path === '/' ? 'search' : 'unknown';
+      },
+    },
   };
 
   function compactText(value) {
@@ -159,6 +353,21 @@
 
   function pageDescription() {
     return compactText(meta('og:description') || meta('description') || firstText(['article', 'main']));
+  }
+
+  function blockingNotice() {
+    const text = compactText(document.body?.innerText || '');
+    const patterns = [
+      /次数过多/,
+      /稍后再试/,
+      /安全验证/,
+      /验证码/,
+      /请先登录/,
+      /too many requests/i,
+      /rate limit/i,
+      /verify you are human/i,
+    ];
+    return patterns.some((pattern) => pattern.test(text));
   }
 
   function canonicalUrl() {
@@ -223,6 +432,37 @@
       }
       if (site === 'eastmoney') {
         return parts.filter(Boolean).pop() || parsed.hostname;
+      }
+      if (site === '1688') {
+        const index = parts.indexOf('offer');
+        return index >= 0 ? (parts[index + 1] || '').replace('.html', '') : parsed.searchParams.get('offerId') || '';
+      }
+      if (site === '36kr') {
+        const index = parts.indexOf('p');
+        return index >= 0 ? parts[index + 1] || '' : '';
+      }
+      if (site === 'tieba') {
+        const index = parts.indexOf('p');
+        return index >= 0 ? parts[index + 1] || '' : '';
+      }
+      if (site === 'gov.cn') {
+        return parts.pop() || parsed.hostname;
+      }
+      if (site === 'jd') {
+        return (parts.pop() || '').replace('.html', '');
+      }
+      if (site === 'taobao') {
+        return parsed.searchParams.get('id') || '';
+      }
+      if (site === 'xianyu') {
+        return parsed.searchParams.get('id') || '';
+      }
+      if (site === 'imdb') {
+        return parts[1] || '';
+      }
+      if (site === 'linux-do' || site === 'v2ex') {
+        const index = parts.indexOf('t');
+        return index >= 0 ? parts[index + 1] || '' : '';
       }
     } catch {}
     return '';
@@ -521,6 +761,15 @@
     return items;
   }
 
+  function normalizedSearchResultUrl(site, href) {
+    const parsed = new URL(href, location.href);
+    if (site === 'google' && parsed.hostname.includes('google.') && parsed.pathname === '/url') {
+      const target = parsed.searchParams.get('q') || parsed.searchParams.get('url');
+      if (target) return new URL(target, location.href).href;
+    }
+    return parsed.href;
+  }
+
   function extractSearchItems(site) {
     const seen = new Set();
     const items = [];
@@ -532,12 +781,16 @@
       if (/^[\d.,万亿kKmM\s:]+$/.test(title)) continue;
       let url = '';
       try {
-        url = new URL(anchor.getAttribute('href'), location.href).href;
+        url = normalizedSearchResultUrl(site, anchor.getAttribute('href'));
       } catch {
         continue;
       }
       const itemSite = siteFromHost(new URL(url).hostname);
-      if (itemSite !== site) continue;
+      if (site === 'google') {
+        if (new URL(url).hostname.includes('google.')) continue;
+      } else if (itemSite !== site) {
+        continue;
+      }
       if (!usefulSearchUrl(site, url)) continue;
       const key = url;
       if (seen.has(key)) continue;
@@ -608,6 +861,7 @@
   }
 
   async function readSearch(site, pageType, params = {}) {
+    const notice = blockingNotice();
     if (site === 'hackernews') {
       const keyword = params.keyword || new URLSearchParams(location.search).get('q') || '';
       const limit = Math.min(Math.max(Number(params.limit || params.targetCount || 20) || 20, 1), 20);
@@ -625,6 +879,7 @@
             pageType,
             itemCount: items.length,
             source: 'page-dom',
+            needsHumanAttention: notice,
           },
         },
       };
@@ -642,6 +897,7 @@
         rawPayload: {
           pageType,
           itemCount: items.length,
+          needsHumanAttention: notice,
         },
       },
     };
@@ -693,6 +949,7 @@
   function readAccountStatus(site, pageType) {
     const text = compactText(document.body?.innerText || '');
     const loginHints = /log in|sign in|登录|扫码|验证码|请先登录|Log in|Sign in/.test(text);
+    const notice = blockingNotice();
     const accountText = extractAuthor(site) || firstText([
       '[aria-label*="Account"]',
       '[aria-label*="Profile"]',
@@ -712,6 +969,7 @@
         rawPayload: {
           pageType,
           loginHints,
+          needsHumanAttention: notice,
         },
       },
     };
@@ -736,19 +994,22 @@
       },
       collect(base) {
         const pageType = getPageType(site);
+        const notice = blockingNotice();
         return {
           ...base,
           site,
           signals: {
             ...base.signals,
-            ready: base.signals.ready || Boolean(pageTitle()),
+            ready: base.signals.ready || Boolean(pageTitle()) || notice,
             pageType,
             mediaType: SITE_CONFIGS[site].mediaType,
+            needsHumanAttention: notice,
           },
           content: {
             ...base.content,
             title: pageTitle(),
             description: pageDescription(),
+            needsHumanAttention: notice,
           },
         };
       },

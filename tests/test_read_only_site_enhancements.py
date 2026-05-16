@@ -6,7 +6,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
-class OpenCliExistingSiteEnhancementsTest(unittest.TestCase):
+class ReadOnlySiteEnhancementsTest(unittest.TestCase):
     def test_existing_sites_gain_selected_read_only_workflows(self):
         expectations = {
             "weibo": {

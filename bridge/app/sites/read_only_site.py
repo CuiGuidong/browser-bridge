@@ -1,7 +1,7 @@
 from .common_workflows import run_account_status, run_search, run_url_read
 
 
-class OpenCliInspiredReadOnlySite:
+class ReadOnlySite:
     site_id = ""
     hosts = set()
     home_url = ""

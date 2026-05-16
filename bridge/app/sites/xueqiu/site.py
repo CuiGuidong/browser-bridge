@@ -1,7 +1,7 @@
-from ..opencli_inspired import OpenCliInspiredReadOnlySite
+from ..read_only_site import ReadOnlySite
 
 
-class XueqiuSite(OpenCliInspiredReadOnlySite):
+class XueqiuSite(ReadOnlySite):
     site_id = "xueqiu"
     hosts = {"xueqiu.com"}
     home_url = "https://xueqiu.com/"

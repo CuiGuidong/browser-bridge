@@ -1,7 +1,7 @@
-from ..opencli_inspired import OpenCliInspiredReadOnlySite
+from ..read_only_site import ReadOnlySite
 
 
-class YoutubeSite(OpenCliInspiredReadOnlySite):
+class YoutubeSite(ReadOnlySite):
     site_id = "youtube"
     hosts = {"youtube.com", "youtu.be"}
     home_url = "https://www.youtube.com/"

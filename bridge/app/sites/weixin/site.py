@@ -1,7 +1,7 @@
-from ..opencli_inspired import OpenCliInspiredReadOnlySite
+from ..read_only_site import ReadOnlySite
 
 
-class WeixinSite(OpenCliInspiredReadOnlySite):
+class WeixinSite(ReadOnlySite):
     site_id = "weixin"
     hosts = {"mp.weixin.qq.com", "weixin.sogou.com"}
     home_url = "https://mp.weixin.qq.com/"

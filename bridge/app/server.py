@@ -16,17 +16,35 @@ from .notifications import NotificationService
 from .playwright_client import get_playwright_client, reset_playwright_client
 from .schemas import fail, ok
 from .sites.registry import SiteRegistry
+from .sites.aibase.site import AibaseSite
+from .sites.ali1688.site import Ali1688Site
 from .sites.bilibili.site import BilibiliSite
+from .sites.bloomberg.site import BloombergSite
 from .sites.douban.site import DoubanSite
 from .sites.douyin.site import DouyinSite
 from .sites.eastmoney.site import EastmoneySite
+from .sites.dianping.site import DianpingSite
+from .sites.google.site import GoogleSite
+from .sites.gov_cn.site import GovCnSite
+from .sites.grok.site import GrokSite
 from .sites.hackernews.site import HackerNewsSite
+from .sites.hupu.site import HupuSite
 from .sites.instagram.site import InstagramSite
+from .sites.imdb.site import ImdbSite
+from .sites.jd.site import JdSite
+from .sites.linux_do.site import LinuxDoSite
 from .sites.reddit.site import RedditSite
+from .sites.site36kr.site import Site36krSite
+from .sites.smzdm.site import SmzdmSite
+from .sites.taobao.site import TaobaoSite
+from .sites.tieba.site import TiebaSite
+from .sites.v2ex.site import V2exSite
 from .sites.weibo.site import WeiboSite
 from .sites.weixin.site import WeixinSite
+from .sites.wikipedia.site import WikipediaSite
 from .sites.x.site import XSite
 from .sites.xiaohongshu.site import XiaohongshuSite
+from .sites.xianyu.site import XianyuSite
 from .sites.xueqiu.site import XueqiuSite
 from .sites.youtube.site import YoutubeSite
 from .sites.zhihu.site import ZhihuSite
@@ -51,6 +69,24 @@ site_registry.register("hackernews", HackerNewsSite())
 site_registry.register("instagram", InstagramSite())
 site_registry.register("xueqiu", XueqiuSite())
 site_registry.register("eastmoney", EastmoneySite())
+site_registry.register("1688", Ali1688Site())
+site_registry.register("36kr", Site36krSite())
+site_registry.register("tieba", TiebaSite())
+site_registry.register("aibase", AibaseSite())
+site_registry.register("bloomberg", BloombergSite())
+site_registry.register("dianping", DianpingSite())
+site_registry.register("google", GoogleSite())
+site_registry.register("gov.cn", GovCnSite())
+site_registry.register("grok", GrokSite())
+site_registry.register("hupu", HupuSite())
+site_registry.register("imdb", ImdbSite())
+site_registry.register("jd", JdSite())
+site_registry.register("linux-do", LinuxDoSite())
+site_registry.register("v2ex", V2exSite())
+site_registry.register("smzdm", SmzdmSite())
+site_registry.register("taobao", TaobaoSite())
+site_registry.register("wikipedia", WikipediaSite())
+site_registry.register("xianyu", XianyuSite())
 read_service = ReadService(browser_runtime, extension_runtime, site_registry=site_registry)
 action_service = ActionService(browser_runtime, extension_runtime, site_registry=site_registry)
 workflow_service = WorkflowService(browser_runtime, extension_runtime, site_registry=site_registry)
@@ -159,6 +195,28 @@ class DevReloadExtensionRequest(BaseModel):
         "xueqiu.com",
         "eastmoney.com",
         "eastmoney.cn",
+        "1688.com",
+        "36kr.com",
+        "tieba.baidu.com",
+        "aibase.com",
+        "bloomberg.com",
+        "dianping.com",
+        "google.com",
+        "gov.cn",
+        "grok.com",
+        "x.ai",
+        "hupu.com",
+        "imdb.com",
+        "jd.com",
+        "360buy.com",
+        "linux.do",
+        "v2ex.com",
+        "smzdm.com",
+        "taobao.com",
+        "tmall.com",
+        "wikipedia.org",
+        "goofish.com",
+        "xianyu.taobao.com",
     ]
     timeoutSeconds: float = 5
     delaySeconds: float = 0.8

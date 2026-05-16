@@ -1,7 +1,7 @@
-from ..opencli_inspired import OpenCliInspiredReadOnlySite
+from ..read_only_site import ReadOnlySite
 
 
-class EastmoneySite(OpenCliInspiredReadOnlySite):
+class EastmoneySite(ReadOnlySite):
     site_id = "eastmoney"
     hosts = {"eastmoney.com", "eastmoney.cn"}
     home_url = "https://www.eastmoney.com/"

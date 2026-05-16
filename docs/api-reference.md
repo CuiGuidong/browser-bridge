@@ -256,11 +256,11 @@ Telegram 已可用；微信先按企业微信/兼容 webhook 预留。
   - 可选：`url`
   - 返回登录状态、是否需要人工登录和可见账号信息，不返回 cookie/token
 
-### 知乎 / B 站 / 抖音 / Reddit / YouTube / 微信公众号 / 豆瓣 / HackerNews / Instagram / 雪球 / 东方财富
+### 知乎 / B 站 / 抖音 / Reddit / YouTube / 微信公众号 / 豆瓣 / HackerNews / Instagram / 雪球 / 东方财富 / 1688 / 36氪 / 贴吧 / Aibase / Bloomberg / 大众点评 / Google / gov.cn / Grok / 虎扑 / IMDb / 京东 / linux.do / V2EX / 什么值得买 / 淘宝 / Wikipedia / 闲鱼
 
 - `read_post`
   - 必填：`url`
-  - 知乎、Reddit、微信公众号、豆瓣、HackerNews、Instagram、雪球、东方财富返回内容页标题、作者/来源、摘要和页面可见互动指标
+  - 知乎、Reddit、微信公众号、豆瓣、HackerNews、Instagram、雪球、东方财富、1688、36氪、贴吧、Aibase、Bloomberg、大众点评、Google、gov.cn、Grok、虎扑、IMDb、京东、linux.do、V2EX、什么值得买、淘宝、Wikipedia、闲鱼返回内容页标题、作者/来源、摘要和页面可见互动指标
   - B 站、抖音和 YouTube 返回视频页元信息和公开互动指标，不解析视频内容本身
 - `read_profile_metrics`
   - 必填：`url`
@@ -278,8 +278,10 @@ Telegram 已可用；微信先按企业微信/兼容 webhook 预留。
 
 安全边界：
 
-- 这些 OpenCLI-inspired 新站点当前只暴露读取 workflow，不暴露 `/site/action` 写能力
-- Instagram、雪球、东方财富等高风控或高敏感站点默认只做低频真实浏览器读取
+- 这些参考 OpenCLI 扩展方向选取的新站点当前只暴露读取 workflow，不暴露 `/site/action` 写能力
+- Instagram、雪球、东方财富、电商、招聘、二手交易、AI 会话等高风控或高敏感站点默认只做低频真实浏览器读取
+- 1688、京东、淘宝、闲鱼、大众点评等不自动登录、不加购、不下单、不支付、不发布、不聊天
+- Grok 只提供页面状态和可见内容读取，不自动发送 prompt
 - 微信公众号不自动创建草稿或群发，后续如做发布准备也必须停在人工确认前
 
 ## workflow 运行上的共同约定

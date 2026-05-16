@@ -1,7 +1,7 @@
-from ..opencli_inspired import OpenCliInspiredReadOnlySite
+from ..read_only_site import ReadOnlySite
 
 
-class HackerNewsSite(OpenCliInspiredReadOnlySite):
+class HackerNewsSite(ReadOnlySite):
     site_id = "hackernews"
     hosts = {"news.ycombinator.com", "hn.algolia.com"}
     home_url = "https://news.ycombinator.com/"

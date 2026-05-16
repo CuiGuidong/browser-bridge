@@ -205,11 +205,11 @@ tasks:
       - Results are summarized with direct command evidence
 
   - id: BBH013
-    title: Add OpenCLI-inspired read-only site support
+    title: Add read-only site support based on OpenCLI reference review
     status: done
     priority: high
     files:
-      - bridge/app/sites/opencli_inspired.py
+      - bridge/app/sites/read_only_site.py
       - bridge/app/sites/youtube/
       - bridge/app/sites/weixin/
       - bridge/app/sites/douban/
@@ -221,7 +221,7 @@ tasks:
       - extension/manifest.json
       - docs/api-reference.md
       - docs/site-support.md
-      - tests/test_opencli_site_expansion.py
+      - tests/test_reference_site_expansion.py
     acceptance:
       - YouTube, Weixin, Douban, HackerNews, Instagram, Xueqiu, and Eastmoney are registered
       - Each new site exposes read_post, read_profile_metrics, search, and account_status workflows
@@ -231,7 +231,7 @@ tasks:
       - Python unit tests and compile checks pass
 
   - id: BBH014
-    title: Enhance existing sites with OpenCLI-inspired read-only workflows
+    title: Enhance existing sites with read-only workflows from OpenCLI reference review
     status: done
     priority: high
     files:
@@ -255,14 +255,14 @@ tasks:
       - Relevant tests, compile checks, and extension syntax checks pass
 
   - id: BBH015
-    title: Remove private API usage from OpenCLI-inspired adapters
+    title: Remove private API usage from reference-reviewed adapters
     status: done
     priority: high
     files:
       - AGENTS.md
       - extension/adapters/media-adapters.js
-      - tests/test_opencli_site_expansion.py
-      - tests/test_opencli_existing_site_enhancements.py
+      - tests/test_reference_site_expansion.py
+      - tests/test_read_only_site_enhancements.py
     acceptance:
       - HackerNews search reads from page DOM instead of hn.algolia.com API
       - Bilibili read_hot reads from page DOM instead of api.bilibili.com popular API
@@ -281,3 +281,103 @@ tasks:
       - CHECKLIST.md no longer duplicates README, AGENTS, quality gates, or task board state
       - Current task status remains tracked in harness/task-board.yaml
       - Documentation framework keeps a single source for navigation, quality gates, and pending work
+
+  - id: BBH017
+    title: Neutralize OpenCLI reference naming in read-only site helpers
+    status: done
+    priority: medium
+    files:
+      - bridge/app/sites/read_only_site.py
+      - bridge/app/sites/*/site.py
+      - tests/test_reference_site_expansion.py
+      - tests/test_read_only_site_enhancements.py
+      - docs/api-reference.md
+      - docs/site-support.md
+      - harness/task-board.yaml
+    acceptance:
+      - Shared read-only site helper uses project-neutral module and class names
+      - Existing reference-derived sites import ReadOnlySite from read_only_site
+      - Tests keep private API and neutral helper naming guardrails
+      - Documentation describes OpenCLI as a reference source, not project identity
+
+  - id: BBH018
+    title: Expand 20 non-academic reference-reviewed site candidates
+    status: todo
+    priority: high
+    files:
+      - harness/task-board.yaml
+      - bridge/app/sites/
+      - extension/adapters/media-adapters.js
+      - extension/manifest.json
+      - docs/api-reference.md
+      - docs/site-support.md
+      - tests/
+    candidates:
+      - tieba
+      - hupu
+      - v2ex
+      - linux-do
+      - jike
+      - toutiao
+      - 36kr
+      - bbc
+      - reuters
+      - bloomberg
+      - medium
+      - substack
+      - producthunt
+      - devto
+      - lobsters
+      - stackoverflow
+      - bluesky
+      - tiktok
+      - pixiv
+      - imdb
+    acceptance:
+      - Academic and paper-index sites are excluded
+      - Initial workflows are read-only and low-frequency
+      - Site semantics stay in extension adapters
+      - Private or reverse-engineered APIs are not used
+      - High-risk write actions are not exposed
+
+  - id: BBH019
+    title: Add safe read-only adapters for 19 OpenCLI reference sites
+    status: done
+    priority: high
+    files:
+      - bridge/app/server.py
+      - bridge/app/sites/
+      - extension/adapters/media-adapters.js
+      - extension/manifest.json
+      - docs/api-reference.md
+      - docs/site-support.md
+      - harness/task-board.yaml
+      - tests/test_reference_site_expansion.py
+    sites:
+      - "1688"
+      - "36kr"
+      - tieba
+      - aibase
+      - bloomberg
+      - dianping
+      - douyin
+      - google
+      - "gov.cn"
+      - grok
+      - hupu
+      - imdb
+      - jd
+      - linux-do
+      - v2ex
+      - smzdm
+      - taobao
+      - wikipedia
+      - xianyu
+    acceptance:
+      - Each site is registered in bridge capabilities
+      - Each site exposes read_post, read_profile_metrics, search, and account_status workflows
+      - No write action is exposed for the new sites
+      - Extension manifest injects media adapter on selected hosts only
+      - Site semantics remain in extension adapter DOM logic
+      - Private or reverse-engineered site APIs are not used
+      - Required tests, compile checks, extension syntax checks, and real browser smoke checks pass
