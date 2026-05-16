@@ -1,6 +1,6 @@
 # Browser Bridge API 与 Workflow 参考
 
-_最后更新：2026-05-07_
+_最后更新：2026-05-16_
 _状态：接口参考_
 
 本文档聚焦：
@@ -197,6 +197,11 @@ Telegram 已可用；微信先按企业微信/兼容 webhook 预留。
   - 常用可选：`waitForReady`、`intervalSeconds`
 - `read_home`
   - 常用可选：`mode`(`for_you|following`)、`targetCount`、`continuous`
+- `read_trending`
+  - 打开 X Explore/Trending 页面并返回可见趋势流条目
+- `read_profile_metrics`
+  - 必填：`url` 或 `handle`
+  - 返回主页公开信息、可见指标和当前可见关注状态，不返回 cookie/token
 - `follow_user` / `unfollow_user`
   - 必填：`handle`
 - `add_bookmark` / `remove_bookmark`
@@ -244,16 +249,19 @@ Telegram 已可用；微信先按企业微信/兼容 webhook 预留。
   - 必填：`keyword`
   - 兼容别名：`query`
   - 常用可选：`targetCount`、`waitForReady`、`intervalSeconds`
+- `read_profile_metrics`
+  - 必填：`url`，或 `userId`/`uid`，或 `screenName`/`handle`
+  - 返回微博主页公开指标和可见近期内容，不返回 cookie/token
 - `account_status`
   - 可选：`url`
   - 返回登录状态、是否需要人工登录和可见账号信息，不返回 cookie/token
 
-### 知乎 / B 站 / 抖音 / Reddit
+### 知乎 / B 站 / 抖音 / Reddit / YouTube / 微信公众号 / 豆瓣 / HackerNews / Instagram / 雪球 / 东方财富
 
 - `read_post`
   - 必填：`url`
-  - 知乎和 Reddit 返回内容页标题、作者、摘要和公开互动指标
-  - B 站和抖音返回视频页元信息和公开互动指标，不解析视频内容本身
+  - 知乎、Reddit、微信公众号、豆瓣、HackerNews、Instagram、雪球、东方财富返回内容页标题、作者/来源、摘要和页面可见互动指标
+  - B 站、抖音和 YouTube 返回视频页元信息和公开互动指标，不解析视频内容本身
 - `read_profile_metrics`
   - 必填：`url`
   - 返回主页公开指标和可见的近期内容链接
@@ -261,9 +269,18 @@ Telegram 已可用；微信先按企业微信/兼容 webhook 预留。
   - 必填：`keyword`
   - 兼容别名：`query`
   - 返回搜索结果中的语义链接列表
+- `read_hot`
+  - 当前支持：知乎、B 站、Reddit
+  - 返回热榜/热门页中可见的语义链接列表；B 站只返回视频元信息链接，不解析视频内容本身
 - `account_status`
   - 可选：`url`
   - 返回登录状态、是否需要人工登录和可见账号信息，不返回 cookie/token
+
+安全边界：
+
+- 这些 OpenCLI-inspired 新站点当前只暴露读取 workflow，不暴露 `/site/action` 写能力
+- Instagram、雪球、东方财富等高风控或高敏感站点默认只做低频真实浏览器读取
+- 微信公众号不自动创建草稿或群发，后续如做发布准备也必须停在人工确认前
 
 ## workflow 运行上的共同约定
 

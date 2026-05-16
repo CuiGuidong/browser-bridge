@@ -24,7 +24,7 @@ tasks:
     priority: high
     files:
       - temp/media-agent-suite-contract.md
-      - /home/cuiguidong/.openclaw/workspace/projects/media-agent-suite/docs/12-browser-bridge-adaptation-needs.md
+      - /home/cuiguidong/workspace/personal/projects/Python/media-agent-suite/docs/12-browser-bridge-adaptation-needs.md
     acceptance:
       - params is the documented request field
       - prepare_publish_post is marked supported
@@ -121,7 +121,7 @@ tasks:
       - bridge/app/server.py
       - docs/api-reference.md
       - temp/media-agent-suite-contract.md
-      - /home/cuiguidong/.openclaw/workspace/projects/media-agent-suite/docs/12-browser-bridge-adaptation-needs.md
+      - /home/cuiguidong/workspace/personal/projects/Python/media-agent-suite/docs/12-browser-bridge-adaptation-needs.md
     acceptance:
       - /site/read failures return structured error object
       - /site/action failures return structured error object
@@ -187,3 +187,97 @@ tasks:
       - Telegram notification is supported for login loss
       - WeChat webhook integration point is reserved
       - No cookie, token, password, or browser internals are returned
+
+  - id: BBH012
+    title: Verify current X, Weibo, and Xiaohongshu skills
+    status: done
+    priority: high
+    files:
+      - skills/x-assistant/
+      - skills/weibo-assistant/
+      - skills/xiaohongshu-assistant/
+      - harness/task-board.yaml
+    acceptance:
+      - Bridge health endpoint is reachable
+      - Weibo skill baseline read_post succeeds
+      - X skill read_post succeeds on local test page
+      - Xiaohongshu skill read_post succeeds on local test page
+      - Results are summarized with direct command evidence
+
+  - id: BBH013
+    title: Add OpenCLI-inspired read-only site support
+    status: done
+    priority: high
+    files:
+      - bridge/app/sites/opencli_inspired.py
+      - bridge/app/sites/youtube/
+      - bridge/app/sites/weixin/
+      - bridge/app/sites/douban/
+      - bridge/app/sites/hackernews/
+      - bridge/app/sites/instagram/
+      - bridge/app/sites/xueqiu/
+      - bridge/app/sites/eastmoney/
+      - extension/adapters/media-adapters.js
+      - extension/manifest.json
+      - docs/api-reference.md
+      - docs/site-support.md
+      - tests/test_opencli_site_expansion.py
+    acceptance:
+      - YouTube, Weixin, Douban, HackerNews, Instagram, Xueqiu, and Eastmoney are registered
+      - Each new site exposes read_post, read_profile_metrics, search, and account_status workflows
+      - No new write action is exposed
+      - Site semantics remain in extension adapter configuration
+      - Extension manifest injects media adapter only on selected hosts
+      - Python unit tests and compile checks pass
+
+  - id: BBH014
+    title: Enhance existing sites with OpenCLI-inspired read-only workflows
+    status: done
+    priority: high
+    files:
+      - bridge/app/sites/common_workflows.py
+      - bridge/app/sites/zhihu/
+      - bridge/app/sites/bilibili/
+      - bridge/app/sites/reddit/
+      - bridge/app/sites/x/
+      - extension/adapters/media-adapters.js
+      - extension/adapters/x-adapter.js
+      - docs/api-reference.md
+      - docs/site-support.md
+      - tests/
+    acceptance:
+      - Zhihu existing support is confirmed and gains read_hot
+      - Bilibili gains read_hot without parsing video content
+      - Reddit gains read_hot
+      - X gains read_profile_metrics and read_trending as read-only workflows
+      - No new write action is exposed
+      - Site DOM semantics remain in extension adapters
+      - Relevant tests, compile checks, and extension syntax checks pass
+
+  - id: BBH015
+    title: Remove private API usage from OpenCLI-inspired adapters
+    status: done
+    priority: high
+    files:
+      - AGENTS.md
+      - extension/adapters/media-adapters.js
+      - tests/test_opencli_site_expansion.py
+      - tests/test_opencli_existing_site_enhancements.py
+    acceptance:
+      - HackerNews search reads from page DOM instead of hn.algolia.com API
+      - Bilibili read_hot reads from page DOM instead of api.bilibili.com popular API
+      - Tests prevent private or reverse-engineered site API calls in media adapter
+      - AGENTS.md records the no-private-site-API discipline
+      - Extension syntax checks and real browser workflow smoke tests pass
+
+  - id: BBH016
+    title: Remove stale skeleton checklist document
+    status: done
+    priority: low
+    files:
+      - CHECKLIST.md
+      - harness/task-board.yaml
+    acceptance:
+      - CHECKLIST.md no longer duplicates README, AGENTS, quality gates, or task board state
+      - Current task status remains tracked in harness/task-board.yaml
+      - Documentation framework keeps a single source for navigation, quality gates, and pending work

@@ -5,9 +5,10 @@
     zhihu: {
       hosts: ['zhihu.com'],
       mediaType: 'article',
-      read: ['read_post', 'read_profile_metrics', 'search', 'account_status'],
+      read: ['read_post', 'read_profile_metrics', 'search', 'read_hot', 'account_status'],
       pathType(path) {
         if (path.startsWith('/search')) return 'search';
+        if (path.startsWith('/hot')) return 'hot';
         if (path.startsWith('/people/') || path.startsWith('/org/')) return 'profile';
         if (path.startsWith('/question/') || path.startsWith('/p/') || path.includes('/answer/')) return 'post';
         return 'unknown';
@@ -16,9 +17,10 @@
     bilibili: {
       hosts: ['bilibili.com', 'b23.tv'],
       mediaType: 'video',
-      read: ['read_post', 'read_profile_metrics', 'search', 'account_status'],
+      read: ['read_post', 'read_profile_metrics', 'search', 'read_hot', 'account_status'],
       pathType(path, host) {
         if (host === 'search.bilibili.com' || path.startsWith('/all')) return 'search';
+        if (path.startsWith('/v/popular') || path.startsWith('/ranking')) return 'hot';
         if (host === 'space.bilibili.com') return 'profile';
         if (path.startsWith('/video/') || path.startsWith('/opus/')) return 'post';
         return 'unknown';
@@ -38,13 +40,90 @@
     reddit: {
       hosts: ['reddit.com'],
       mediaType: 'discussion',
-      read: ['read_post', 'read_profile_metrics', 'search', 'account_status'],
+      read: ['read_post', 'read_profile_metrics', 'search', 'read_hot', 'account_status'],
       pathType(path) {
         if (path.startsWith('/search')) return 'search';
+        if (path === '/hot/' || path === '/hot' || path === '/' || path.startsWith('/r/popular')) return 'hot';
         if (path.startsWith('/user/')) return 'profile';
         if (path.includes('/comments/')) return 'post';
         if (path.startsWith('/r/')) return 'profile';
         return 'unknown';
+      },
+    },
+    youtube: {
+      hosts: ['youtube.com', 'youtu.be'],
+      mediaType: 'video',
+      read: ['read_post', 'read_profile_metrics', 'search', 'account_status'],
+      pathType(path, host) {
+        if (path.startsWith('/results')) return 'search';
+        if (path.startsWith('/@') || path.startsWith('/channel/') || path.startsWith('/c/')) return 'profile';
+        if (path.startsWith('/watch') || path.startsWith('/shorts/') || host === 'youtu.be') return 'post';
+        return 'unknown';
+      },
+    },
+    weixin: {
+      hosts: ['mp.weixin.qq.com', 'weixin.sogou.com'],
+      mediaType: 'article',
+      read: ['read_post', 'read_profile_metrics', 'search', 'account_status'],
+      pathType(path, host) {
+        if (host === 'weixin.sogou.com') return 'search';
+        if (path.startsWith('/s') || path.startsWith('/s/')) return 'post';
+        return 'unknown';
+      },
+    },
+    douban: {
+      hosts: ['douban.com'],
+      mediaType: 'article',
+      read: ['read_post', 'read_profile_metrics', 'search', 'account_status'],
+      pathType(path) {
+        if (path.startsWith('/search')) return 'search';
+        if (path.startsWith('/people/') || path.startsWith('/group/')) return 'profile';
+        if (path.startsWith('/subject/') || path.startsWith('/note/') || path.includes('/review/')) return 'post';
+        return 'unknown';
+      },
+    },
+    hackernews: {
+      hosts: ['news.ycombinator.com', 'hn.algolia.com'],
+      mediaType: 'discussion',
+      read: ['read_post', 'read_profile_metrics', 'search', 'account_status'],
+      pathType(path, host) {
+        if (host === 'hn.algolia.com') return 'search';
+        if (path === '/user') return 'profile';
+        if (path === '/item') return 'post';
+        if (path === '/' || path === '/news') return 'search';
+        return 'unknown';
+      },
+    },
+    instagram: {
+      hosts: ['instagram.com'],
+      mediaType: 'image',
+      read: ['read_post', 'read_profile_metrics', 'search', 'account_status'],
+      pathType(path) {
+        if (path.startsWith('/explore/search')) return 'search';
+        if (path.startsWith('/p/') || path.startsWith('/reel/') || path.startsWith('/tv/')) return 'post';
+        if (/^\/[^/]+\/?$/.test(path) && !path.startsWith('/accounts')) return 'profile';
+        return 'unknown';
+      },
+    },
+    xueqiu: {
+      hosts: ['xueqiu.com'],
+      mediaType: 'finance',
+      read: ['read_post', 'read_profile_metrics', 'search', 'account_status'],
+      pathType(path) {
+        if (path.startsWith('/k') || path.startsWith('/S/')) return 'search';
+        if (path.startsWith('/u/')) return 'profile';
+        if (path.startsWith('/statuses/') || path.startsWith('/discussion/')) return 'post';
+        return 'unknown';
+      },
+    },
+    eastmoney: {
+      hosts: ['eastmoney.com', 'eastmoney.cn'],
+      mediaType: 'finance',
+      read: ['read_post', 'read_profile_metrics', 'search', 'account_status'],
+      pathType(path, host) {
+        if (host.startsWith('so.')) return 'search';
+        if (path.includes('/quote') || path.includes('/stock')) return 'post';
+        return path === '/' ? 'search' : 'unknown';
       },
     },
   };
@@ -96,7 +175,9 @@
   }
 
   function canonicalMediaType(site) {
-    return SITE_CONFIGS[site].mediaType === 'video' ? 'video' : 'text';
+    const type = SITE_CONFIGS[site].mediaType;
+    if (type === 'video' || type === 'image') return type;
+    return 'text';
   }
 
   function externalPostId(site, url = canonicalUrl()) {
@@ -118,6 +199,30 @@
       if (site === 'zhihu') {
         if (parts[0] === 'question') return parts.slice(0, 3).join('/');
         if (parts[0] === 'p') return parts[1] || '';
+      }
+      if (site === 'youtube') {
+        if (parts[0] === 'shorts') return parts[1] || '';
+        return parsed.searchParams.get('v') || '';
+      }
+      if (site === 'weixin') {
+        return parsed.searchParams.get('__biz') || parsed.searchParams.get('mid') || '';
+      }
+      if (site === 'douban') {
+        const index = parts.findIndex((part) => ['subject', 'note', 'review'].includes(part));
+        return index >= 0 ? parts[index + 1] || '' : '';
+      }
+      if (site === 'hackernews') {
+        return parsed.searchParams.get('id') || '';
+      }
+      if (site === 'instagram') {
+        const index = parts.findIndex((part) => ['p', 'reel', 'tv'].includes(part));
+        return index >= 0 ? parts[index + 1] || '' : '';
+      }
+      if (site === 'xueqiu') {
+        return parts.pop() || '';
+      }
+      if (site === 'eastmoney') {
+        return parts.filter(Boolean).pop() || parsed.hostname;
       }
     } catch {}
     return '';
@@ -189,7 +294,25 @@
         || path.startsWith('/user/');
     }
     if (site === 'reddit') {
-      return path.startsWith('/r/') || path.startsWith('/user/');
+      return path.includes('/comments/') || path.startsWith('/r/') || path.startsWith('/user/');
+    }
+    if (site === 'youtube') {
+      return path.startsWith('/watch') || path.startsWith('/shorts/') || path.startsWith('/@') || path.startsWith('/channel/');
+    }
+    if (site === 'weixin') {
+      return host === 'mp.weixin.qq.com' || host === 'weixin.sogou.com';
+    }
+    if (site === 'douban') {
+      return path.startsWith('/subject/') || path.startsWith('/note/') || path.includes('/review/') || path.startsWith('/people/');
+    }
+    if (site === 'hackernews') {
+      return host === 'news.ycombinator.com' || host === 'hn.algolia.com';
+    }
+    if (site === 'instagram') {
+      return path.startsWith('/p/') || path.startsWith('/reel/') || /^\/[^/]+\/?$/.test(path);
+    }
+    if (site === 'xueqiu' || site === 'eastmoney') {
+      return true;
     }
     return true;
   }
@@ -220,6 +343,24 @@
     }
     if (site === 'zhihu') {
       return firstText(['.AuthorInfo-name', '[class*="AuthorInfo"] a', '[class*="author"]']);
+    }
+    if (site === 'youtube') {
+      return firstText(['#owner #channel-name a', 'ytd-channel-name a', '[itemprop="author"] [itemprop="name"]']);
+    }
+    if (site === 'weixin') {
+      return firstText(['#js_name', '.profile_nickname', '[class*="nickname"]']);
+    }
+    if (site === 'douban') {
+      return firstText(['.author a', '.name', '[class*="user"] a']);
+    }
+    if (site === 'hackernews') {
+      return firstText(['.hnuser']);
+    }
+    if (site === 'instagram') {
+      return firstText(['header a[href^="/"]', 'article header a']);
+    }
+    if (site === 'xueqiu') {
+      return firstText(['.user-name', '[class*="user"] a', '[class*="name"]']);
     }
     return '';
   }
@@ -258,6 +399,25 @@
         favorites: findMetric([/([\d.,万亿kKmM]+)\s*(?:收藏)/]),
       };
     }
+    if (site === 'youtube') {
+      return {
+        views: findMetric([/([\d.,万亿kKmM]+)\s*(?:次观看|views?)/i]),
+        likes: findMetric([/([\d.,万亿kKmM]+)\s*(?:likes?|点赞)/i]),
+        comments: findMetric([/([\d.,万亿kKmM]+)\s*(?:comments?|评论)/i]),
+      };
+    }
+    if (site === 'instagram') {
+      return {
+        likes: findMetric([/([\d.,万亿kKmM]+)\s*(?:likes?|赞)/i]),
+        comments: findMetric([/([\d.,万亿kKmM]+)\s*(?:comments?|评论)/i]),
+      };
+    }
+    if (site === 'hackernews') {
+      return {
+        score: findMetric([/([\d.,kKmM]+)\s*(?:points?)/i]),
+        comments: findMetric([/([\d.,kKmM]+)\s*(?:comments?)/i]),
+      };
+    }
     return {};
   }
 
@@ -270,12 +430,95 @@
         postsCount: null,
       };
     }
+    if (site === 'hackernews') {
+      return {
+        karma: findMetric([/karma:\s*([\d.,kKmM]+)/i]),
+        followers: null,
+        following: null,
+        postsCount: null,
+      };
+    }
     return {
       followers: findMetric([/([\d.,万亿kKmM]+)\s*(?:粉丝|followers?)/i]),
       following: findMetric([/([\d.,万亿kKmM]+)\s*(?:关注|following)/i]),
       likes: findMetric([/([\d.,万亿kKmM]+)\s*(?:获赞|点赞|likes?)/i]),
       postsCount: findMetric([/([\d.,万亿kKmM]+)\s*(?:作品|投稿|posts?)/i]),
     };
+  }
+
+  function extractHackernewsSearchItems() {
+    const items = [];
+    const rows = document.querySelectorAll('.Story');
+    for (const row of rows) {
+      if (items.length >= 20) break;
+      const titleLink = row.querySelector('.Story_title a') || row.querySelector('a[href]');
+      if (!titleLink) continue;
+      const title = compactText(titleLink.innerText || '');
+      if (!title || title.length < 3) continue;
+      const storyLink = titleLink.getAttribute('href') || '';
+      let url = storyLink;
+      if (storyLink.startsWith('item?id=')) {
+        url = 'https://news.ycombinator.com/' + storyLink;
+      }
+      const meta = row.querySelector('.Story_meta') || row;
+      const metaText = compactText(meta.innerText || '');
+      const pointsMatch = metaText.match(/(\d+)\s*(?:point|point[s]?)/i);
+      const commentsMatch = metaText.match(/(\d+)\s*comment/i);
+      const authorLink = row.querySelector('a[href*="user?id="]');
+      items.push({
+        title,
+        url,
+        author: authorLink ? compactText(authorLink.innerText || '') : null,
+        publishedAt: null,
+        metrics: standardMetrics({
+          score: pointsMatch ? parseInt(pointsMatch[1], 10) : null,
+          comments: commentsMatch ? parseInt(commentsMatch[1], 10) : null,
+        }),
+        snippet: '',
+        mediaType: 'text',
+      });
+    }
+    return items;
+  }
+
+  function extractBilibiliHotItems() {
+    const items = [];
+    const cards = document.querySelectorAll('.video-card, .rank-item, .video-card-wrap, .bili-video-card');
+    for (const card of cards) {
+      if (items.length >= 50) break;
+      const titleEl = card.querySelector('.video-name, .video-card__info [title], .video-card__info a, .info a, a.title, .bili-video-card__info a');
+      if (!titleEl) continue;
+      const title = compactText(titleEl.innerText || titleEl.getAttribute('title') || '');
+      if (!title || title.length < 2) continue;
+      const linkEl = card.querySelector('a[href*="/video/BV"], a[href*="bilibili.com/video/BV"]') || titleEl.closest('a[href]');
+      let url = '';
+      try {
+        url = new URL(linkEl?.getAttribute('href') || titleEl.getAttribute('href') || '', location.origin).href;
+      } catch { continue; }
+      const authorEl = card.querySelector('.up-name, .video-card__info .up-name, .author, .bili-video-card__info--author');
+      const viewEl = card.querySelector('.play-text, .view-text, .bili-video-card__stats--item');
+      const danmakuEl = card.querySelector('.dm-text, .bili-video-card__stats--item:nth-child(2)');
+      const lines = (card.innerText || '').split('\n').map(compactText).filter(Boolean);
+      const fallbackAuthor = lines.length >= 3 ? lines[lines.length - 3] : null;
+      const fallbackViews = lines.length >= 2 ? lines[lines.length - 2] : null;
+      const fallbackDanmaku = lines.length >= 1 ? lines[lines.length - 1] : null;
+      items.push({
+        title,
+        url,
+        author: authorEl ? compactText(authorEl.innerText || '') : fallbackAuthor,
+        publishedAt: null,
+        metrics: standardMetrics({
+          views: parseMetricValue(viewEl ? compactText(viewEl.innerText || '') : fallbackViews),
+          likes: null,
+          comments: null,
+          favorites: null,
+          danmaku: parseMetricValue(danmakuEl ? compactText(danmakuEl.innerText || '') : fallbackDanmaku),
+        }),
+        snippet: '',
+        mediaType: 'video',
+      });
+    }
+    return items;
   }
 
   function extractSearchItems(site) {
@@ -364,7 +607,28 @@
     };
   }
 
-  function readSearch(site, pageType, params = {}) {
+  async function readSearch(site, pageType, params = {}) {
+    if (site === 'hackernews') {
+      const keyword = params.keyword || new URLSearchParams(location.search).get('q') || '';
+      const limit = Math.min(Math.max(Number(params.limit || params.targetCount || 20) || 20, 1), 20);
+      const items = extractHackernewsSearchItems().slice(0, limit);
+      return {
+        ok: true,
+        mode: 'semantic',
+        kind: 'search',
+        pageType,
+        content: {
+          url: location.href,
+          keyword,
+          items,
+          rawPayload: {
+            pageType,
+            itemCount: items.length,
+            source: 'page-dom',
+          },
+        },
+      };
+    }
     const items = extractSearchItems(site);
     return {
       ok: true,
@@ -378,6 +642,76 @@
         rawPayload: {
           pageType,
           itemCount: items.length,
+        },
+      },
+    };
+  }
+
+  async function readHot(site, pageType, params = {}) {
+    const mediaType = canonicalMediaType(site);
+    if (site === 'bilibili') {
+      const limit = Math.min(Math.max(Number(params.limit || params.targetCount || 20) || 20, 1), 50);
+      const items = extractBilibiliHotItems().slice(0, limit);
+      return {
+        ok: true,
+        mode: 'semantic',
+        kind: 'read_hot',
+        pageType,
+        content: {
+          url: location.href,
+          items,
+          rawPayload: {
+            pageType,
+            itemCount: items.length,
+            source: 'page-dom',
+            videoContentParsed: false,
+            sourceMediaType: mediaType,
+          },
+        },
+      };
+    }
+    const items = extractSearchItems(site);
+    return {
+      ok: true,
+      mode: 'semantic',
+      kind: 'read_hot',
+      pageType,
+      content: {
+        url: location.href,
+        items,
+        rawPayload: {
+          pageType,
+          itemCount: items.length,
+          source: 'page-links',
+          videoContentParsed: false,
+          sourceMediaType: mediaType,
+        },
+      },
+    };
+  }
+
+  function readAccountStatus(site, pageType) {
+    const text = compactText(document.body?.innerText || '');
+    const loginHints = /log in|sign in|登录|扫码|验证码|请先登录|Log in|Sign in/.test(text);
+    const accountText = extractAuthor(site) || firstText([
+      '[aria-label*="Account"]',
+      '[aria-label*="Profile"]',
+      '[class*="avatar"]',
+      '[class*="user"]',
+    ]);
+    return {
+      ok: true,
+      mode: 'semantic',
+      kind: 'account_status',
+      pageType,
+      content: {
+        url: location.href,
+        loggedIn: loginHints ? false : null,
+        needsHumanLogin: loginHints,
+        account: accountText ? { displayName: accountText } : null,
+        rawPayload: {
+          pageType,
+          loginHints,
         },
       },
     };
@@ -430,6 +764,8 @@
         if (kind === 'read_post') return readPost(site, pageType);
         if (kind === 'read_profile_metrics') return readProfile(site, pageType);
         if (kind === 'search') return readSearch(site, pageType, params);
+        if (kind === 'read_hot') return readHot(site, pageType, params);
+        if (kind === 'account_status') return readAccountStatus(site, pageType);
         return {
           ok: false,
           mode: 'semantic',

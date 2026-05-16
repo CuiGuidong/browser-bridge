@@ -17,11 +17,18 @@ from .playwright_client import get_playwright_client, reset_playwright_client
 from .schemas import fail, ok
 from .sites.registry import SiteRegistry
 from .sites.bilibili.site import BilibiliSite
+from .sites.douban.site import DoubanSite
 from .sites.douyin.site import DouyinSite
+from .sites.eastmoney.site import EastmoneySite
+from .sites.hackernews.site import HackerNewsSite
+from .sites.instagram.site import InstagramSite
 from .sites.reddit.site import RedditSite
 from .sites.weibo.site import WeiboSite
+from .sites.weixin.site import WeixinSite
 from .sites.x.site import XSite
 from .sites.xiaohongshu.site import XiaohongshuSite
+from .sites.xueqiu.site import XueqiuSite
+from .sites.youtube.site import YoutubeSite
 from .sites.zhihu.site import ZhihuSite
 
 
@@ -37,6 +44,13 @@ site_registry.register("zhihu", ZhihuSite())
 site_registry.register("bilibili", BilibiliSite())
 site_registry.register("douyin", DouyinSite())
 site_registry.register("reddit", RedditSite())
+site_registry.register("youtube", YoutubeSite())
+site_registry.register("weixin", WeixinSite())
+site_registry.register("douban", DoubanSite())
+site_registry.register("hackernews", HackerNewsSite())
+site_registry.register("instagram", InstagramSite())
+site_registry.register("xueqiu", XueqiuSite())
+site_registry.register("eastmoney", EastmoneySite())
 read_service = ReadService(browser_runtime, extension_runtime, site_registry=site_registry)
 action_service = ActionService(browser_runtime, extension_runtime, site_registry=site_registry)
 workflow_service = WorkflowService(browser_runtime, extension_runtime, site_registry=site_registry)
@@ -131,6 +145,20 @@ class DevReloadExtensionRequest(BaseModel):
         "www.douyin.com",
         "reddit.com",
         "www.reddit.com",
+        "youtube.com",
+        "www.youtube.com",
+        "youtu.be",
+        "mp.weixin.qq.com",
+        "weixin.sogou.com",
+        "douban.com",
+        "www.douban.com",
+        "news.ycombinator.com",
+        "hn.algolia.com",
+        "instagram.com",
+        "www.instagram.com",
+        "xueqiu.com",
+        "eastmoney.com",
+        "eastmoney.cn",
     ]
     timeoutSeconds: float = 5
     delaySeconds: float = 0.8

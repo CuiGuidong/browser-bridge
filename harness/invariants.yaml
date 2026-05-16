@@ -63,7 +63,7 @@ architecture:
 external_integrations:
   media_agent_suite:
     role: business_application
-    local_path: /home/cuiguidong/.openclaw/workspace/projects/media-agent-suite
+    local_path: /home/cuiguidong/workspace/personal/projects/Python/media-agent-suite
     contract_file: temp/media-agent-suite-contract.md
     allowed_access: HTTP API only
     forbidden_exposure:

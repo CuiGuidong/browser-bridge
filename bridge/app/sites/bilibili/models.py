@@ -4,6 +4,7 @@ READ_KINDS = [
     "read_post",
     "read_profile_metrics",
     "search",
+    "read_hot",
     "account_status",
 ]
 
@@ -13,5 +14,6 @@ WORKFLOWS = [
     "read_post",
     "read_profile_metrics",
     "search",
+    "read_hot",
     "account_status",
 ]

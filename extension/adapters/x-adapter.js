@@ -75,6 +75,57 @@ function extractProfileHandle(url = location.href) {
   return null;
 }
 
+function parseXMetricValue(raw) {
+  if (raw === null || raw === undefined) return null;
+  const text = String(raw).replace(/,/g, '').trim();
+  const match = text.match(/([\d.]+)\s*([KMBkmb万亿]?)/);
+  if (!match) return null;
+  let value = Number(match[1]);
+  if (!Number.isFinite(value)) return null;
+  const unit = match[2];
+  if (unit === 'K' || unit === 'k') value *= 1000;
+  if (unit === 'M' || unit === 'm') value *= 1000000;
+  if (unit === 'B' || unit === 'b') value *= 1000000000;
+  if (unit === '万') value *= 10000;
+  if (unit === '亿') value *= 100000000;
+  return Math.round(value);
+}
+
+function extractXMetricNearLabel(labels) {
+  const text = document.body?.innerText || '';
+  for (const label of labels) {
+    const pattern = new RegExp(`([\\d.,万亿KMBkmb]+)\\s*${label}`, 'i');
+    const match = text.match(pattern);
+    if (match) return parseXMetricValue(match[1]);
+  }
+  return null;
+}
+
+function extractXProfileMetrics() {
+  const handle = extractProfileHandle();
+  const userNameText = (document.querySelector('[data-testid="UserName"]')?.innerText || '').trim();
+  const lines = userNameText.split('\n').map((line) => line.trim()).filter(Boolean);
+  const displayName = lines.find((line) => !line.startsWith('@')) || document.title.split('/')[0].trim() || null;
+  const bio = (document.querySelector('[data-testid="UserDescription"]')?.innerText || '').trim() || null;
+  const followControl = findProfileFollowControl();
+  return {
+    handle: handle ? `@${handle}` : null,
+    displayName,
+    bio,
+    metrics: {
+      followers: extractXMetricNearLabel(['Followers', '粉丝']),
+      following: extractXMetricNearLabel(['Following', '正在关注', '关注']),
+      postsCount: extractXMetricNearLabel(['posts', 'Posts', '帖子']),
+    },
+    relationship: {
+      followState: followControl ? followControl.state : null,
+    },
+    rawPayload: {
+      profileHandle: handle,
+    },
+  };
+}
+
 function getFollowState(control) {
   if (!control) return null;
   const text = [
@@ -286,6 +337,29 @@ function extractXTimeline() {
   return timeline;
 }
 
+function extractXTrendingItems() {
+  const items = [];
+  const cells = Array.from(document.querySelectorAll('[data-testid="trend"]'));
+  for (const cell of cells) {
+    const text = cell.textContent || '';
+    if (/promoted|推广/i.test(text)) continue;
+    const container = cell.querySelector(':scope > div') || cell;
+    const parts = Array.from(container.children)
+      .map((child) => (child.textContent || '').trim())
+      .filter(Boolean);
+    if (parts.length < 2) continue;
+    const topic = parts[1];
+    const category = (parts[0] || '').replace(/^\d+\s*/, '').replace(/^·\s*/, '').trim() || null;
+    if (!topic) continue;
+    items.push({
+      rank: items.length + 1,
+      topic,
+      category,
+    });
+  }
+  return items;
+}
+
 function detectXHomeFeedMode() {
   const tabs = Array.from(document.querySelectorAll('[role="tab"]'));
   if (!tabs.length) {
@@ -356,7 +430,7 @@ const xAdapter = {
   },
   capabilities() {
     return {
-      read: ['read_post', 'read_timeline', 'list_bookmarks', 'account_status'],
+      read: ['read_post', 'read_timeline', 'read_trending', 'list_bookmarks', 'read_profile_metrics', 'account_status'],
       act: ['expand_post', 'switch_feed', 'add_bookmark', 'remove_bookmark', 'follow_user', 'unfollow_user'],
     };
   },
@@ -368,16 +442,19 @@ const xAdapter = {
     
     const isTweetDetail = /\/status\/\d+/.test(location.href);
     const isBookmarks = location.pathname.startsWith('/i/bookmarks');
-    const isTimeline = location.pathname === '/home' || location.pathname.startsWith('/search') || location.pathname.startsWith('/explore') || isBookmarks;
+    const isExplore = location.pathname.startsWith('/explore');
+    const isTimeline = location.pathname === '/home' || location.pathname.startsWith('/search') || isExplore || isBookmarks;
     const feedModeInfo = isTimeline ? detectXHomeFeedMode() : { mode: null, activeTabText: null, tabTexts: [] };
     
     let primaryText = '';
     let timeline = [];
+    let trends = [];
     
     if (isTweetDetail) {
       primaryText = cleanXPrimaryText(article, tweetText);
     } else if (isTimeline) {
       timeline = extractXTimeline();
+      if (isExplore) trends = extractXTrendingItems();
     } else {
       primaryText = cleanXPrimaryText(article, tweetText);
       timeline = extractXTimeline();
@@ -395,7 +472,12 @@ const xAdapter = {
 
     const ready = !!(
       document.readyState === 'complete' &&
-      ((isTweetDetail && hasCoreContent && primaryText.length > 20) || (isTimeline && timeline.length > 0) || (!isTweetDetail && !isTimeline && document.body.innerText.length > 100)) &&
+      (
+        (isTweetDetail && hasCoreContent && primaryText.length > 20)
+        || (isExplore && (trends.length > 0 || document.body.innerText.length > 500))
+        || (isTimeline && timeline.length > 0)
+        || (!isTweetDetail && !isTimeline && document.body.innerText.length > 100)
+      ) &&
       !loginMask &&
       networkQuiet
     );
@@ -408,6 +490,7 @@ const xAdapter = {
         isX: true,
         isTweetDetail,
         isTimeline,
+        isExplore,
         isBookmarks,
         feedMode: feedModeInfo.mode,
         activeFeedTabText: feedModeInfo.activeTabText,
@@ -422,6 +505,7 @@ const xAdapter = {
       content: {
         primaryText: primaryText,
         timeline: timeline,
+        trends,
       },
     };
   },
@@ -461,6 +545,37 @@ const xAdapter = {
         signals: snap.signals,
         content: {
           timeline: snap.content.timeline,
+        },
+      };
+    }
+    if (kind === 'read_trending') {
+      return {
+        ok: true,
+        mode: 'semantic',
+        kind,
+        page: snap.page,
+        signals: snap.signals,
+        content: {
+          url: location.href,
+          items: snap.content.trends,
+          rawPayload: {
+            pageType: this.getPageType(),
+            itemCount: snap.content.trends.length,
+            source: 'x-trending-dom',
+          },
+        },
+      };
+    }
+    if (kind === 'read_profile_metrics') {
+      return {
+        ok: true,
+        mode: 'semantic',
+        kind,
+        page: snap.page,
+        signals: snap.signals,
+        content: {
+          url: location.href,
+          ...extractXProfileMetrics(),
         },
       };
     }

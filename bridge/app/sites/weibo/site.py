@@ -1,5 +1,5 @@
 from .models import ACTION_KINDS, READ_KINDS, SITE_ID, WORKFLOWS
-from ..common_workflows import run_account_status
+from ..common_workflows import run_account_status, run_url_read
 from .workflows.read_home import run as run_read_home
 from .workflows.read_hot_feed import run as run_read_hot_feed
 from .workflows.read_hot_search import run as run_read_hot_search
@@ -70,6 +70,26 @@ class WeiboSite:
                 target_id=target_id,
                 params=params,
                 timeout_seconds=timeout_seconds,
+            )
+        if workflow == "read_profile_metrics":
+            params = params or {}
+            url = (params.get("url") or "").strip()
+            user_id = (params.get("userId") or params.get("uid") or "").strip()
+            screen_name = (params.get("screenName") or params.get("handle") or "").strip()
+            if not url and user_id:
+                url = f"https://weibo.com/u/{user_id}"
+            if not url and screen_name:
+                url = f"https://weibo.com/n/{screen_name}"
+            return run_url_read(
+                site=self.site_id,
+                workflow=workflow,
+                kind=workflow,
+                read_service=read_service,
+                browser_runtime=browser_runtime,
+                target_id=target_id,
+                params={"url": url},
+                timeout_seconds=timeout_seconds,
+                reuse_domain="weibo.com",
             )
         if workflow == "account_status":
             return run_account_status(

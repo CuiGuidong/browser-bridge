@@ -6,6 +6,7 @@ class RedditSite:
     site_id = SITE_ID
     hosts = {"reddit.com"}
     home_url = "https://www.reddit.com/"
+    hot_url = "https://www.reddit.com/hot/"
     search_url_template = "https://www.reddit.com/search/?q={keyword}"
 
     def capabilities(self):
@@ -47,6 +48,18 @@ class RedditSite:
                 browser_runtime=browser_runtime,
                 target_id=target_id,
                 params=params,
+                timeout_seconds=timeout_seconds,
+                reuse_domain="reddit.com",
+            )
+        if workflow == "read_hot":
+            return run_url_read(
+                site=self.site_id,
+                workflow=workflow,
+                kind=workflow,
+                read_service=read_service,
+                browser_runtime=browser_runtime,
+                target_id=target_id,
+                params={"url": self.hot_url},
                 timeout_seconds=timeout_seconds,
                 reuse_domain="reddit.com",
             )

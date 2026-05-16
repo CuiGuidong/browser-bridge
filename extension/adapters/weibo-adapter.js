@@ -66,6 +66,7 @@ function getWeiboPageType() {
   if ((host === 'weibo.com' || host === 'www.weibo.com') && path === '/') return 'home';
   if ((host === 'weibo.com' || host === 'www.weibo.com') && path.startsWith('/hot/search')) return 'hot_search';
   if ((host === 'weibo.com' || host === 'www.weibo.com') && path.startsWith('/hot/weibo/')) return 'hot_feed';
+  if ((host === 'weibo.com' || host === 'www.weibo.com') && (path.startsWith('/u/') || path.startsWith('/n/'))) return 'profile';
   if ((host === 'weibo.com' || host === 'www.weibo.com') && parts.length >= 2 && /^\d+$/.test(parts[0])) return 'post';
   if ((document.title || '').includes('微博正文')) return 'post';
   return 'other';
@@ -408,6 +409,53 @@ function getSearchKeyword() {
   }
 }
 
+function parseWeiboMetricValue(raw) {
+  if (raw === null || raw === undefined) return null;
+  const text = String(raw).replace(/,/g, '').trim();
+  const match = text.match(/([\d.]+)\s*([万亿kKmM]?)/);
+  if (!match) return null;
+  let value = Number(match[1]);
+  if (!Number.isFinite(value)) return null;
+  const unit = match[2];
+  if (unit === '万') value *= 10000;
+  if (unit === '亿') value *= 100000000;
+  if (unit === 'k' || unit === 'K') value *= 1000;
+  if (unit === 'm' || unit === 'M') value *= 1000000;
+  return Math.round(value);
+}
+
+function findWeiboMetric(labels) {
+  const text = document.body?.innerText || '';
+  for (const label of labels) {
+    const pattern = new RegExp(`${label}\\s*[:：]?\\s*([\\d.,万亿kKmM]+)|([\\d.,万亿kKmM]+)\\s*${label}`, 'i');
+    const match = text.match(pattern);
+    if (match) return parseWeiboMetricValue(match[1] || match[2]);
+  }
+  return null;
+}
+
+function extractProfileMetrics() {
+  const pathParts = location.pathname.split('/').filter(Boolean);
+  const profileId = pathParts[pathParts.length - 1] || '';
+  const titleName = (document.title || '').split('的微博')[0].replace(/微博.*$/, '').trim();
+  const nickname = titleName || splitLines(document.body?.innerText || '')[0] || '';
+  return {
+    url: normalizeWeiboUrl(location.href),
+    profileId,
+    nickname,
+    metrics: {
+      followers: findWeiboMetric(['粉丝', 'followers']),
+      following: findWeiboMetric(['关注', 'following']),
+      postsCount: findWeiboMetric(['微博', 'posts']),
+      likes: findWeiboMetric(['获赞', '点赞', 'likes']),
+    },
+    recentPosts: extractFlowItems().slice(0, 12),
+    rawPayload: {
+      pageType: getWeiboPageType(),
+    },
+  };
+}
+
 const weiboAdapter = {
   id: 'weibo',
   match() {
@@ -418,7 +466,7 @@ const weiboAdapter = {
   },
   capabilities() {
     return {
-      read: ['read_home', 'read_hot_feed', 'read_hot_search', 'read_post', 'search', 'account_status'],
+      read: ['read_home', 'read_hot_feed', 'read_hot_search', 'read_post', 'search', 'read_profile_metrics', 'account_status'],
       act: [],
     };
   },
@@ -428,11 +476,13 @@ const weiboAdapter = {
     const hotSearchItems = pageType === 'hot_search' ? extractHotSearchItems() : [];
     const searchItems = pageType === 'search' ? extractSearchItems() : [];
     const post = pageType === 'post' ? extractCurrentPost() : null;
+    const profile = pageType === 'profile' ? extractProfileMetrics() : null;
     const ready = !!(
       document.readyState === 'complete' && (
         ((pageType === 'home' || pageType === 'hot_feed') && flowItems.length > 0) ||
         (pageType === 'hot_search' && hotSearchItems.length > 0) ||
         (pageType === 'search' && searchItems.length > 0) ||
+        (pageType === 'profile' && profile && document.body.innerText.length > 100) ||
         (pageType === 'post' && post && ((post.text || '').length > 10 || (post.images || []).length > 0 || (post.videos || []).length > 0))
       )
     );
@@ -449,11 +499,13 @@ const weiboAdapter = {
         hotSearchCount: hotSearchItems.length,
         searchCount: searchItems.length,
         hasPost: !!post,
+        hasProfile: !!profile,
         searchKeyword: pageType === 'search' ? getSearchKeyword() : null,
       },
       content: {
         items: flowItems.length ? flowItems : (pageType === 'hot_search' ? hotSearchItems : searchItems),
         post,
+        profile,
       },
     };
   },
@@ -490,6 +542,16 @@ const weiboAdapter = {
         page: snap.page,
         signals: snap.signals,
         content: snap.content.post || {},
+      };
+    }
+    if (kind === 'read_profile_metrics') {
+      return {
+        ok: true,
+        mode: 'semantic',
+        kind,
+        page: snap.page,
+        signals: snap.signals,
+        content: snap.content.profile || {},
       };
     }
     return {

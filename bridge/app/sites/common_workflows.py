@@ -14,10 +14,23 @@ def _open_url(browser_runtime, url, target_id=None, reuse_domain=None):
     )
 
 
-def _wait_for_target_stable(browser_runtime, target_id, timeout_seconds=8, interval_seconds=0.4):
+def _wait_for_target_stable(
+    browser_runtime,
+    target_id,
+    timeout_seconds=8,
+    interval_seconds=0.4,
+    ready_selector=None,
+):
     if not target_id:
         return None
     try:
+        if ready_selector and hasattr(browser_runtime, "probe_page_readiness"):
+            return browser_runtime.probe_page_readiness(
+                target_id=target_id,
+                timeout_seconds=timeout_seconds,
+                interval_seconds=interval_seconds,
+                selector=ready_selector,
+            )
         return browser_runtime.wait_for_page(
             target_id=target_id,
             timeout_seconds=timeout_seconds,
@@ -37,6 +50,7 @@ def run_url_read(
     params=None,
     timeout_seconds=20,
     reuse_domain=None,
+    ready_selector=None,
 ):
     params = params or {}
     url = (params.get("url") or "").strip()
@@ -57,7 +71,12 @@ def run_url_read(
             "error": "failed to open page",
         }
     resolved_target_id = opened.get("targetId") or opened.get("id") or target_id
-    _wait_for_target_stable(browser_runtime, resolved_target_id)
+    _wait_for_target_stable(
+        browser_runtime,
+        resolved_target_id,
+        timeout_seconds=min(max(timeout_seconds, 8), 40),
+        ready_selector=ready_selector,
+    )
 
     try:
         read_params = dict(params)
@@ -125,6 +144,7 @@ def run_search(
     params=None,
     timeout_seconds=20,
     reuse_domain=None,
+    ready_selector=None,
 ):
     params = params or {}
     keyword = (params.get("keyword") or params.get("query") or "").strip()
@@ -136,6 +156,8 @@ def run_search(
             "error": "keyword is required",
         }
     url = search_url_template.format(keyword=quote(keyword))
+    read_params = dict(params)
+    read_params.update({"url": url, "keyword": keyword})
     return run_url_read(
         site=site,
         workflow="search",
@@ -143,9 +165,10 @@ def run_search(
         read_service=read_service,
         browser_runtime=browser_runtime,
         target_id=target_id,
-        params={"url": url, "keyword": keyword},
+        params=read_params,
         timeout_seconds=timeout_seconds,
         reuse_domain=reuse_domain,
+        ready_selector=ready_selector,
     )
 
 

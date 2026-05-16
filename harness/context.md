@@ -30,13 +30,20 @@ Skill / Script / Agent / External App
 - B 站：视频页元信息、主页指标、搜索。
 - 抖音：视频页元信息、主页指标、搜索。
 - Reddit：帖子页、用户/Subreddit 指标、搜索。
+- YouTube：视频页元信息、频道/主页指标、搜索。
+- 微信公众号：文章页元信息、账号/来源页指标、搜索。
+- 豆瓣：条目/笔记/评论页元信息、主页指标、搜索。
+- HackerNews：条目/讨论页、用户指标、搜索。
+- Instagram：帖子/Reel 元信息、主页指标、搜索。
+- 雪球：帖子/讨论页元信息、主页指标、搜索。
+- 东方财富：页面/行情信息页元信息、搜索。
 
 视频站当前只读取元信息和公开互动指标，不解析视频画面、音轨、字幕或口播内容。
 
 外部业务系统：
 
 ```text
-/home/cuiguidong/.openclaw/workspace/projects/media-agent-suite
+/home/cuiguidong/workspace/personal/projects/Python/media-agent-suite
 ```
 
 跨项目合同：

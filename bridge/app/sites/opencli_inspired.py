@@ -1,20 +1,29 @@
-from ..common_workflows import run_account_status, run_search, run_url_read
-from .models import ACTION_KINDS, READ_KINDS, SITE_ID, WORKFLOWS
+from .common_workflows import run_account_status, run_search, run_url_read
 
 
-class BilibiliSite:
-    site_id = SITE_ID
-    hosts = {"bilibili.com", "b23.tv"}
-    home_url = "https://www.bilibili.com/"
-    hot_url = "https://www.bilibili.com/v/popular/all"
-    search_url_template = "https://search.bilibili.com/all?keyword={keyword}"
+class OpenCliInspiredReadOnlySite:
+    site_id = ""
+    hosts = set()
+    home_url = ""
+    search_url_template = ""
+    search_ready_selector = None
 
     def capabilities(self):
         return {
             "site": self.site_id,
-            "read": READ_KINDS,
-            "action": ACTION_KINDS,
-            "workflow": WORKFLOWS,
+            "read": [
+                "read_post",
+                "read_profile_metrics",
+                "search",
+                "account_status",
+            ],
+            "action": [],
+            "workflow": [
+                "read_post",
+                "read_profile_metrics",
+                "search",
+                "account_status",
+            ],
         }
 
     def run_workflow(
@@ -38,7 +47,8 @@ class BilibiliSite:
                 target_id=target_id,
                 params=params,
                 timeout_seconds=timeout_seconds,
-                reuse_domain="bilibili.com",
+                reuse_domain=self.reuse_domain,
+                ready_selector=self.search_ready_selector,
             )
         if workflow == "search":
             return run_search(
@@ -49,23 +59,7 @@ class BilibiliSite:
                 target_id=target_id,
                 params=params,
                 timeout_seconds=timeout_seconds,
-                reuse_domain="bilibili.com",
-                ready_selector='a[href*="/video/BV"]',
-            )
-        if workflow == "read_hot":
-            read_params = dict(params or {})
-            read_params["url"] = self.hot_url
-            return run_url_read(
-                site=self.site_id,
-                workflow=workflow,
-                kind=workflow,
-                read_service=read_service,
-                browser_runtime=browser_runtime,
-                target_id=target_id,
-                params=read_params,
-                timeout_seconds=timeout_seconds,
-                reuse_domain="bilibili.com",
-                ready_selector=".video-card .video-name",
+                reuse_domain=self.reuse_domain,
             )
         if workflow == "account_status":
             return run_account_status(
@@ -76,7 +70,7 @@ class BilibiliSite:
                 target_id=target_id,
                 params=params,
                 timeout_seconds=timeout_seconds,
-                reuse_domain="bilibili.com",
+                reuse_domain=self.reuse_domain,
             )
         return {
             "ok": False,
@@ -84,3 +78,7 @@ class BilibiliSite:
             "workflow": workflow,
             "error": "workflow not supported",
         }
+
+    @property
+    def reuse_domain(self):
+        return next(iter(sorted(self.hosts)), None)

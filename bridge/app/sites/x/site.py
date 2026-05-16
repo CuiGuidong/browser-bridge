@@ -1,5 +1,5 @@
 from .models import ACTION_KINDS, READ_KINDS, SITE_ID, WORKFLOWS
-from ..common_workflows import run_account_status
+from ..common_workflows import run_account_status, run_url_read
 from .workflows.add_bookmark import run as run_add_bookmark
 from .workflows.follow_user import run as run_follow_user
 from .workflows.list_bookmarks import run as run_list_bookmarks
@@ -66,6 +66,35 @@ class XSite:
                 target_id=target_id,
                 params=params,
                 timeout_seconds=timeout_seconds,
+            )
+        if workflow == "read_trending":
+            return run_url_read(
+                site=self.site_id,
+                workflow=workflow,
+                kind=workflow,
+                read_service=read_service,
+                browser_runtime=browser_runtime,
+                target_id=target_id,
+                params={"url": "https://x.com/explore/tabs/trending"},
+                timeout_seconds=timeout_seconds,
+                reuse_domain="x.com",
+            )
+        if workflow == "read_profile_metrics":
+            params = params or {}
+            url = (params.get("url") or "").strip()
+            handle = (params.get("handle") or params.get("username") or "").strip().lstrip("@")
+            if not url and handle:
+                url = f"https://x.com/{handle}"
+            return run_url_read(
+                site=self.site_id,
+                workflow=workflow,
+                kind=workflow,
+                read_service=read_service,
+                browser_runtime=browser_runtime,
+                target_id=target_id,
+                params={"url": url},
+                timeout_seconds=timeout_seconds,
+                reuse_domain="x.com",
             )
         if workflow == "follow_user":
             return run_follow_user(

@@ -3,7 +3,9 @@ SITE_ID = "x"
 READ_KINDS = [
     "read_post",
     "read_timeline",
+    "read_trending",
     "list_bookmarks",
+    "read_profile_metrics",
     "account_status",
 ]
 
@@ -21,6 +23,8 @@ WORKFLOWS = [
     "search",
     "list_bookmarks",
     "read_home",
+    "read_trending",
+    "read_profile_metrics",
     "follow_user",
     "unfollow_user",
     "add_bookmark",

@@ -64,5 +64,5 @@ grep -R "\"/open\"\\|\"/wait\"\\|\"/site/read\"\\|\"/site/action\"" -n skills ||
 
 ```bash
 sed -n '1,260p' temp/media-agent-suite-contract.md
-sed -n '1,260p' /home/cuiguidong/.openclaw/workspace/projects/media-agent-suite/docs/12-browser-bridge-adaptation-needs.md
+sed -n '1,260p' /home/cuiguidong/workspace/personal/projects/Python/media-agent-suite/docs/12-browser-bridge-adaptation-needs.md
 ```

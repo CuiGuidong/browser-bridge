@@ -32,7 +32,31 @@
       "run_at": "document_idle"
     },
     {
-      "matches": ["*://*.zhihu.com/*", "*://*.bilibili.com/*", "*://b23.tv/*", "*://*.douyin.com/*", "*://*.iesdouyin.com/*", "*://*.reddit.com/*"],
+      "matches": [
+        "*://*.zhihu.com/*",
+        "*://*.bilibili.com/*",
+        "*://b23.tv/*",
+        "*://*.douyin.com/*",
+        "*://*.iesdouyin.com/*",
+        "*://*.reddit.com/*",
+        "*://youtube.com/*",
+        "*://*.youtube.com/*",
+        "*://youtu.be/*",
+        "*://mp.weixin.qq.com/*",
+        "*://weixin.sogou.com/*",
+        "*://douban.com/*",
+        "*://*.douban.com/*",
+        "*://news.ycombinator.com/*",
+        "*://hn.algolia.com/*",
+        "*://instagram.com/*",
+        "*://*.instagram.com/*",
+        "*://xueqiu.com/*",
+        "*://*.xueqiu.com/*",
+        "*://eastmoney.com/*",
+        "*://*.eastmoney.com/*",
+        "*://eastmoney.cn/*",
+        "*://*.eastmoney.cn/*"
+      ],
       "js": ["adapters/media-adapters.js"],
       "run_at": "document_idle"
     },
