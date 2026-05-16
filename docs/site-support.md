@@ -1,6 +1,6 @@
 # Browser Bridge 站点能力矩阵
 
-_最后更新：2026-04-28_  
+_最后更新：2026-05-07_
 _状态：公开能力说明_
 
 本文档回答两个问题：
@@ -11,6 +11,7 @@ _状态：公开能力说明_
 更底层的架构约束见：
 
 - [architecture-spec.md](architecture-spec.md)
+- [video-asset-pipeline-design.md](video-asset-pipeline-design.md)
 
 更偏实现与踩坑的说明见：
 
@@ -20,9 +21,13 @@ _状态：公开能力说明_
 
 | 站点 | 读取 | 搜索 | 动作 | 发布 |
 |------|------|------|------|------|
-| X | 单帖、首页流、书签 | 支持 | 关注/取关、书签增删 | 暂不支持 |
-| 小红书 | 单篇笔记、首页推荐流 | 支持 | 暂无账号状态变更动作 | 图文发帖准备 |
-| 微博 | 单帖、首页流、热门微博流、热搜榜 | 支持 | 暂无账号状态变更动作 | 暂不支持 |
+| X | 单帖、首页流、书签、登录状态 | 支持 | 关注/取关、书签增删 | 暂不支持 |
+| 小红书 | 单篇笔记、首页推荐流、笔记指标、主页指标、登录状态 | 支持 | 暂无账号状态变更动作 | 图文发帖准备 |
+| 微博 | 单帖、首页流、热门微博流、热搜榜、登录状态 | 支持 | 暂无账号状态变更动作 | 暂不支持 |
+| 知乎 | 内容页、主页指标、登录状态 | 支持 | 暂不支持 | 暂不支持 |
+| B 站 | 视频页元信息、主页指标、登录状态 | 支持 | 暂不支持 | 暂不支持 |
+| 抖音 | 视频页元信息、主页指标、登录状态 | 支持 | 暂不支持 | 暂不支持 |
+| Reddit | 帖子页、用户/Subreddit 指标、登录状态 | 支持 | 暂不支持 | 暂不支持 |
 
 ## X
 
@@ -37,6 +42,7 @@ _状态：公开能力说明_
 - `remove_bookmark`
 - `follow_user`
 - `unfollow_user`
+- `account_status`
 
 ### 当前 workflow
 
@@ -48,6 +54,7 @@ _状态：公开能力说明_
 - `unfollow_user`
 - `add_bookmark`
 - `remove_bookmark`
+- `account_status`
 
 ### 当前 skill
 
@@ -76,6 +83,9 @@ _状态：公开能力说明_
 - `read_home`
 - `search`
 - `prepare_publish_post`
+- `read_post_metrics`
+- `read_profile_metrics`
+- `account_status`
 
 ### 当前 workflow
 
@@ -83,6 +93,9 @@ _状态：公开能力说明_
 - `read_home`
 - `search`
 - `prepare_publish_post`
+- `read_post_metrics`
+- `read_profile_metrics`
+- `account_status`
 
 ### 当前 skill
 
@@ -110,6 +123,7 @@ _状态：公开能力说明_
 - 获取首页推荐流
 - 搜索小红书内容
 - 由 Agent 先准备好图文发帖内容，再由人工确认发布
+- 采集已发布笔记和主页公开指标
 
 ## 微博
 
@@ -120,6 +134,7 @@ _状态：公开能力说明_
 - `read_hot_search`
 - `read_post`
 - `search`
+- `account_status`
 
 ### 当前 workflow
 
@@ -128,6 +143,7 @@ _状态：公开能力说明_
 - `read_hot_search`
 - `read_post`
 - `search`
+- `account_status`
 
 ### 当前 skill
 
@@ -152,11 +168,52 @@ _状态：公开能力说明_
 - 阅读单条微博
 - 搜索微博
 
+## 知乎 / B 站 / 抖音 / Reddit
+
+### 当前能力
+
+- `read_post`
+- `read_profile_metrics`
+- `search`
+- `account_status`
+
+### 当前 workflow
+
+- `read_post`
+- `read_profile_metrics`
+- `search`
+- `account_status`
+
+### 第一版基础设施边界
+
+- 知乎：读取问题/回答/文章页的标题、作者、摘要和公开互动指标；读取主页公开指标；搜索结果做语义链接列表。
+- B 站：把视频页作为 `post` 读取标题、UP 主、简介、封面和播放/点赞/评论/收藏/投币/弹幕等公开指标。
+- 抖音：把视频页作为 `post` 读取标题/描述、作者、封面和点赞/评论/收藏/分享等公开指标。
+- Reddit：读取帖子标题、正文摘要、作者、分数/评论数；读取用户或 Subreddit 页公开指标；搜索结果做语义链接列表。
+
+### 视频内容边界
+
+B 站和抖音当前不解析视频画面、音轨、字幕或口播内容。返回中会标记：
+
+```json
+{
+  "mediaType": "video",
+  "videoContentParsed": false
+}
+```
+
+后续如要支持视频文案/对话脚本提取，应单独接入下载或缓存、`ffmpeg` 音频提取、ASR 转写和 LLM 摘要链路，不放进当前轻量 adapter。
+
+### 登录状态边界
+
+所有已注册站点都提供 `account_status` workflow 和 `/login/status` 运维入口。返回只包含是否登录、是否需要人工登录、可见账号昵称/主页等业务语义字段，不返回 cookie、token、密码或浏览器内部状态。
+
 ## 当前能力边界
 
 - 当前核心路线是“站点语义读取 + 固定 workflow + Agent 编排”
 - 不是所有站点都已支持状态变更动作
 - 小红书发帖当前是“准备发布”，不是自动点击最终发布
+- 新增知乎 / B 站 / 抖音 / Reddit 属于基础设施第一版，优先保证能力发现和轻量元信息采集
 - 真实浏览器、真实登录态、扩展状态和宿主服务环境会直接影响可用性
 
 如果你准备新增站点，不要从这份文档开始扩写实现细节，直接读：

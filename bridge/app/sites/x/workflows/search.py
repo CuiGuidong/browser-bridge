@@ -14,7 +14,7 @@ def _infer_page_type(read_result):
 
 def run(read_service, browser_runtime, target_id=None, params=None, timeout_seconds=20):
     params = params or {}
-    keyword = ((params or {}).get("keyword") or "").strip()
+    keyword = ((params or {}).get("keyword") or (params or {}).get("query") or "").strip()
     if not keyword:
         return {
             "ok": False,

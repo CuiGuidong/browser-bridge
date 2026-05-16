@@ -24,6 +24,9 @@ class CdpRuntime:
     def navigate_tab(self, target_id, url):
         return self._service.navigate_tab(target_id, url)
 
+    def reload_tab(self, target_id):
+        return self._service.reload_tab(target_id)
+
     def close_tab(self, target_id):
         return self._service.close_tab(target_id)
 

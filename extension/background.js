@@ -6,6 +6,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     postReport(request.payload).then((delivered) => sendResponse({ ok: true, delivered }));
     return true;
   }
+  if (request.action === 'reloadExtension') {
+    sendResponse({ ok: true, reloading: true });
+    setTimeout(() => chrome.runtime.reload(), 50);
+    return true;
+  }
   if (request.action === 'bridgePullOnce') {
     handleBridgePullOnce(request, sender, sendResponse);
     return true;
@@ -69,3 +74,29 @@ async function handleBridgeSubmitResult(commandId, result, sendResponse) {
     sendResponse({ ok: false, error: error.message });
   }
 }
+
+async function handleDevCommand(command) {
+  if (!command || command.method !== 'dev_reload_extension') return false;
+  await postBridgeCommandResult(command.id, {
+    ok: true,
+    source: 'extension-background',
+    method: command.method,
+    reloading: true,
+  });
+  setTimeout(() => chrome.runtime.reload(), 50);
+  return true;
+}
+
+async function pollDevCommandOnce() {
+  try {
+    const command = await pullBridgeCommand(1, 'chrome-extension://browser-bridge/background');
+    await handleDevCommand(command);
+  } catch (error) {
+    console.warn('[Browser Bridge] dev command poll failed:', error.message);
+  }
+}
+
+void pollDevCommandOnce();
+setInterval(() => {
+  void pollDevCommandOnce();
+}, 1000);

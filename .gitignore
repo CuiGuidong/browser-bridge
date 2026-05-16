@@ -40,6 +40,7 @@ Thumbs.db
 # Bridge runtime
 *.log
 *.pid
+.env.local
 
 # Temporary artifacts
 *_screenshot.png

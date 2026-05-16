@@ -131,20 +131,48 @@ class ReadService:
 
     def site_capabilities(self, site=None, target_id=None):
         site_module = self.site_registry.get(site) if (self.site_registry and site) else None
-        target_url = None
-        if target_id:
-            self.browser_runtime.activate_tab(target_id)
-            page, matched = self._resolve_site_page(site_module, target_id=target_id)
-            if site_module and not matched:
+        if site and not site_module:
+            return {
+                "site": site,
+                "registry": None,
+                "runtime": None,
+                "error": {
+                    "code": "site_not_supported",
+                    "message": "site not supported",
+                    "detail": {
+                        "site": site,
+                        "supportedSites": self.site_registry.list_sites() if self.site_registry else [],
+                    },
+                },
+            }
+        if not target_id:
+            if site:
                 return {
                     "site": site,
                     "registry": site_module.capabilities(),
-                    "runtime": self._site_mismatch_result(site, page),
+                    "runtime": None,
                 }
-            target_url = page.get("url") if page else None
+            return {
+                "site": None,
+                "registry": self.site_registry.capabilities() if self.site_registry else None,
+                "runtime": None,
+            }
+        target_url = None
+        self.browser_runtime.activate_tab(target_id)
+        page, matched = self._resolve_site_page(site_module, target_id=target_id)
+        if site_module and not matched:
+            return {
+                "site": site,
+                "registry": site_module.capabilities(),
+                "runtime": self._site_mismatch_result(site, page),
+            }
+        target_url = page.get("url") if page else None
         runtime = self.extension_runtime.invoke("capabilities", {}, timeout_seconds=10, target_url=target_url)
+        runtime_site = site or runtime.get("site")
+        if self.site_registry and runtime_site and not site_module:
+            site_module = self.site_registry.get(runtime_site)
         return {
-            "site": site or runtime.get("site"),
+            "site": runtime_site,
             "registry": site_module.capabilities() if site_module else None,
             "runtime": runtime,
         }

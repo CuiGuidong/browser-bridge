@@ -32,6 +32,11 @@
       "run_at": "document_idle"
     },
     {
+      "matches": ["*://*.zhihu.com/*", "*://*.bilibili.com/*", "*://b23.tv/*", "*://*.douyin.com/*", "*://*.iesdouyin.com/*", "*://*.reddit.com/*"],
+      "js": ["adapters/media-adapters.js"],
+      "run_at": "document_idle"
+    },
+    {
       "matches": ["<all_urls>"],
       "js": ["content.js"],
       "run_at": "document_idle"

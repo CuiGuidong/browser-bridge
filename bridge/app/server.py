@@ -1,34 +1,48 @@
 from fastapi import FastAPI, Query, HTTPException
 from pydantic import BaseModel
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
+from urllib.parse import urlparse
+import time
 import uvicorn
 
 from .application.action_service import ActionService
+from .application.login_service import LoginService
 from .application.read_service import ReadService
 from .application.workflow_service import WorkflowService
 from .browser.cdp_runtime import CdpRuntime
 from .config import BRIDGE_HOST, BRIDGE_PORT
 from .extension.extension_runtime import ExtensionRuntime
+from .notifications import NotificationService
 from .playwright_client import get_playwright_client, reset_playwright_client
-from .schemas import ok
+from .schemas import fail, ok
 from .sites.registry import SiteRegistry
+from .sites.bilibili.site import BilibiliSite
+from .sites.douyin.site import DouyinSite
+from .sites.reddit.site import RedditSite
 from .sites.weibo.site import WeiboSite
 from .sites.x.site import XSite
 from .sites.xiaohongshu.site import XiaohongshuSite
+from .sites.zhihu.site import ZhihuSite
 
 
 app = FastAPI(title="Browser Bridge API", version="1.0.0")
 browser_runtime = CdpRuntime()
 extension_runtime = ExtensionRuntime()
+notification_service = NotificationService()
 site_registry = SiteRegistry()
 site_registry.register("weibo", WeiboSite())
 site_registry.register("x", XSite())
 site_registry.register("xiaohongshu", XiaohongshuSite())
+site_registry.register("zhihu", ZhihuSite())
+site_registry.register("bilibili", BilibiliSite())
+site_registry.register("douyin", DouyinSite())
+site_registry.register("reddit", RedditSite())
 read_service = ReadService(browser_runtime, extension_runtime, site_registry=site_registry)
 action_service = ActionService(browser_runtime, extension_runtime, site_registry=site_registry)
 workflow_service = WorkflowService(browser_runtime, extension_runtime, site_registry=site_registry)
 workflow_service.bind_read_service(read_service)
 workflow_service.bind_action_service(action_service)
+login_service = LoginService(workflow_service, notification_service)
 playwright_client = get_playwright_client()
 
 
@@ -89,6 +103,147 @@ class WorkflowRunRequest(BaseModel):
     params: Dict[str, Any] = {}
     targetId: Optional[str] = None
     timeoutSeconds: float = 20
+
+
+class LoginCheckRequest(BaseModel):
+    site: Optional[str] = None
+    sites: List[str] = []
+    targetId: Optional[str] = None
+    notify: bool = False
+    timeoutSeconds: float = 20
+
+
+class DevReloadExtensionRequest(BaseModel):
+    reloadPages: bool = True
+    targetIds: Optional[List[str]] = None
+    siteHosts: List[str] = [
+        "x.com",
+        "twitter.com",
+        "weibo.com",
+        "m.weibo.cn",
+        "xiaohongshu.com",
+        "www.xiaohongshu.com",
+        "zhihu.com",
+        "www.zhihu.com",
+        "bilibili.com",
+        "www.bilibili.com",
+        "douyin.com",
+        "www.douyin.com",
+        "reddit.com",
+        "www.reddit.com",
+    ]
+    timeoutSeconds: float = 5
+    delaySeconds: float = 0.8
+
+
+def _host_matches(url, hosts):
+    hostname = (urlparse(url or "").hostname or "").lower()
+    for host in hosts or []:
+        host = (host or "").lower()
+        if hostname == host or hostname.endswith(f".{host}"):
+            return True
+    return False
+
+
+def _reload_dev_pages(target_ids=None, site_hosts=None):
+    tabs = browser_runtime.list_tabs()
+    selected = []
+    target_id_set = set(target_ids or [])
+    for tab in tabs:
+        if target_id_set:
+            if tab.get("id") in target_id_set:
+                selected.append(tab)
+            continue
+        if _host_matches(tab.get("url"), site_hosts or []):
+            selected.append(tab)
+
+    results = []
+    for tab in selected:
+        result = browser_runtime.reload_tab(tab.get("id"))
+        if result:
+            results.append(result)
+    return results
+
+
+def _error_message(value):
+    if isinstance(value, dict):
+        return value.get("message") or value.get("error") or str(value)
+    if value is None:
+        return "unknown error"
+    return str(value)
+
+
+def _workflow_error_code(result):
+    message = _error_message((result or {}).get("error")).lower()
+    if "site not supported" in message:
+        return "site_not_supported"
+    if "workflow not supported" in message or "not supported" in message:
+        return "capability_missing"
+    if "login" in message:
+        return "login_required"
+    if "human" in message or "manual" in message or "confirm" in message:
+        return "human_confirmation_required"
+    return "workflow_failed"
+
+
+def _workflow_failure_response(result, fallback_message="workflow failed"):
+    result = result or {}
+    message = _error_message(result.get("error") or fallback_message)
+    detail = {
+        key: value
+        for key, value in result.items()
+        if key not in {"ok", "error"}
+    }
+    return fail("workflow-run", _workflow_error_code(result), message, detail=detail)
+
+
+def _capability_missing(action, site, kind, supported):
+    return fail(
+        action,
+        "capability_missing",
+        f"{kind} not supported",
+        detail={
+            "site": site,
+            "kind": kind,
+            "supported": supported,
+        },
+    )
+
+
+def _site_not_supported(action, site):
+    return fail(
+        action,
+        "site_not_supported",
+        "site not supported",
+        detail={
+            "site": site,
+            "supportedSites": site_registry.list_sites(),
+        },
+    )
+
+
+def _site_error_code(result):
+    message = _error_message((result or {}).get("error")).lower()
+    if "site not supported" in message:
+        return "site_not_supported"
+    if "unsupported" in message or "not supported" in message or "no matching adapter" in message:
+        return "capability_missing"
+    if "login" in message:
+        return "login_required"
+    if "human" in message or "manual" in message or "confirm" in message:
+        return "human_confirmation_required"
+    return "workflow_failed"
+
+
+def _site_failure_response(action, result, fallback_message):
+    result = result or {}
+    message = _error_message(result.get("error") or fallback_message)
+    detail = {
+        key: value
+        for key, value in result.items()
+        if key not in {"ok", "error"}
+    }
+    return fail(action, _site_error_code(result), message, detail=detail)
 
 
 @app.get("/health")
@@ -316,6 +471,13 @@ def site_capabilities(
 @app.post("/site/read")
 def site_read(req: SiteReadRequest):
     try:
+        site_module = site_registry.get(req.site)
+        if site_module is None:
+            return _site_not_supported("site-read", req.site)
+        capabilities = site_module.capabilities()
+        supported = capabilities.get("read") or []
+        if req.kind not in supported:
+            return _capability_missing("site-read", req.site, req.kind, supported)
         result = read_service.site_read(
             site=req.site,
             kind=req.kind,
@@ -324,17 +486,29 @@ def site_read(req: SiteReadRequest):
             timeout_seconds=req.timeoutSeconds,
         )
         if not result:
-            raise HTTPException(status_code=404, detail="site read failed")
+            return _site_failure_response("site-read", result, "site read failed")
+        if result.get("ok") is False:
+            return _site_failure_response("site-read", result, "site read failed")
         return ok("site-read", result)
-    except HTTPException:
-        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return fail(
+            "site-read",
+            "workflow_failed",
+            str(e),
+            detail={"site": req.site, "kind": req.kind},
+        )
 
 
 @app.post("/site/action")
 def site_action(req: SiteActionRequest):
     try:
+        site_module = site_registry.get(req.site)
+        if site_module is None:
+            return _site_not_supported("site-action", req.site)
+        capabilities = site_module.capabilities()
+        supported = capabilities.get("action") or []
+        if req.kind not in supported:
+            return _capability_missing("site-action", req.site, req.kind, supported)
         result = action_service.site_action(
             site=req.site,
             kind=req.kind,
@@ -343,12 +517,17 @@ def site_action(req: SiteActionRequest):
             timeout_seconds=req.timeoutSeconds,
         )
         if not result:
-            raise HTTPException(status_code=404, detail="site action failed")
+            return _site_failure_response("site-action", result, "site action failed")
+        if result.get("ok") is False:
+            return _site_failure_response("site-action", result, "site action failed")
         return ok("site-action", result)
-    except HTTPException:
-        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return fail(
+            "site-action",
+            "workflow_failed",
+            str(e),
+            detail={"site": req.site, "kind": req.kind},
+        )
 
 
 @app.post("/workflow/run")
@@ -362,10 +541,102 @@ def workflow_run(req: WorkflowRunRequest):
             timeout_seconds=req.timeoutSeconds,
         )
         if not result:
-            raise HTTPException(status_code=404, detail="workflow failed")
+            return _workflow_failure_response(result)
+        if result.get("ok") is False:
+            return _workflow_failure_response(result)
         return ok("workflow-run", result)
-    except HTTPException:
-        raise
+    except Exception as e:
+        return fail(
+            "workflow-run",
+            "workflow_failed",
+            str(e),
+            detail={"site": req.site, "workflow": req.workflow},
+        )
+
+
+@app.get("/login/status")
+def login_status(
+    site: str = Query(...),
+    targetId: Optional[str] = Query(None),
+    notify: bool = Query(False),
+    timeoutSeconds: float = Query(20),
+):
+    try:
+        result = login_service.status(
+            site=site,
+            target_id=targetId,
+            notify=notify,
+            timeout_seconds=timeoutSeconds,
+        )
+        status = result.get("status") or {}
+        if status.get("ok") is False:
+            return _workflow_failure_response(status)
+        return ok("login-status", result)
+    except Exception as e:
+        return fail(
+            "login-status",
+            "workflow_failed",
+            str(e),
+            detail={"site": site},
+        )
+
+
+@app.post("/login/check")
+def login_check(req: LoginCheckRequest):
+    try:
+        sites = req.sites or ([req.site] if req.site else site_registry.list_sites())
+        if req.targetId and len(sites) != 1:
+            return fail(
+                "login-check",
+                "workflow_failed",
+                "targetId requires exactly one site",
+                detail={"sites": sites},
+            )
+        if len(sites) == 1:
+            result = login_service.status(
+                site=sites[0],
+                target_id=req.targetId,
+                notify=req.notify,
+                timeout_seconds=req.timeoutSeconds,
+            )
+        else:
+            result = login_service.status_many(
+                sites=sites,
+                notify=req.notify,
+                timeout_seconds=req.timeoutSeconds,
+            )
+        return ok("login-check", result)
+    except Exception as e:
+        return fail(
+            "login-check",
+            "workflow_failed",
+            str(e),
+            detail={"site": req.site, "sites": req.sites},
+        )
+
+
+@app.post("/dev/reload-extension")
+def dev_reload_extension(req: DevReloadExtensionRequest):
+    try:
+        extension_result = extension_runtime.invoke(
+            "dev_reload_extension",
+            {},
+            timeout_seconds=req.timeoutSeconds,
+        )
+        if not extension_result.get("ok"):
+            return ok("dev-reload-extension", {
+                "extension": extension_result,
+                "pages": [],
+            })
+
+        time.sleep(max(req.delaySeconds, 0))
+        pages = []
+        if req.reloadPages:
+            pages = _reload_dev_pages(target_ids=req.targetIds, site_hosts=req.siteHosts)
+        return ok("dev-reload-extension", {
+            "extension": extension_result,
+            "pages": pages,
+        })
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

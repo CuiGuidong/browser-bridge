@@ -1,10 +1,8 @@
-SITE_ID = "weibo"
+SITE_ID = "reddit"
 
 READ_KINDS = [
-    "read_home",
-    "read_hot_feed",
-    "read_hot_search",
     "read_post",
+    "read_profile_metrics",
     "search",
     "account_status",
 ]
@@ -12,10 +10,8 @@ READ_KINDS = [
 ACTION_KINDS = []
 
 WORKFLOWS = [
-    "read_home",
-    "read_hot_feed",
-    "read_hot_search",
     "read_post",
+    "read_profile_metrics",
     "search",
     "account_status",
 ]

@@ -1,6 +1,6 @@
 # Browser Bridge API 与 Workflow 参考
 
-_最后更新：2026-04-28_  
+_最后更新：2026-05-07_
 _状态：接口参考_
 
 本文档聚焦：
@@ -25,6 +25,10 @@ _状态：接口参考_
 如果你更关心“真实环境里怎么调试和避坑”，再读：
 
 - [implementation-guide.md](implementation-guide.md)
+
+如果你关心 B 站、抖音等视频站点后续如何做视频理解管线，读：
+
+- [video-asset-pipeline-design.md](video-asset-pipeline-design.md)
 
 ## 基础 Bridge API
 
@@ -51,12 +55,111 @@ _状态：接口参考_
 | `POST /site/read` | 调用站点读取能力 |
 | `POST /site/action` | 调用站点动作能力 |
 | `POST /workflow/run` | 调用固定流程 workflow |
+| `GET /login/status` | 检查单站登录状态 |
+| `POST /login/check` | 批量检查登录状态，可触发通知 |
 
 使用约定：
 
 - 固定流程优先走 `/workflow/run`
 - 站点语义能力优先接到 `/site/read` / `/site/action`
 - `/query` / `/evaluate` 属于浏览器级工具接口，不是站点语义接口
+
+### `/site/capabilities` 能力发现
+
+不传 `targetId` 时，接口只返回 bridge 侧注册能力，不依赖当前浏览器页面或扩展运行时：
+
+```text
+GET /site/capabilities?site=xiaohongshu
+```
+
+关键返回：
+
+```json
+{
+  "ok": true,
+  "action": "site-capabilities",
+  "data": {
+    "site": "xiaohongshu",
+    "registry": {
+      "site": "xiaohongshu",
+      "read": ["read_post", "read_post_metrics", "read_profile_metrics", "account_status"],
+      "action": [],
+      "workflow": ["read_post", "prepare_publish_post", "read_post_metrics", "read_profile_metrics", "account_status"]
+    },
+    "runtime": null
+  }
+}
+```
+
+不传 `site` 时返回所有已注册站点能力。只有传入 `targetId` 时，接口才会额外查询页面运行时能力。
+
+### 语义接口错误结构
+
+`/workflow/run`、`/site/read`、`/site/action` 失败时返回结构化错误：
+
+```json
+{
+  "ok": false,
+  "action": "workflow-run",
+  "error": {
+    "code": "capability_missing",
+    "message": "workflow not supported",
+    "detail": {
+      "site": "xiaohongshu",
+      "workflow": "unknown_workflow"
+    }
+  }
+}
+```
+
+当前错误码：
+
+- `capability_missing`
+- `workflow_failed`
+- `site_not_supported`
+- `login_required`
+- `human_confirmation_required`
+
+`/site/read` 和 `/site/action` 会先按 registry 检查 `site` 与 `kind`。未知站点返回 `site_not_supported`，未知读取或动作能力返回 `capability_missing`。
+
+### 登录状态检查
+
+`account_status` 是站点通用 workflow：
+
+```json
+{
+  "site": "bilibili",
+  "workflow": "account_status",
+  "params": {},
+  "timeoutSeconds": 20
+}
+```
+
+也可以使用运维入口：
+
+```text
+GET /login/status?site=bilibili&notify=true
+POST /login/check
+```
+
+`/login/check` 请求示例：
+
+```json
+{
+  "sites": ["x", "weibo", "xiaohongshu", "bilibili"],
+  "notify": true,
+  "timeoutSeconds": 20
+}
+```
+
+返回不包含 cookie、token 或密码。通知配置：
+
+- `BB_NOTIFY_TELEGRAM_BOT_TOKEN`
+- `BB_NOTIFY_TELEGRAM_CHAT_ID`
+- `BB_NOTIFY_MIN_INTERVAL_SECONDS`
+- `BB_NOTIFY_WECHAT_WEBHOOK`
+
+Telegram 已可用；微信先按企业微信/兼容 webhook 预留。
 
 ## 扩展集成 API
 
@@ -88,6 +191,7 @@ _状态：接口参考_
   - 常用可选：`waitForReady`、`intervalSeconds`
 - `search`
   - 必填：`keyword`
+  - 兼容别名：`query`
   - 常用可选：`waitForReady`、`intervalSeconds`
 - `list_bookmarks`
   - 常用可选：`waitForReady`、`intervalSeconds`
@@ -97,6 +201,9 @@ _状态：接口参考_
   - 必填：`handle`
 - `add_bookmark` / `remove_bookmark`
   - 必填：`url`
+- `account_status`
+  - 可选：`url`
+  - 返回登录状态、是否需要人工登录和可见账号信息，不返回 cookie/token
 
 ### 小红书
 
@@ -107,10 +214,20 @@ _状态：接口参考_
   - 常用可选：`waitForReady`、`intervalSeconds`
 - `search`
   - 必填：`keyword`
+  - 兼容别名：`query`
   - 常用可选：`waitForReady`、`intervalSeconds`
 - `prepare_publish_post`
   - 必填：`title`、`content`、`imagePaths`
   - 常用可选：`waitForReady`、`intervalSeconds`
+- `read_post_metrics`
+  - 必填：`url` 或 `noteId`
+  - 返回 `metrics.views/shares` 等不可见指标时使用 `null`
+- `read_profile_metrics`
+  - 必填：`url`
+  - 返回主页指标和可见的 `recentPosts`
+- `account_status`
+  - 可选：`url`
+  - 返回登录状态、是否需要人工登录和可见账号信息，不返回 cookie/token
 
 ### 微博
 
@@ -125,7 +242,28 @@ _状态：接口参考_
   - 常用可选：`targetCount`、`waitForReady`、`intervalSeconds`
 - `search`
   - 必填：`keyword`
+  - 兼容别名：`query`
   - 常用可选：`targetCount`、`waitForReady`、`intervalSeconds`
+- `account_status`
+  - 可选：`url`
+  - 返回登录状态、是否需要人工登录和可见账号信息，不返回 cookie/token
+
+### 知乎 / B 站 / 抖音 / Reddit
+
+- `read_post`
+  - 必填：`url`
+  - 知乎和 Reddit 返回内容页标题、作者、摘要和公开互动指标
+  - B 站和抖音返回视频页元信息和公开互动指标，不解析视频内容本身
+- `read_profile_metrics`
+  - 必填：`url`
+  - 返回主页公开指标和可见的近期内容链接
+- `search`
+  - 必填：`keyword`
+  - 兼容别名：`query`
+  - 返回搜索结果中的语义链接列表
+- `account_status`
+  - 可选：`url`
+  - 返回登录状态、是否需要人工登录和可见账号信息，不返回 cookie/token
 
 ## workflow 运行上的共同约定
 

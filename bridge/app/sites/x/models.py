@@ -4,6 +4,7 @@ READ_KINDS = [
     "read_post",
     "read_timeline",
     "list_bookmarks",
+    "account_status",
 ]
 
 ACTION_KINDS = [
@@ -24,4 +25,5 @@ WORKFLOWS = [
     "unfollow_user",
     "add_bookmark",
     "remove_bookmark",
+    "account_status",
 ]

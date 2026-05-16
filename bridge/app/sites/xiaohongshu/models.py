@@ -5,6 +5,9 @@ READ_KINDS = [
     "read_home",
     "search",
     "read_creator_publish_state",
+    "read_post_metrics",
+    "read_profile_metrics",
+    "account_status",
 ]
 
 ACTION_KINDS = [
@@ -20,4 +23,7 @@ WORKFLOWS = [
     "read_home",
     "search",
     "prepare_publish_post",
+    "read_post_metrics",
+    "read_profile_metrics",
+    "account_status",
 ]

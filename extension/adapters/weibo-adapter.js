@@ -418,7 +418,7 @@ const weiboAdapter = {
   },
   capabilities() {
     return {
-      read: ['read_home', 'read_hot_feed', 'read_hot_search', 'read_post', 'search'],
+      read: ['read_home', 'read_hot_feed', 'read_hot_search', 'read_post', 'search', 'account_status'],
       act: [],
     };
   },

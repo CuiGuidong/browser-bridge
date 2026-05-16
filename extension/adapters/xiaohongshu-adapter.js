@@ -23,6 +23,19 @@ function shortText(value, maxLength = 160) {
   return (value || '').replace(/\s+/g, ' ').trim().slice(0, maxLength);
 }
 
+function parseMetricValue(value) {
+  const text = String(value || '').replace(/,/g, '').trim();
+  if (!text || text === '赞' || text === '回复' || text === '评论') return null;
+  const match = text.match(/([\d.]+)\s*(万|w|W|千|k|K)?/);
+  if (!match) return null;
+  const number = Number(match[1]);
+  if (!Number.isFinite(number)) return null;
+  const unit = match[2] || '';
+  if (unit === '万' || unit === 'w' || unit === 'W') return Math.round(number * 10000);
+  if (unit === '千' || unit === 'k' || unit === 'K') return Math.round(number * 1000);
+  return Math.round(number);
+}
+
 function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -275,6 +288,7 @@ function getXiaohongshuPageType() {
   if (creatorPageType) return creatorPageType;
   const path = location.pathname || '';
   if (/^\/explore\/[A-Za-z0-9]+/.test(path)) return 'post';
+  if (/^\/user\/profile\/[A-Za-z0-9]+/.test(path)) return 'profile';
   if (path === '/explore') return 'home';
   if (path.startsWith('/search_result')) return 'search';
   return 'other';
@@ -395,6 +409,47 @@ function extractPostAuthor() {
   return '';
 }
 
+function extractPostAuthorProfileUrl() {
+  const author = extractPostAuthor();
+  const links = Array.from(document.querySelectorAll('a[href*="/user/profile/"]'));
+  const byName = links.find((link) => shortText(link.innerText || '', 80) === author);
+  const byNoteSource = links.find((link) => {
+    try {
+      const parsed = new URL(link.href, location.origin);
+      return parsed.searchParams.get('xsec_source') === 'pc_note';
+    } catch {
+      return false;
+    }
+  });
+  return normalizeXiaohongshuUrl((byName || byNoteSource || links[0])?.href || '');
+}
+
+function extractPostIdFromUrl(url) {
+  try {
+    const parsed = new URL(url || location.href, location.origin);
+    const parts = parsed.pathname.split('/').filter(Boolean);
+    if (parts[0] === 'explore' && parts[1]) return parts[1];
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+function extractPostMetrics() {
+  const container = document.querySelector('.interact-container');
+  const readWrapperCount = (selector) => {
+    const el = container?.querySelector(selector) || document.querySelector(selector);
+    return parseMetricValue(el?.innerText || el?.textContent || '');
+  };
+  return {
+    views: null,
+    likes: readWrapperCount('.like-wrapper'),
+    comments: readWrapperCount('.chat-wrapper'),
+    shares: null,
+    favorites: readWrapperCount('.collect-wrapper'),
+  };
+}
+
 function extractPostImages() {
   const images = Array.from(document.querySelectorAll('img'))
     .map((img) => img.currentSrc || img.src || '')
@@ -444,6 +499,56 @@ function extractPostText(images, videos) {
   return appendPostMedia(baseText, images, videos);
 }
 
+function extractProfileIdFromUrl(url) {
+  try {
+    const parsed = new URL(url || location.href, location.origin);
+    const parts = parsed.pathname.split('/').filter(Boolean);
+    if (parts[0] === 'user' && parts[1] === 'profile' && parts[2]) return parts[2];
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+function extractProfileNickname() {
+  const userName = document.querySelector('.user-name');
+  const text = shortText(userName?.innerText || '', 120);
+  if (text) return text;
+  const title = (document.title || '').replace(/\s*-\s*小红书\s*$/, '').trim();
+  return title || '';
+}
+
+function extractProfileDescription() {
+  return normalizeMultilineText(document.querySelector('.user-desc')?.innerText || '');
+}
+
+function extractProfileTags() {
+  const tags = document.querySelector('.user-tags');
+  return (tags?.innerText || '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function extractProfileMetrics() {
+  const info = document.querySelector('.data-info');
+  const lines = (info?.innerText || '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const valueBeforeLabel = (label) => {
+    const index = lines.findIndex((line) => line === label);
+    if (index <= 0) return null;
+    return parseMetricValue(lines[index - 1]);
+  };
+  return {
+    followers: valueBeforeLabel('粉丝'),
+    following: valueBeforeLabel('关注'),
+    likes: valueBeforeLabel('获赞与收藏'),
+    postsCount: null,
+  };
+}
+
 const xiaohongshuAdapter = {
   id: 'xiaohongshu',
   match() {
@@ -454,7 +559,15 @@ const xiaohongshuAdapter = {
   },
   capabilities() {
     return {
-      read: ['read_post', 'read_home', 'search', 'read_creator_publish_state'],
+      read: [
+        'read_post',
+        'read_home',
+        'search',
+        'read_creator_publish_state',
+        'read_post_metrics',
+        'read_profile_metrics',
+        'account_status',
+      ],
       act: [
         'switch_creator_tab',
         'locate_creator_image_file_input',
@@ -477,6 +590,7 @@ const xiaohongshuAdapter = {
     const ready = !!(
       document.readyState === 'complete' && (
         (pageType === 'post' && ((detailDesc && (detailDesc.innerText || '').trim().length > 0) || postImages.length > 0 || hasVideo)) ||
+        (pageType === 'profile' && !!document.querySelector('.user-info')) ||
         ((pageType === 'home' || pageType === 'search') && noteItems.length > 0) ||
         ((pageType === 'creator_publish_entry') && (creatorPublishState?.tabs || []).length > 0) ||
         ((pageType === 'creator_publish_editor_image') && !!creatorPublishState?.titleInput?.exists && !!creatorPublishState?.contentEditor?.exists && !!creatorPublishState?.publishButton?.exists) ||
@@ -496,6 +610,7 @@ const xiaohongshuAdapter = {
         searchKeyword: pageType === 'search' ? extractSearchKeyword() : null,
         detailDescFound: !!detailDesc,
         hasVideo,
+        profileReady: pageType === 'profile' && !!document.querySelector('.user-info'),
         activeCreatorTab: creatorPublishState?.activeTab || null,
         creatorTabs: creatorPublishState?.tabs || [],
         creatorEditorReady: !!creatorPublishState?.contentEditor?.exists,
@@ -505,10 +620,22 @@ const xiaohongshuAdapter = {
         post: pageType === 'post' ? {
           title: extractPostTitle(),
           author: extractPostAuthor(),
+          authorProfileUrl: extractPostAuthorProfileUrl(),
+          externalPostId: extractPostIdFromUrl(location.href),
           text: extractPostText(postImages, postVideos),
           images: postImages,
           videos: postVideos,
+          metrics: extractPostMetrics(),
           url: normalizeXiaohongshuUrl(location.href),
+        } : null,
+        profile: pageType === 'profile' ? {
+          url: normalizeXiaohongshuUrl(location.href),
+          profileId: extractProfileIdFromUrl(location.href),
+          nickname: extractProfileNickname(),
+          description: extractProfileDescription(),
+          tags: extractProfileTags(),
+          metrics: extractProfileMetrics(),
+          recentPosts: noteItems,
         } : null,
         creatorPublishState,
       },
@@ -534,6 +661,49 @@ const xiaohongshuAdapter = {
         page: snap.page,
         signals: snap.signals,
         content: snap.content.post || {},
+      };
+    }
+    if (kind === 'read_post_metrics') {
+      const post = snap.content.post || {};
+      return {
+        ok: true,
+        mode: 'semantic',
+        kind,
+        page: snap.page,
+        signals: snap.signals,
+        content: {
+          url: post.url || normalizeXiaohongshuUrl(location.href),
+          externalPostId: post.externalPostId || extractPostIdFromUrl(location.href),
+          title: post.title || '',
+          author: post.author || '',
+          authorProfileUrl: post.authorProfileUrl || '',
+          metrics: post.metrics || extractPostMetrics(),
+          rawPayload: {
+            pageType: snap.signals.pageType,
+          },
+        },
+      };
+    }
+    if (kind === 'read_profile_metrics') {
+      const profile = snap.content.profile || {};
+      return {
+        ok: true,
+        mode: 'semantic',
+        kind,
+        page: snap.page,
+        signals: snap.signals,
+        content: {
+          url: profile.url || normalizeXiaohongshuUrl(location.href),
+          profileId: profile.profileId || extractProfileIdFromUrl(location.href),
+          nickname: profile.nickname || '',
+          description: profile.description || '',
+          tags: profile.tags || [],
+          metrics: profile.metrics || extractProfileMetrics(),
+          recentPosts: profile.recentPosts || [],
+          rawPayload: {
+            pageType: snap.signals.pageType,
+          },
+        },
       };
     }
     if (kind === 'read_home') {

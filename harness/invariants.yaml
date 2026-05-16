@@ -1,0 +1,98 @@
+project:
+  name: browser-bridge
+  role: local_real_browser_execution_base
+  is_business_application: false
+
+architecture:
+  browser_control_layer:
+    owner: cdp
+    allowed:
+      - open_page
+      - reuse_tab
+      - activate_tab
+      - navigate
+      - list_tabs
+      - screenshot
+      - basic_page_diagnostics
+      - execute_generic_js_for_debugging
+    forbidden:
+      - site_semantic_dom_parsing
+      - duplicate_adapter_logic
+      - business_decision_making
+
+  site_semantic_layer:
+    owner: extension_adapters
+    location: extension/adapters
+    required_patterns:
+      - match
+      - getPageType
+      - probeReady
+      - read
+      - act_when_needed
+      - verify_for_state_changes
+    forbidden:
+      - opening_tabs
+      - global_retry_policy
+      - long_task_decision_making
+
+  workflow_layer:
+    owner: bridge_site_workflows
+    location: bridge/app/sites
+    allowed:
+      - fixed_steps
+      - page_lifecycle
+      - wait_for_ready
+      - call_site_read_or_action
+      - close_temporary_tabs_when_safe
+    forbidden:
+      - open_ended_ai_decisions
+      - content_strategy
+      - business_database_state
+
+  skill_layer:
+    owner: skills
+    allowed:
+      - input_normalization
+      - call_workflows
+      - summarize_results
+      - open_ended_agent_decisions
+    forbidden:
+      - reimplement_page_lifecycle
+      - duplicate_dom_adapter_logic
+
+external_integrations:
+  media_agent_suite:
+    role: business_application
+    local_path: /home/cuiguidong/.openclaw/workspace/projects/media-agent-suite
+    contract_file: temp/media-agent-suite-contract.md
+    allowed_access: HTTP API only
+    forbidden_exposure:
+      - DOM selectors
+      - tab lifecycle internals
+      - CDP details
+      - extension RPC internals
+
+forbidden:
+  - "Do not put site DOM selectors in bridge/app when an extension adapter can own them."
+  - "Do not make CDP a fallback implementation of full site semantics."
+  - "Do not let skill scripts reopen and manage pages for fixed workflows."
+  - "Do not auto-click final publish by default."
+  - "Do not bypass captcha, 2FA, MFA, payment, password, or authorization gates."
+  - "Do not add business models such as Topic, PublishTask, MetricSnapshot to browser-bridge."
+  - "Do not expose private local machine facts in public docs."
+
+required_local_operations:
+  after_extension_change:
+    - "./scripts/dev_reload_extension.sh"
+  after_bridge_app_change:
+    - "sudo systemctl restart browser-bridge.service"
+
+quality_gates:
+  python_compile:
+    command: "env PYTHONPYCACHEPREFIX=/tmp/browser-bridge-pycache python3 -m py_compile bridge/app/server.py bridge/app/cdp_service.py bridge/app/browser/cdp_runtime.py"
+  health:
+    command: "curl --noproxy '*' -sS http://127.0.0.1:17777/health"
+  baseline:
+    command: "python3 skills/weibo-assistant/scripts/read_post.py 'https://weibo.com/6105713761/Qy80W8wXc'"
+  extension_reload:
+    command: "./scripts/dev_reload_extension.sh"

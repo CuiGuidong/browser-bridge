@@ -144,6 +144,46 @@ function buildAdapterContext(baseSnapshot) {
   };
 }
 
+function detectAccountStatus(context) {
+  const text = (document.body?.innerText || '').replace(/\s+/g, ' ').trim();
+  const site = context.adapter?.site || context.baseSnapshot.site;
+  const href = location.href;
+  const lowerHref = href.toLowerCase();
+  const lowerText = text.toLowerCase();
+  const loginPage = /login|signin|sign-in|passport|account\/login|i\/flow\/login/.test(lowerHref);
+  const loginHint = /登录|登陆|注册|立即登录|未登录|sign in|log in|sign up|login/.test(lowerText);
+  const loggedInHint = /退出登录|账号设置|个人主页|创作中心|我的消息|私信|inbox|notifications|profile|log out|logout/.test(lowerText);
+  const needsHumanLogin = loginPage || (loginHint && !loggedInHint);
+  const loggedIn = loggedInHint ? true : (needsHumanLogin ? false : null);
+  const confidence = loggedInHint || loginPage ? 'medium' : 'low';
+  return {
+    ok: true,
+    mode: 'semantic',
+    kind: 'account_status',
+    pageType: context.pageType,
+    content: {
+      site,
+      url: href,
+      loggedIn,
+      needsHumanLogin,
+      account: {
+        nickname: null,
+        profileUrl: null,
+      },
+      confidence,
+      checkedAt: new Date().toISOString(),
+      reasons: {
+        loginPage,
+        loginHint,
+        loggedInHint,
+      },
+      rawPayload: {
+        pageType: context.pageType,
+      },
+    },
+  };
+}
+
 function normalizeBridgeRpcResult(result, fallbackSnapshot, extra = {}) {
   if (result && typeof result === 'object') {
     return {
@@ -210,6 +250,13 @@ async function handleBridgeRpc(payload) {
     }
 
     if (method === 'read') {
+      if (params.kind === 'account_status') {
+        return normalizeBridgeRpcResult(
+          detectAccountStatus(context),
+          baseSnapshot,
+          { pageType: context.pageType },
+        );
+      }
       if (typeof adapter.read === 'function') {
         return normalizeBridgeRpcResult(
           await adapter.read(params.kind, params, context),
@@ -303,6 +350,20 @@ async function pollBridgeCommandOnce() {
     });
     const command = response?.command;
     if (!command) return;
+    if (command.method === 'dev_reload_extension') {
+      await chrome.runtime.sendMessage({
+        action: 'bridgeSubmitResult',
+        commandId: command.id,
+        result: {
+          ok: true,
+          source: 'extension-rpc',
+          method: command.method,
+          reloading: true,
+        },
+      });
+      await chrome.runtime.sendMessage({ action: 'reloadExtension' });
+      return;
+    }
     const result = await handleBridgeRpc({
       method: command.method,
       params: command.params || {},

@@ -1,13 +1,17 @@
 from .models import ACTION_KINDS, READ_KINDS, SITE_ID, WORKFLOWS
+from ..common_workflows import run_account_status
 from .workflows.prepare_publish_post import run as run_prepare_publish_post
 from .workflows.read_home import run as run_read_home
+from .workflows.read_post_metrics import run as run_read_post_metrics
 from .workflows.read_post import run as run_read_post
+from .workflows.read_profile_metrics import run as run_read_profile_metrics
 from .workflows.search import run as run_search
 
 
 class XiaohongshuSite:
     site_id = SITE_ID
     hosts = {"xiaohongshu.com"}
+    home_url = "https://www.xiaohongshu.com/"
 
     def capabilities(self):
         return {
@@ -60,6 +64,33 @@ class XiaohongshuSite:
                 target_id=target_id,
                 params=params,
                 timeout_seconds=timeout_seconds,
+            )
+        if workflow == "read_post_metrics":
+            return run_read_post_metrics(
+                read_service=read_service,
+                browser_runtime=browser_runtime,
+                target_id=target_id,
+                params=params,
+                timeout_seconds=timeout_seconds,
+            )
+        if workflow == "read_profile_metrics":
+            return run_read_profile_metrics(
+                read_service=read_service,
+                browser_runtime=browser_runtime,
+                target_id=target_id,
+                params=params,
+                timeout_seconds=timeout_seconds,
+            )
+        if workflow == "account_status":
+            return run_account_status(
+                site=self.site_id,
+                home_url=self.home_url,
+                read_service=read_service,
+                browser_runtime=browser_runtime,
+                target_id=target_id,
+                params=params,
+                timeout_seconds=timeout_seconds,
+                reuse_domain="xiaohongshu.com",
             )
         return {
             "ok": False,

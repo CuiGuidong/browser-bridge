@@ -1,4 +1,5 @@
 from .models import ACTION_KINDS, READ_KINDS, SITE_ID, WORKFLOWS
+from ..common_workflows import run_account_status
 from .workflows.add_bookmark import run as run_add_bookmark
 from .workflows.follow_user import run as run_follow_user
 from .workflows.list_bookmarks import run as run_list_bookmarks
@@ -12,6 +13,7 @@ from .workflows.unfollow_user import run as run_unfollow_user
 class XSite:
     site_id = SITE_ID
     hosts = {"x.com", "twitter.com"}
+    home_url = "https://x.com/home"
 
     def capabilities(self):
         return {
@@ -96,6 +98,17 @@ class XSite:
                 target_id=target_id,
                 params=params,
                 timeout_seconds=timeout_seconds,
+            )
+        if workflow == "account_status":
+            return run_account_status(
+                site=self.site_id,
+                home_url=self.home_url,
+                read_service=read_service,
+                browser_runtime=browser_runtime,
+                target_id=target_id,
+                params=params,
+                timeout_seconds=timeout_seconds,
+                reuse_domain="x.com",
             )
         return {
             "ok": False,

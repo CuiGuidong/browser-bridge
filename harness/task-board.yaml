@@ -1,0 +1,189 @@
+tasks:
+  - id: BBH001
+    title: Establish harness engineering skeleton
+    status: done
+    priority: high
+    files:
+      - AGENTS.md
+      - CODEX_START.md
+      - CHECKLIST.md
+      - harness/context.md
+      - harness/invariants.yaml
+      - harness/task-board.yaml
+      - harness/quality-gates.md
+      - harness/task-template.md
+    acceptance:
+      - New sessions have a fixed reading order
+      - Architecture invariants are explicit
+      - Quality gates are documented
+      - Task board exists
+
+  - id: BBH002
+    title: Align media-agent-suite browser-bridge contract docs
+    status: done
+    priority: high
+    files:
+      - temp/media-agent-suite-contract.md
+      - /home/cuiguidong/.openclaw/workspace/projects/media-agent-suite/docs/12-browser-bridge-adaptation-needs.md
+    acceptance:
+      - params is the documented request field
+      - prepare_publish_post is marked supported
+      - read_post_metrics and read_profile_metrics support status is documented
+      - Cross-session notes section exists
+
+  - id: BBH003
+    title: Add automated extension sync and reload
+    status: done
+    priority: high
+    files:
+      - scripts/dev_reload_extension.sh
+      - extension/background.js
+      - extension/content.js
+      - bridge/app/server.py
+      - bridge/app/cdp_service.py
+      - bridge/app/browser/cdp_runtime.py
+      - LOCAL_DEV.md
+    acceptance:
+      - Script syncs extension to host path
+      - Bridge exposes dev reload endpoint
+      - Extension can self-reload
+      - Target site pages are refreshed after reload
+
+  - id: BBH004
+    title: Normalize workflow error envelope for external callers
+    status: done
+    priority: high
+    files:
+      - bridge/app/server.py
+      - bridge/app/schemas.py
+      - tests/
+      - docs/api-reference.md
+      - temp/media-agent-suite-contract.md
+    acceptance:
+      - /workflow/run failures return structured error object
+      - capability_missing is distinguishable from workflow_failed
+      - Existing successful responses remain compatible
+      - Contract doc records the final shape and verification
+
+  - id: BBH005
+    title: Implement xiaohongshu read_post_metrics workflow
+    status: done
+    priority: high
+    files:
+      - extension/adapters/xiaohongshu-adapter.js
+      - bridge/app/sites/xiaohongshu/site.py
+      - bridge/app/sites/xiaohongshu/workflows/
+      - docs/api-reference.md
+      - docs/site-support.md
+      - temp/media-agent-suite-contract.md
+    acceptance:
+      - Workflow accepts params.url
+      - Returns stable metrics object with null for unavailable values
+      - Does not expose selectors
+      - Verified through real browser baseline
+
+  - id: BBH006
+    title: Implement xiaohongshu read_profile_metrics workflow
+    status: done
+    priority: high
+    files:
+      - extension/adapters/xiaohongshu-adapter.js
+      - bridge/app/sites/xiaohongshu/site.py
+      - bridge/app/sites/xiaohongshu/workflows/
+      - docs/api-reference.md
+      - docs/site-support.md
+      - temp/media-agent-suite-contract.md
+    acceptance:
+      - Workflow accepts params.url
+      - Returns profile metrics and recentPosts when available
+      - Does not expose selectors
+      - Verified through real browser baseline
+
+  - id: BBH007
+    title: Improve capability discovery for workflow consumers
+    status: done
+    priority: medium
+    files:
+      - bridge/app/application/read_service.py
+      - bridge/app/sites/registry.py
+      - docs/api-reference.md
+      - temp/media-agent-suite-contract.md
+    acceptance:
+      - External callers can discover supported workflows per site
+      - Missing workflow errors are clear
+      - media-agent-suite can map missing capability without probing execution
+
+  - id: BBH008
+    title: Normalize site read and action error envelope
+    status: done
+    priority: medium
+    files:
+      - bridge/app/server.py
+      - docs/api-reference.md
+      - temp/media-agent-suite-contract.md
+      - /home/cuiguidong/.openclaw/workspace/projects/media-agent-suite/docs/12-browser-bridge-adaptation-needs.md
+    acceptance:
+      - /site/read failures return structured error object
+      - /site/action failures return structured error object
+      - Unknown site maps to site_not_supported
+      - Unknown kind maps to capability_missing
+      - Successful responses remain compatible
+
+  - id: BBH009
+    title: Add first-pass infrastructure support for Zhihu, Bilibili, Douyin, and Reddit
+    status: done
+    priority: medium
+    files:
+      - bridge/app/sites/common_workflows.py
+      - bridge/app/sites/zhihu/
+      - bridge/app/sites/bilibili/
+      - bridge/app/sites/douyin/
+      - bridge/app/sites/reddit/
+      - extension/adapters/media-adapters.js
+      - extension/manifest.json
+      - docs/api-reference.md
+      - docs/site-support.md
+    acceptance:
+      - Each new site is registered in bridge capabilities
+      - Each new site supports read_post, read_profile_metrics, and search workflows
+      - Video sites return metadata only and do not parse video content
+      - Documentation records media-suite-facing boundaries
+
+  - id: BBH010
+    title: Design video asset handoff pipeline for media-suite
+    status: done
+    priority: medium
+    files:
+      - docs/video-asset-pipeline-design.md
+      - docs/api-reference.md
+      - docs/site-support.md
+      - temp/media-agent-suite-contract.md
+    acceptance:
+      - Bilibili and Douyin video parsing boundary is explicit
+      - Media asset handoff schema is documented
+      - Browser bridge and media-suite responsibilities are separated
+      - Future ffmpeg, ASR, and LLM stages are designed without implementing them prematurely
+
+  - id: BBH011
+    title: Add account status workflow and login notifications
+    status: done
+    priority: high
+    files:
+      - bridge/app/application/login_service.py
+      - bridge/app/notifications.py
+      - bridge/app/server.py
+      - bridge/app/sites/common_workflows.py
+      - bridge/app/sites/*/models.py
+      - bridge/app/sites/*/site.py
+      - extension/content.js
+      - extension/adapters/*-adapter.js
+      - docs/api-reference.md
+      - docs/site-support.md
+      - temp/media-agent-suite-contract.md
+    acceptance:
+      - All registered sites expose account_status workflow
+      - /login/status checks a single site
+      - /login/check supports batch checks
+      - Telegram notification is supported for login loss
+      - WeChat webhook integration point is reserved
+      - No cookie, token, password, or browser internals are returned

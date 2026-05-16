@@ -70,6 +70,25 @@ class BrowserBridgeService:
         except Exception:
             return None
 
+    def reload_tab(self, target_id):
+        target = self.get_page_info(target_id)
+        if target is None:
+            return None
+        ws_url = target.get("webSocketDebuggerUrl")
+        if not ws_url:
+            return None
+        try:
+            self.ws_client.call(ws_url, "Page.enable", {})
+            self.ws_client.call(ws_url, "Page.reload", {"ignoreCache": True})
+            return {"targetId": target_id, "url": target.get("url"), "reloaded": True}
+        except Exception as exc:
+            return {
+                "targetId": target_id,
+                "url": target.get("url"),
+                "reloaded": False,
+                "error": str(exc),
+            }
+
     def close_tab(self, target_id):
         self.client.get_text(f"/json/close/{target_id}")
         return {"targetId": target_id, "closed": True}

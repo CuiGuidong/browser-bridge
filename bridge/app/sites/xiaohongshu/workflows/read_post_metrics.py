@@ -1,64 +1,59 @@
-from urllib.parse import quote
-
-
-def _wait_for_target_stable(browser_runtime, target_id, timeout_seconds=8, interval_seconds=0.4):
-    if not target_id:
-        return None
-    try:
-        return browser_runtime.wait_for_page(
-            target_id=target_id,
-            timeout_seconds=timeout_seconds,
-            interval_seconds=interval_seconds,
-        )
-    except Exception:
-        return None
+from .read_post import _build_note_url, _is_final_note_url, _wait_for_final_note_page
 
 
 def run(read_service, browser_runtime, target_id=None, params=None, timeout_seconds=20):
     params = params or {}
-    keyword = ((params or {}).get("keyword") or (params or {}).get("query") or "").strip()
-    if not keyword:
+    url = _build_note_url(params)
+    if not url:
         return {
             "ok": False,
             "site": "xiaohongshu",
-            "workflow": "search",
-            "error": "keyword is required",
+            "workflow": "read_post_metrics",
+            "error": "url or noteId is required",
         }
 
-    url = f"https://www.xiaohongshu.com/search_result?keyword={quote(keyword)}"
     opened = None
     resolved_target_id = target_id
     if resolved_target_id:
         opened = browser_runtime.navigate_tab(resolved_target_id, url)
-        if not opened:
-            return {
-                "ok": False,
-                "site": "xiaohongshu",
-                "workflow": "search",
-                "error": "failed to open page",
-            }
-        resolved_target_id = opened.get("targetId") or opened.get("id") or target_id
     else:
         opened = browser_runtime.open_or_reuse_url(
             url,
             reuse_existing_tab=False,
             reuse_domain="xiaohongshu.com",
         )
-        if not opened:
+    if not opened:
+        return {
+            "ok": False,
+            "site": "xiaohongshu",
+            "workflow": "read_post_metrics",
+            "error": "failed to open page",
+        }
+    resolved_target_id = opened.get("targetId") or opened.get("id") or target_id
+
+    try:
+        final_page = _wait_for_final_note_page(
+            browser_runtime=browser_runtime,
+            target_id=resolved_target_id,
+            timeout_seconds=min(timeout_seconds, 20),
+            interval_seconds=0.5,
+        )
+        if not final_page or not _is_final_note_url((final_page or {}).get("url")):
             return {
                 "ok": False,
                 "site": "xiaohongshu",
-                "workflow": "search",
-                "error": "failed to open page",
+                "workflow": "read_post_metrics",
+                "targetId": None if not opened.get("reused") else resolved_target_id,
+                "error": "failed to resolve final note url",
+                "page": final_page or {},
             }
-        resolved_target_id = opened.get("targetId") or opened.get("id") or target_id
-    _wait_for_target_stable(browser_runtime, resolved_target_id)
-    try:
+
         read_params = dict(params)
-        read_params.pop("keyword", None)
+        read_params.pop("url", None)
+        read_params.pop("noteId", None)
         read_result = read_service.site_read(
             site="xiaohongshu",
-            kind="search",
+            kind="read_post_metrics",
             params=read_params,
             target_id=resolved_target_id,
             timeout_seconds=timeout_seconds,
@@ -67,7 +62,7 @@ def run(read_service, browser_runtime, target_id=None, params=None, timeout_seco
             return {
                 "ok": False,
                 "site": "xiaohongshu",
-                "workflow": "search",
+                "workflow": "read_post_metrics",
                 "targetId": None if not opened.get("reused") else resolved_target_id,
                 "error": "site read failed",
             }
@@ -75,30 +70,31 @@ def run(read_service, browser_runtime, target_id=None, params=None, timeout_seco
             return {
                 **read_result,
                 "site": "xiaohongshu",
-                "workflow": "search",
-                "targetId": None if opened is not None and not opened.get("reused") else resolved_target_id,
+                "workflow": "read_post_metrics",
+                "targetId": None if not opened.get("reused") else resolved_target_id,
                 "debug": {
                     "open": opened,
                     **(read_result.get("debug") or {}),
                 },
             }
+
         actual_page_type = ((read_result.get("signals") or {}).get("pageType"))
-        if actual_page_type != "search":
+        if actual_page_type != "post":
             return {
                 "ok": False,
                 "site": "xiaohongshu",
-                "workflow": "search",
+                "workflow": "read_post_metrics",
                 "targetId": None if not opened.get("reused") else resolved_target_id,
                 "error": "unexpected page type",
-                "expectedPageType": "search",
+                "expectedPageType": "post",
                 "actualPageType": actual_page_type,
                 "page": read_result.get("page") or {},
             }
 
-        result = {
-            "ok": bool(read_result.get("ok")),
+        return {
+            "ok": True,
             "site": "xiaohongshu",
-            "workflow": "search",
+            "workflow": "read_post_metrics",
             "targetId": None if not opened.get("reused") else resolved_target_id,
             "summary": {
                 "source": read_result.get("source"),
@@ -115,7 +111,6 @@ def run(read_service, browser_runtime, target_id=None, params=None, timeout_seco
                 **(read_result.get("debug") or {}),
             },
         }
-        return result
     finally:
         if opened is not None and not opened.get("reused") and resolved_target_id:
             try:

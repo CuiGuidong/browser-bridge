@@ -1,16 +1,12 @@
+from ..common_workflows import run_account_status, run_search, run_url_read
 from .models import ACTION_KINDS, READ_KINDS, SITE_ID, WORKFLOWS
-from ..common_workflows import run_account_status
-from .workflows.read_home import run as run_read_home
-from .workflows.read_hot_feed import run as run_read_hot_feed
-from .workflows.read_hot_search import run as run_read_hot_search
-from .workflows.read_post import run as run_read_post
-from .workflows.search import run as run_search
 
 
-class WeiboSite:
+class RedditSite:
     site_id = SITE_ID
-    hosts = {"weibo.com", "www.weibo.com", "s.weibo.com", "m.weibo.cn", "mapp.api.weibo.cn"}
-    home_url = "https://weibo.com/"
+    hosts = {"reddit.com"}
+    home_url = "https://www.reddit.com/"
+    search_url_template = "https://www.reddit.com/search/?q={keyword}"
 
     def capabilities(self):
         return {
@@ -31,45 +27,28 @@ class WeiboSite:
         read_service=None,
         action_service=None,
     ):
-        if workflow == "read_home":
-            return run_read_home(
+        if workflow in {"read_post", "read_profile_metrics"}:
+            return run_url_read(
+                site=self.site_id,
+                workflow=workflow,
+                kind=workflow,
                 read_service=read_service,
                 browser_runtime=browser_runtime,
                 target_id=target_id,
                 params=params,
                 timeout_seconds=timeout_seconds,
-            )
-        if workflow == "read_hot_feed":
-            return run_read_hot_feed(
-                read_service=read_service,
-                browser_runtime=browser_runtime,
-                target_id=target_id,
-                params=params,
-                timeout_seconds=timeout_seconds,
-            )
-        if workflow == "read_hot_search":
-            return run_read_hot_search(
-                read_service=read_service,
-                browser_runtime=browser_runtime,
-                target_id=target_id,
-                params=params,
-                timeout_seconds=timeout_seconds,
-            )
-        if workflow == "read_post":
-            return run_read_post(
-                read_service=read_service,
-                browser_runtime=browser_runtime,
-                target_id=target_id,
-                params=params,
-                timeout_seconds=timeout_seconds,
+                reuse_domain="reddit.com",
             )
         if workflow == "search":
             return run_search(
+                site=self.site_id,
+                search_url_template=self.search_url_template,
                 read_service=read_service,
                 browser_runtime=browser_runtime,
                 target_id=target_id,
                 params=params,
                 timeout_seconds=timeout_seconds,
+                reuse_domain="reddit.com",
             )
         if workflow == "account_status":
             return run_account_status(
@@ -80,7 +59,7 @@ class WeiboSite:
                 target_id=target_id,
                 params=params,
                 timeout_seconds=timeout_seconds,
-                reuse_domain="weibo.com",
+                reuse_domain="reddit.com",
             )
         return {
             "ok": False,

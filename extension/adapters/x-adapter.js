@@ -356,7 +356,7 @@ const xAdapter = {
   },
   capabilities() {
     return {
-      read: ['read_post', 'read_timeline', 'list_bookmarks'],
+      read: ['read_post', 'read_timeline', 'list_bookmarks', 'account_status'],
       act: ['expand_post', 'switch_feed', 'add_bookmark', 'remove_bookmark', 'follow_user', 'unfollow_user'],
     };
   },
