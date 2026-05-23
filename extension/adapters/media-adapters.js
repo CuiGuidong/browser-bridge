@@ -808,10 +808,28 @@
     return items;
   }
 
+  function extractZhihuPostText() {
+    const selectors = [
+      '.Post-RichTextContainer .RichText',
+      '.Post-Main .RichText',
+      '.RichContent-inner .RichText',
+      '.AnswerCard .RichContent-inner',
+    ];
+    for (const sel of selectors) {
+      const el = document.querySelector(sel);
+      if (el) {
+        const text = compactText(el.innerText || '');
+        if (text.length > 20) return text;
+      }
+    }
+    return null;
+  }
+
   function readPost(site, pageType) {
     const mediaType = SITE_CONFIGS[site].mediaType;
     const url = canonicalUrl();
     const authorName = extractAuthor(site);
+    const postText = site === 'zhihu' ? extractZhihuPostText() : null;
     return {
       ok: true,
       mode: 'semantic',
@@ -827,6 +845,7 @@
           profileUrl: null,
         },
         publishedAt: null,
+        text: postText,
         description: pageDescription(),
         mediaType: canonicalMediaType(site),
         videoContentParsed: mediaType === 'video' ? false : null,
