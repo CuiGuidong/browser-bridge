@@ -58,3 +58,10 @@ Agent 开发前必须确认：
 - 修改 `extension/` 后必须自动同步并重载扩展。
 - 修改 `bridge/app/` 后必须重启 bridge。
 - 涉及真实浏览器链路时，不能只凭沙箱失败判断代码异常。
+
+文档导航：
+
+- `docs/index.md` 是所有文档的角色索引和读取顺序入口。
+- `docs/development.md` 覆盖本地开发搭建。
+- `docs/operations.md` 覆盖部署与运维。
+- `harness/index.md` 是 harness 目录的导航说明。
