@@ -83,8 +83,8 @@
 - 涉及站点能力：读 `docs/capabilities.md`
 - 涉及新增站点：读 `docs/new-site-adaptation-guide.md`
 - 涉及视频、图片、媒体缓存：读 `docs/video-asset-pipeline-design.md`
-- 涉及跨项目调用：读对应 `temp/` 合同文档
-- 涉及 `media-agent-suite`：读 `temp/media-agent-suite-contract.md`
+- 涉及跨项目调用：读 `docs/contracts/` 下的对应合同文档
+- 涉及 `media-agent-suite`：读 `docs/contracts/media-agent-suite-contract.md`
 
 不要跳过 `LOCAL_DEV.md`。  
 本项目大量问题与宿主机、OrbStack、CDP、真实浏览器、扩展、代理、systemd 和登录态有关，不能只根据沙箱现象判断。
@@ -145,17 +145,21 @@
    - 部署与服务管理
    - 环境变量、代理、故障排查
 
-10. `.agents/invariants.yaml`
+10. `docs/contracts/media-agent-suite-contract.md`
+   - 与 `media-agent-suite` 的跨项目 issue-like 协作合同
+   - 基座能力需求、支持状态、验收方式
+
+11. `.agents/invariants.yaml`
    - 架构硬约束
    - 禁止模式
    - 不可破坏的边界
 
-11. `.agents/task-board.yaml`
+12. `.agents/task-board.yaml`
    - 当前任务状态
    - 已完成、进行中、待办任务
    - 后续开发入口
 
-12. `.agents/quality-gates.md`
+13. `.agents/quality-gates.md`
    - 验证命令
    - 不同改动类型对应的检查方式
     - 是否需要跑真实浏览器链路
@@ -193,6 +197,27 @@
 - 不要修改文档
 - 不要生成补丁
 - 只输出分析结果和建议
+
+---
+
+## 跨项目协作
+
+`media-agent-suite` 是外部业务系统，不是本项目子模块。两个项目可以由不同会话窗口或不同 Agent 并行推进，沟通必须落到版本化合同文档，不能依赖聊天记忆。
+
+协作文件：
+
+- `browser-bridge` 侧合同：`docs/contracts/media-agent-suite-contract.md`
+- `media-agent-suite` 侧需求源：`/home/cuiguidong/workspace/personal/projects/Python/media-agent-suite/docs/contracts/browser-bridge-adaptation.md`
+
+协作方式模仿 GitHub issue：
+
+1. `media-agent-suite` 发现基座能力缺失时，在需求源中新增 issue-like 条目，写清问题、期望合同、优先级和验收方式。
+2. `browser-bridge` 侧读取需求后，在本项目合同中同步条目和状态。
+3. 实现前先判断需求属于 browser-bridge 基座能力还是 media-agent-suite 业务逻辑；业务状态机、运营策略和数据入库不得进入本项目。
+4. 交付后在本项目合同中记录 endpoint/workflow、params、返回字段、错误码和验证证据。
+5. `media-agent-suite` 验收通过后，两边把条目从活跃需求清理到已完成摘要或关闭状态。
+
+如果需求描述不够验收，不要猜测实现；先把条目标为 `blocked` 并说明缺少的信息。
 
 ---
 
@@ -379,7 +404,8 @@
 - 架构约束：`.agents/invariants.yaml`
 - 验证规则：`.agents/quality-gates.md`
 - 当前任务：`.agents/task-board.yaml`
-- 临时计划、跨项目合同、草案：`temp/`
+- 跨项目合同：`docs/contracts/`
+- 临时计划、运行时审计日志、草案：`temp/`
 
 不要把同一类信息复制到多个文件里长期维护。  
 如果必须重复摘要，只写入口级提示，并指向单一事实源。

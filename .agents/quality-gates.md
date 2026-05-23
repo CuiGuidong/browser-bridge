@@ -39,7 +39,7 @@ git diff --check
 
 ```bash
 sed -n '1,260p' docs/interfaces.md
-sed -n '1,260p' temp/media-agent-suite-contract.md
+sed -n '1,260p' docs/contracts/media-agent-suite-contract.md
 ```
 
 ## 架构边界检查
@@ -63,6 +63,6 @@ grep -R "\"/open\"\\|\"/wait\"\\|\"/site/read\"\\|\"/site/action\"" -n skills ||
 涉及 `media-agent-suite` 合同时，检查两边文档：
 
 ```bash
-sed -n '1,260p' temp/media-agent-suite-contract.md
-sed -n '1,260p' /home/cuiguidong/workspace/personal/projects/Python/media-agent-suite/docs/12-browser-bridge-adaptation-needs.md
+sed -n '1,260p' docs/contracts/media-agent-suite-contract.md
+sed -n '1,260p' /home/cuiguidong/workspace/personal/projects/Python/media-agent-suite/docs/contracts/browser-bridge-adaptation.md
 ```

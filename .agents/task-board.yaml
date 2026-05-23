@@ -23,8 +23,8 @@ tasks:
     status: done
     priority: high
     files:
-      - temp/media-agent-suite-contract.md
-      - /home/cuiguidong/workspace/personal/projects/Python/media-agent-suite/docs/12-browser-bridge-adaptation-needs.md
+      - docs/contracts/media-agent-suite-contract.md
+      - /home/cuiguidong/workspace/personal/projects/Python/media-agent-suite/docs/contracts/browser-bridge-adaptation.md
     acceptance:
       - params is the documented request field
       - prepare_publish_post is marked supported
@@ -58,7 +58,7 @@ tasks:
       - bridge/app/schemas.py
       - tests/
       - docs/interfaces.md
-      - temp/media-agent-suite-contract.md
+      - docs/contracts/media-agent-suite-contract.md
     acceptance:
       - /workflow/run failures return structured error object
       - capability_missing is distinguishable from workflow_failed
@@ -75,7 +75,7 @@ tasks:
       - bridge/app/sites/xiaohongshu/workflows/
       - docs/interfaces.md
       - docs/capabilities.md
-      - temp/media-agent-suite-contract.md
+      - docs/contracts/media-agent-suite-contract.md
     acceptance:
       - Workflow accepts params.url
       - Returns stable metrics object with null for unavailable values
@@ -92,7 +92,7 @@ tasks:
       - bridge/app/sites/xiaohongshu/workflows/
       - docs/interfaces.md
       - docs/capabilities.md
-      - temp/media-agent-suite-contract.md
+      - docs/contracts/media-agent-suite-contract.md
     acceptance:
       - Workflow accepts params.url
       - Returns profile metrics and recentPosts when available
@@ -107,7 +107,7 @@ tasks:
       - bridge/app/application/read_service.py
       - bridge/app/sites/registry.py
       - docs/interfaces.md
-      - temp/media-agent-suite-contract.md
+      - docs/contracts/media-agent-suite-contract.md
     acceptance:
       - External callers can discover supported workflows per site
       - Missing workflow errors are clear
@@ -120,8 +120,8 @@ tasks:
     files:
       - bridge/app/server.py
       - docs/interfaces.md
-      - temp/media-agent-suite-contract.md
-      - /home/cuiguidong/workspace/personal/projects/Python/media-agent-suite/docs/12-browser-bridge-adaptation-needs.md
+      - docs/contracts/media-agent-suite-contract.md
+      - /home/cuiguidong/workspace/personal/projects/Python/media-agent-suite/docs/contracts/browser-bridge-adaptation.md
     acceptance:
       - /site/read failures return structured error object
       - /site/action failures return structured error object
@@ -157,7 +157,7 @@ tasks:
       - docs/video-asset-pipeline-design.md
       - docs/interfaces.md
       - docs/capabilities.md
-      - temp/media-agent-suite-contract.md
+      - docs/contracts/media-agent-suite-contract.md
     acceptance:
       - Bilibili and Douyin video parsing boundary is explicit
       - Media asset handoff schema is documented
@@ -179,7 +179,7 @@ tasks:
       - extension/adapters/*-adapter.js
       - docs/interfaces.md
       - docs/capabilities.md
-      - temp/media-agent-suite-contract.md
+      - docs/contracts/media-agent-suite-contract.md
     acceptance:
       - All registered sites expose account_status workflow
       - /login/status checks a single site

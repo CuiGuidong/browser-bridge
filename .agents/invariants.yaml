@@ -64,7 +64,7 @@ external_integrations:
   media_agent_suite:
     role: business_application
     local_path: /home/cuiguidong/workspace/personal/projects/Python/media-agent-suite
-    contract_file: temp/media-agent-suite-contract.md
+    contract_file: docs/contracts/media-agent-suite-contract.md
     allowed_access: HTTP API only
     forbidden_exposure:
       - DOM selectors

@@ -19,7 +19,8 @@ Skill / Script / Agent / External App
 - `skills/`：面向 Codex/Agent 的站点 skill 脚本。
 - `docs/`：公开架构、API、站点能力和实现指南。
 - `.agents/`：Agent 协作层（约束、任务、验证、过程产物）。
-- `temp/`：本地临时计划、跨项目合同和未公开任务材料。
+- `docs/contracts/`：跨项目合同和对外协作约定。
+- `temp/`：本地临时计划、运行时审计日志和未公开任务材料。
 
 当前已支持站点：
 
@@ -49,7 +50,7 @@ Skill / Script / Agent / External App
 跨项目合同：
 
 ```text
-temp/media-agent-suite-contract.md
+docs/contracts/media-agent-suite-contract.md
 ```
 
 Agent 开发前必须确认：

@@ -22,6 +22,7 @@
 | `capabilities.md` | 站点能力矩阵 | 支持的站点、能力、输入形态、当前限制 |
 | `new-site-adaptation-guide.md` | 新站点适配流程 | adapter / workflow / skill 落点、开发 SOP |
 | `video-asset-pipeline-design.md` | 视频管线设计 | B 站/抖音视频理解管线草案（暂不实现） |
+| `contracts/media-agent-suite-contract.md` | 跨项目合同 | 与 media-agent-suite 的基座能力需求、交付状态和验收方式 |
 
 ## .agents/ — Agent 协作层
 
@@ -41,7 +42,7 @@
 
 | 文件 | 用途 |
 |------|------|
-| `temp/media-agent-suite-contract.md` | 与 media-agent-suite 的接口合同 |
+| `docs/contracts/media-agent-suite-contract.md` | 与 media-agent-suite 的接口合同 |
 
 ## 读取顺序
 
@@ -54,4 +55,4 @@
 - 涉及新增站点 → `docs/new-site-adaptation-guide.md`
 - 涉及视频/媒体 → `docs/video-asset-pipeline-design.md`
 - 涉及部署运维 → `docs/operations.md`
-- 涉及跨项目调用 → `temp/media-agent-suite-contract.md`
+- 涉及跨项目调用 → `docs/contracts/media-agent-suite-contract.md`
