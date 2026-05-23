@@ -167,7 +167,7 @@ class ReadService:
                 "runtime": self._site_mismatch_result(site, page),
             }
         target_url = page.get("url") if page else None
-        runtime = self.extension_runtime.invoke("capabilities", {}, timeout_seconds=10, target_url=target_url)
+        runtime = self.extension_runtime.invoke("capabilities", {}, timeout_seconds=10, target_url=target_url, target_id=target_id, site=site)
         runtime_site = site or runtime.get("site")
         if self.site_registry and runtime_site and not site_module:
             site_module = self.site_registry.get(runtime_site)
@@ -217,6 +217,8 @@ class ReadService:
                     params,
                     timeout_seconds=min(5, timeout_seconds),
                     target_url=current_target_url,
+                    target_id=target_id,
+                    site=site,
                 )
                 last_probe = probe
                 target_url = current_target_url
@@ -250,6 +252,8 @@ class ReadService:
             {"kind": kind, **params},
             timeout_seconds=timeout_seconds,
             target_url=current_target_url,
+            target_id=target_id,
+            site=site,
         )
         retried = False
         if target_id and self._should_retry_runtime(runtime):
@@ -268,6 +272,8 @@ class ReadService:
                 {"kind": kind, **params},
                 timeout_seconds=timeout_seconds,
                 target_url=retry_target_url,
+                target_id=target_id,
+                site=site,
             )
             retried = True
         if runtime.get("ok"):

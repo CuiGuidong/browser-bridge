@@ -211,6 +211,8 @@ class ActionService:
             {"kind": kind, **params},
             timeout_seconds=timeout_seconds,
             target_url=current_target_url,
+            target_id=target_id,
+            site=site,
         )
         retried_act = False
         if target_id and self._should_retry_runtime(action_result):
@@ -229,6 +231,8 @@ class ActionService:
                 {"kind": kind, **params},
                 timeout_seconds=timeout_seconds,
                 target_url=retry_target_url,
+                target_id=target_id,
+                site=site,
             )
             current_target_url = retry_target_url
             retried_act = True
@@ -248,6 +252,8 @@ class ActionService:
                 },
                 timeout_seconds=timeout_seconds,
                 target_url=verify_target_url,
+                target_id=target_id,
+                site=site,
             )
             retried_verify = False
             if target_id and self._should_retry_runtime(verify_result):
@@ -271,6 +277,8 @@ class ActionService:
                     },
                     timeout_seconds=timeout_seconds,
                     target_url=retry_target_url,
+                    target_id=target_id,
+                    site=site,
                 )
                 retried_verify = True
             action_result["source"] = "extension-semantic"

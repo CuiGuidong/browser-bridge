@@ -142,6 +142,16 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 });
 
 async function postReport(payload) {
+  // Prefer native channel
+  if (nativePort) {
+    try {
+      nativePort.postMessage({ type: 'report', payload });
+      return true;
+    } catch (error) {
+      console.warn('[Browser Bridge] native report failed:', error.message);
+    }
+  }
+  // Fallback to HTTP
   try {
     await fetch(`${BRIDGE_URL}/extension/report`, {
       method: 'POST',
