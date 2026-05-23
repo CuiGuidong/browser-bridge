@@ -100,3 +100,12 @@ void pollDevCommandOnce();
 setInterval(() => {
   void pollDevCommandOnce();
 }, 1000);
+
+// Keep service worker alive: MV3 suspends workers after ~30s of inactivity.
+// chrome.alarms wakes the worker from suspension, keeping the polling loop running.
+chrome.alarms.create('keepalive', { periodInMinutes: 0.4 });
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === 'keepalive') {
+    void pollDevCommandOnce();
+  }
+});
