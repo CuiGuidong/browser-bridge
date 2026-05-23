@@ -19,9 +19,15 @@ curl --noproxy '*' -sS http://127.0.0.1:17777/health
 
 ## Extension 改动
 
+运行重载脚本（自动完成：同步文件 → 重载扩展 → 刷新页面）：
+
 ```bash
 ./scripts/dev_reload_extension.sh
 ```
+
+- 该脚本是扩展重载的唯一入口，不要请求用户手动重载
+- 如果脚本返回 `extension command timed out`，检查 bridge 是否在线，再重试一次
+- 如果仍然失败，检查扩展 Service Worker 控制台是否有错误
 
 然后至少验证一个站点语义读取：
 

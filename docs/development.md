@@ -116,10 +116,14 @@ env PYTHONPYCACHEPREFIX=/tmp/browser-bridge-pycache python3 -m py_compile bridge
 ### 修改扩展代码后
 
 1. 修改 `extension/` 下的文件
-2. 运行 `./scripts/dev_reload_extension.sh`（同步到宿主机目录、触发扩展自重载、刷新目标站点页面）
+2. 运行 `./scripts/dev_reload_extension.sh`
+   - 该脚本执行三步原子操作：① 同步文件到宿主机扩展目录 ② 调用 Bridge API 触发扩展自重载 ③ 刷新目标站点页面
+   - **不要拆分这三步**，不要跳过同步直接重载
+   - **不要请求用户手动重载**——脚本已自动完成全部操作
+   - 如果脚本超时或失败，先检查 bridge 是否在线（`curl --noproxy '*' -sS http://127.0.0.1:17777/health`），再检查扩展 Service Worker 状态
 3. 验证至少一个站点语义读取
 
-**铁律：** 扩展重载不等于旧标签页里的页面脚本自动更新。旧页面可能仍在运行旧版 `content.js`，会制造"明明改对了，测试还失败"的假象。必须重载扩展 + 刷新目标页面。
+**铁律：** 扩展重载不等于旧标签页里的页面脚本自动更新。旧页面可能仍在运行旧版 `content.js`，会制造"明明改对了，测试还失败"的假象。脚本已处理页面刷新，但如果验证仍失败，手动刷新目标页面后重试。
 
 ### 修改 Bridge 代码后
 

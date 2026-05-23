@@ -295,7 +295,9 @@
 
 修改 `extension/` 后：
 
-- 按 `LOCAL_DEV.md` 和 `.agents/quality-gates.md` 重载扩展
+- 运行 `./scripts/dev_reload_extension.sh`（该脚本先同步文件到宿主机，再触发扩展自重载，最后刷新目标页面——三步原子操作，不可拆分或跳过）
+- 不要请求用户手动在 `edge://extensions` 中重载——脚本已自动完成
+- 如果脚本报错，按 `.agents/quality-gates.md` 排查，而不是立即请求人工介入
 - 至少验证一个站点语义读取
 - 不要只看文件保存结果就宣布完成
 
