@@ -311,6 +311,12 @@
 - 不要把本地机器事实写入公开文档
 - 不要把临时决策写成长期规则
 
+修改或新增 `skills/` 后：
+
+- 将对应 skill 目录完整复制到 `/home/cuiguidong/workspace/AI/agent-workflow/skills/`，覆盖同名目录
+- 新建 skill 时同步创建，修改已有 skill 时同步覆盖
+- 目标目录是 Agent 工作流的运行时 skill 来源，必须保持与本项目 `skills/` 一致
+
 需要用户配合的动作未完成前，不给出最终测试结论。
 
 ---
