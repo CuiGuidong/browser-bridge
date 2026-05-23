@@ -32,7 +32,7 @@ Browser Bridge 解决的不是“如何点页面”，而是如何让 Agent 在�
 
 更细的站点能力、输入兼容形态、当前限制见：
 
-- [site-support.md](docs/site-support.md)
+- [capabilities.md](docs/capabilities.md)
 
 ## 一个最小心智模型
 
@@ -59,7 +59,7 @@ Skill / Agent
 
 正式架构规范见：
 
-- [architecture-spec.md](docs/architecture-spec.md)
+- [architecture.md](docs/architecture.md)
 
 ## 当前能做什么
 
@@ -122,13 +122,12 @@ cd extension
 
 - 想快速理解项目：先读这份 README
 - 想搭建本地开发环境：读 [development.md](docs/development.md)
-- 想接手架构设计：读 [architecture-spec.md](docs/architecture-spec.md)
-- 想排查真实环境问题：读 [implementation-guide.md](docs/implementation-guide.md)
-- 想看站点支持矩阵：读 [site-support.md](docs/site-support.md)
-- 想看接口与 workflow 参数：读 [api-reference.md](docs/api-reference.md)
+- 想接手架构设计：读 [architecture.md](docs/architecture.md)
+- 想看站点支持矩阵：读 [capabilities.md](docs/capabilities.md)
+- 想看接口与 workflow 参数：读 [interfaces.md](docs/interfaces.md)
 - 想继续扩新站点：读 [new-site-adaptation-guide.md](docs/new-site-adaptation-guide.md)
 - 想了解部署与运维：读 [operations.md](docs/operations.md)
-- 想看完整文档索引：读 [docs/index.md](docs/index.md)
+- 想看完整文档索引：读 [index.md](docs/index.md)
 
 ## 安全边界
 

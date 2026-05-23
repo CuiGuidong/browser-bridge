@@ -10,12 +10,12 @@ _状态：公开能力说明_
 
 更底层的架构约束见：
 
-- [architecture-spec.md](architecture-spec.md)
+- [architecture.md](architecture.md)
 - [video-asset-pipeline-design.md](video-asset-pipeline-design.md)
 
 更偏实现与踩坑的说明见：
 
-- [implementation-guide.md](implementation-guide.md)
+- [development.md](development.md)
 
 ## 总览
 

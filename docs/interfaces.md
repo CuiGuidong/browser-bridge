@@ -20,11 +20,11 @@ _状态：接口参考_
 
 如果你更关心“这个项目为什么这样分层”，先读：
 
-- [architecture-spec.md](architecture-spec.md)
+- [architecture.md](architecture.md)
 
 如果你更关心“真实环境里怎么调试和避坑”，再读：
 
-- [implementation-guide.md](implementation-guide.md)
+- [development.md](development.md)
 
 如果你关心 B 站、抖音等视频站点后续如何做视频理解管线，读：
 
@@ -294,6 +294,6 @@ Telegram 已可用；微信先按企业微信/兼容 webhook 预留。
 
 ## 什么时候不该直接看这份文档
 
-- 想判断“是代码问题还是宿主环境问题”：读 [implementation-guide.md](implementation-guide.md)
-- 想知道当前每个站点到底支持什么：读 [site-support.md](site-support.md)
+- 想判断“是代码问题还是宿主环境问题”：读 [development.md](development.md)
+- 想知道当前每个站点到底支持什么：读 [capabilities.md](capabilities.md)
 - 想扩一个新站点：读 [new-site-adaptation-guide.md](new-site-adaptation-guide.md)

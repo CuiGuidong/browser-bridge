@@ -38,7 +38,7 @@ git diff --check
 如果文档涉及合同或 API，检查对应文件：
 
 ```bash
-sed -n '1,260p' docs/api-reference.md
+sed -n '1,260p' docs/interfaces.md
 sed -n '1,260p' temp/media-agent-suite-contract.md
 ```
 

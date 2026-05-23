@@ -7,11 +7,11 @@ tasks:
       - AGENTS.md
       - CODEX_START.md
       - CHECKLIST.md
-      - harness/context.md
-      - harness/invariants.yaml
-      - harness/task-board.yaml
-      - harness/quality-gates.md
-      - harness/task-template.md
+      - .agents/context.md
+      - .agents/invariants.yaml
+      - .agents/task-board.yaml
+      - .agents/quality-gates.md
+      - .agents/task-template.md
     acceptance:
       - New sessions have a fixed reading order
       - Architecture invariants are explicit
@@ -57,7 +57,7 @@ tasks:
       - bridge/app/server.py
       - bridge/app/schemas.py
       - tests/
-      - docs/api-reference.md
+      - docs/interfaces.md
       - temp/media-agent-suite-contract.md
     acceptance:
       - /workflow/run failures return structured error object
@@ -73,8 +73,8 @@ tasks:
       - extension/adapters/xiaohongshu-adapter.js
       - bridge/app/sites/xiaohongshu/site.py
       - bridge/app/sites/xiaohongshu/workflows/
-      - docs/api-reference.md
-      - docs/site-support.md
+      - docs/interfaces.md
+      - docs/capabilities.md
       - temp/media-agent-suite-contract.md
     acceptance:
       - Workflow accepts params.url
@@ -90,8 +90,8 @@ tasks:
       - extension/adapters/xiaohongshu-adapter.js
       - bridge/app/sites/xiaohongshu/site.py
       - bridge/app/sites/xiaohongshu/workflows/
-      - docs/api-reference.md
-      - docs/site-support.md
+      - docs/interfaces.md
+      - docs/capabilities.md
       - temp/media-agent-suite-contract.md
     acceptance:
       - Workflow accepts params.url
@@ -106,7 +106,7 @@ tasks:
     files:
       - bridge/app/application/read_service.py
       - bridge/app/sites/registry.py
-      - docs/api-reference.md
+      - docs/interfaces.md
       - temp/media-agent-suite-contract.md
     acceptance:
       - External callers can discover supported workflows per site
@@ -119,7 +119,7 @@ tasks:
     priority: medium
     files:
       - bridge/app/server.py
-      - docs/api-reference.md
+      - docs/interfaces.md
       - temp/media-agent-suite-contract.md
       - /home/cuiguidong/workspace/personal/projects/Python/media-agent-suite/docs/12-browser-bridge-adaptation-needs.md
     acceptance:
@@ -141,8 +141,8 @@ tasks:
       - bridge/app/sites/reddit/
       - extension/adapters/media-adapters.js
       - extension/manifest.json
-      - docs/api-reference.md
-      - docs/site-support.md
+      - docs/interfaces.md
+      - docs/capabilities.md
     acceptance:
       - Each new site is registered in bridge capabilities
       - Each new site supports read_post, read_profile_metrics, and search workflows
@@ -155,8 +155,8 @@ tasks:
     priority: medium
     files:
       - docs/video-asset-pipeline-design.md
-      - docs/api-reference.md
-      - docs/site-support.md
+      - docs/interfaces.md
+      - docs/capabilities.md
       - temp/media-agent-suite-contract.md
     acceptance:
       - Bilibili and Douyin video parsing boundary is explicit
@@ -177,8 +177,8 @@ tasks:
       - bridge/app/sites/*/site.py
       - extension/content.js
       - extension/adapters/*-adapter.js
-      - docs/api-reference.md
-      - docs/site-support.md
+      - docs/interfaces.md
+      - docs/capabilities.md
       - temp/media-agent-suite-contract.md
     acceptance:
       - All registered sites expose account_status workflow
@@ -196,7 +196,7 @@ tasks:
       - skills/x-assistant/
       - skills/weibo-assistant/
       - skills/xiaohongshu-assistant/
-      - harness/task-board.yaml
+      - .agents/task-board.yaml
     acceptance:
       - Bridge health endpoint is reachable
       - Weibo skill baseline read_post succeeds
@@ -219,8 +219,8 @@ tasks:
       - bridge/app/sites/eastmoney/
       - extension/adapters/media-adapters.js
       - extension/manifest.json
-      - docs/api-reference.md
-      - docs/site-support.md
+      - docs/interfaces.md
+      - docs/capabilities.md
       - tests/test_reference_site_expansion.py
     acceptance:
       - YouTube, Weixin, Douban, HackerNews, Instagram, Xueqiu, and Eastmoney are registered
@@ -242,8 +242,8 @@ tasks:
       - bridge/app/sites/x/
       - extension/adapters/media-adapters.js
       - extension/adapters/x-adapter.js
-      - docs/api-reference.md
-      - docs/site-support.md
+      - docs/interfaces.md
+      - docs/capabilities.md
       - tests/
     acceptance:
       - Zhihu existing support is confirmed and gains read_hot
@@ -276,10 +276,10 @@ tasks:
     priority: low
     files:
       - CHECKLIST.md
-      - harness/task-board.yaml
+      - .agents/task-board.yaml
     acceptance:
       - CHECKLIST.md no longer duplicates README, AGENTS, quality gates, or task board state
-      - Current task status remains tracked in harness/task-board.yaml
+      - Current task status remains tracked in .agents/task-board.yaml
       - Documentation framework keeps a single source for navigation, quality gates, and pending work
 
   - id: BBH017
@@ -291,9 +291,9 @@ tasks:
       - bridge/app/sites/*/site.py
       - tests/test_reference_site_expansion.py
       - tests/test_read_only_site_enhancements.py
-      - docs/api-reference.md
-      - docs/site-support.md
-      - harness/task-board.yaml
+      - docs/interfaces.md
+      - docs/capabilities.md
+      - .agents/task-board.yaml
     acceptance:
       - Shared read-only site helper uses project-neutral module and class names
       - Existing reference-derived sites import ReadOnlySite from read_only_site
@@ -305,12 +305,12 @@ tasks:
     status: todo
     priority: high
     files:
-      - harness/task-board.yaml
+      - .agents/task-board.yaml
       - bridge/app/sites/
       - extension/adapters/media-adapters.js
       - extension/manifest.json
-      - docs/api-reference.md
-      - docs/site-support.md
+      - docs/interfaces.md
+      - docs/capabilities.md
       - tests/
     candidates:
       - tieba
@@ -349,9 +349,9 @@ tasks:
       - bridge/app/sites/
       - extension/adapters/media-adapters.js
       - extension/manifest.json
-      - docs/api-reference.md
-      - docs/site-support.md
-      - harness/task-board.yaml
+      - docs/interfaces.md
+      - docs/capabilities.md
+      - .agents/task-board.yaml
       - tests/test_reference_site_expansion.py
     sites:
       - "1688"

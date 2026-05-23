@@ -1,4 +1,4 @@
-# Harness Context
+# Agent Context
 
 本项目是 `browser-bridge`，一个本地真实浏览器执行基座。
 
@@ -18,7 +18,7 @@ Skill / Script / Agent / External App
 - `extension/`：浏览器扩展、content script、background、站点 adapter。
 - `skills/`：面向 Codex/Agent 的站点 skill 脚本。
 - `docs/`：公开架构、API、站点能力和实现指南。
-- `harness/`：本地 harness engineering 约束、任务板和质量门。
+- `.agents/`：Agent 协作层（约束、任务、验证、过程产物）。
 - `temp/`：本地临时计划、跨项目合同和未公开任务材料。
 
 当前已支持站点：
@@ -64,4 +64,4 @@ Agent 开发前必须确认：
 - `docs/index.md` 是所有文档的角色索引和读取顺序入口。
 - `docs/development.md` 覆盖本地开发搭建。
 - `docs/operations.md` 覆盖部署与运维。
-- `harness/index.md` 是 harness 目录的导航说明。
+- `.agents/index.md` 是 Agent 协作层的目录导航说明。

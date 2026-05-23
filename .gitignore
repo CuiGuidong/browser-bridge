@@ -47,10 +47,8 @@ Thumbs.db
 x_screenshot*.png
 temp/
 
-# Local agent workflow and machine facts (private, not for public repo)
+# Local machine facts (private, not for public repo)
 .clawhub/
 .openclaw/
 .codex
-AGENTS.md
 LOCAL_DEV.md
-CLAUDE.md

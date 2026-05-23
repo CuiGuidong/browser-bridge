@@ -6,10 +6,10 @@ _状态：实施指南_
 相关文档：
 
 - 项目入口与对外说明：`README.md`
-- 正式架构边界：`docs/architecture-spec.md`
-- 真实环境排障与开发纪律：`docs/implementation-guide.md`
-- 当前站点能力矩阵：`docs/site-support.md`
-- 接口与 workflow 参数：`docs/api-reference.md`
+- 正式架构边界：`docs/architecture.md`
+- 开发指南与避坑点：`docs/development.md`
+- 当前站点能力矩阵：`docs/capabilities.md`
+- 接口与 workflow 参数：`docs/interfaces.md`
 
 ## 1. 文档目的
 
@@ -21,15 +21,15 @@ _状态：实施指南_
 
 本文档**不重复**这些内容：
 
-- 正式架构边界：见 `docs/architecture-spec.md`
-- 已有开发纪律、排障顺序、新站点扩展顺序：见 `docs/implementation-guide.md`
+- 正式架构边界：见 `docs/architecture.md`
+- 已有开发纪律、排障顺序、新站点扩展顺序：见 `docs/development.md`
 - 项目全貌、运行方式、现有能力：见 `README.md`
 
 因此，推荐阅读方式是：
 
 1. 先读 `README.md`
-2. 再读 `docs/architecture-spec.md`
-3. 再读 `docs/implementation-guide.md`
+2. 再读 `docs/architecture.md`
+3. 再读 `docs/development.md`
 4. 如果当前任务是“适配一个新站点”，再读本文档
 
 ## 2. 适用范围
@@ -69,7 +69,7 @@ _状态：实施指南_
 
 ## 4. 新站点适配的 AI 工作流
 
-这一节只描述 AI 额外应执行的步骤；页面类型、ready、只读优先、动作后做 verify 这些正式顺序，仍以 `docs/implementation-guide.md` 为准。
+这一节只描述 AI 额外应执行的步骤；页面类型、ready、只读优先、动作后做 verify 这些正式顺序，仍以 `docs/development.md` 为准。
 
 ### 4.1 先做页面侦察
 

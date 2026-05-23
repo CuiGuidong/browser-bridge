@@ -12,9 +12,9 @@ BBHXXX
 
 相关文档和代码：
 
-- `docs/architecture-spec.md`
-- `docs/implementation-guide.md`
-- `harness/invariants.yaml`
+- `docs/architecture.md`
+- `docs/development.md`
+- `.agents/invariants.yaml`
 - ...
 
 ## Plan
