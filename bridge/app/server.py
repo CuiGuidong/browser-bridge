@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Query, HTTPException
+from fastapi import FastAPI, Query, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
 from urllib.parse import urlparse
@@ -12,6 +12,7 @@ from .application.workflow_service import WorkflowService
 from .browser.cdp_runtime import CdpRuntime
 from .config import BRIDGE_HOST, BRIDGE_PORT
 from .extension.extension_runtime import ExtensionRuntime
+from .native_session_manager import NativeSessionManager
 from .notifications import NotificationService
 from .playwright_client import get_playwright_client, reset_playwright_client
 from .schemas import fail, ok
@@ -94,6 +95,7 @@ workflow_service.bind_read_service(read_service)
 workflow_service.bind_action_service(action_service)
 login_service = LoginService(workflow_service, notification_service)
 playwright_client = get_playwright_client()
+native_session_manager = NativeSessionManager()
 
 
 # Request/Response models
@@ -482,6 +484,56 @@ def extension_result(req: ExtensionCommandResultRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@app.websocket("/native/ws")
+async def native_ws_endpoint(ws: WebSocket):
+    await ws.accept()
+    try:
+        await native_session_manager.handle_connection(ws)
+    except WebSocketDisconnect:
+        pass
+
+class NativeSessionRegisterRequest(BaseModel):
+    type: str = "extension"
+
+class NativeSessionResultRequest(BaseModel):
+    sessionId: str
+    message: Dict[str, Any]
+
+@app.post("/native/session/register")
+async def native_session_register(req: NativeSessionRegisterRequest):
+    session_id = native_session_manager.register_session()
+    return ok("native-session-register", {"sessionId": session_id})
+
+@app.get("/native/session/pull")
+async def native_session_pull(sessionId: str = Query(...), timeoutSeconds: int = Query(25)):
+    cmd = await native_session_manager.pull_command(sessionId, timeout_seconds=timeoutSeconds)
+    return ok("native-session-pull", {"command": cmd})
+
+@app.post("/native/session/result")
+async def native_session_result(req: NativeSessionResultRequest):
+    msg = req.message
+    if msg.get("type") == "report":
+        native_session_manager.store_report(req.sessionId, msg.get("payload", {}))
+    elif "id" in msg:
+        native_session_manager.store_result(msg["id"], msg)
+    return ok("native-session-result", {"stored": True})
+
+@app.post("/native/debug/ping")
+async def native_debug_ping():
+    sid = native_session_manager.get_active_session()
+    if not sid:
+        return fail("native-debug-ping", "no_active_session", "No native session connected")
+    result = await native_session_manager.send_command(sid, "ping", timeout_seconds=10)
+    return ok("native-debug-ping", result.get("data", {}))
+
+@app.post("/native/debug/tabs")
+async def native_debug_tabs():
+    sid = native_session_manager.get_active_session()
+    if not sid:
+        return fail("native-debug-tabs", "no_active_session", "No native session connected")
+    result = await native_session_manager.send_command(sid, "tabs.list", timeout_seconds=10)
+    return ok("native-debug-tabs", result.get("data", {}))
 
 @app.get("/debug/extension-match")
 def debug_extension_match(
