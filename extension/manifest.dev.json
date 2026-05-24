@@ -1,0 +1,101 @@
+{
+  "manifest_version": 3,
+  "name": "Browser Bridge Extension",
+  "version": "1.0.0",
+  "description": "Bridge between AI agent and browser",
+  "permissions": [
+    "activeTab",
+    "tabs",
+    "scripting",
+    "storage",
+    "alarms",
+    "debugger",
+    "nativeMessaging"
+  ],
+  "host_permissions": [
+    "<all_urls>",
+    "http://127.0.0.1:17777/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://weibo.com/*", "*://*.weibo.com/*", "*://m.weibo.cn/*", "*://mapp.api.weibo.cn/*"],
+      "js": ["adapters/weibo-adapter.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["*://*.xiaohongshu.com/*"],
+      "js": ["adapters/xiaohongshu-adapter.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["*://*.x.com/*", "*://*.twitter.com/*"],
+      "js": ["adapters/x-adapter.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "*://*.zhihu.com/*",
+        "*://*.bilibili.com/*",
+        "*://b23.tv/*",
+        "*://*.douyin.com/*",
+        "*://*.iesdouyin.com/*",
+        "*://*.reddit.com/*",
+        "*://youtube.com/*",
+        "*://*.youtube.com/*",
+        "*://youtu.be/*",
+        "*://mp.weixin.qq.com/*",
+        "*://weixin.sogou.com/*",
+        "*://douban.com/*",
+        "*://*.douban.com/*",
+        "*://news.ycombinator.com/*",
+        "*://hn.algolia.com/*",
+        "*://instagram.com/*",
+        "*://*.instagram.com/*",
+        "*://xueqiu.com/*",
+        "*://*.xueqiu.com/*",
+        "*://eastmoney.com/*",
+        "*://*.eastmoney.com/*",
+        "*://eastmoney.cn/*",
+        "*://*.eastmoney.cn/*",
+        "*://*.1688.com/*",
+        "*://*.36kr.com/*",
+        "*://tieba.baidu.com/*",
+        "*://*.aibase.com/*",
+        "*://*.bloomberg.com/*",
+        "*://*.dianping.com/*",
+        "*://*.google.com/*",
+        "*://*.gov.cn/*",
+        "*://grok.com/*",
+        "*://*.grok.com/*",
+        "*://*.x.ai/*",
+        "*://*.hupu.com/*",
+        "*://*.imdb.com/*",
+        "*://*.jd.com/*",
+        "*://*.360buy.com/*",
+        "*://linux.do/*",
+        "*://*.linux.do/*",
+        "*://*.v2ex.com/*",
+        "*://*.smzdm.com/*",
+        "*://*.taobao.com/*",
+        "*://*.tmall.com/*",
+        "*://*.wikipedia.org/*",
+        "*://*.goofish.com/*",
+        "*://*.xianyu.taobao.com/*"
+      ],
+      "js": ["adapters/media-adapters.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Browser Bridge"
+  }
+}

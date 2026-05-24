@@ -14,6 +14,11 @@ if [[ -f "$ROOT_DIR/.env.local" ]]; then
   HOST_EXTENSION_DIR="${BB_HOST_EXTENSION_DIR:-}"
 fi
 
+if [[ -f "$ROOT_DIR/extension/manifest.dev.json" ]]; then
+  echo "Generating manifest.json from manifest.dev.json..."
+  cp "$ROOT_DIR/extension/manifest.dev.json" "$ROOT_DIR/extension/manifest.json"
+fi
+
 if [[ -n "$HOST_EXTENSION_DIR" ]]; then
   if [[ -n "$HOST_SSH" ]]; then
     ssh "$HOST_SSH" "mkdir -p '$HOST_EXTENSION_DIR'"

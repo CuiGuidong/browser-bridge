@@ -1,9 +1,14 @@
-from fastapi import FastAPI, Query, HTTPException
+from fastapi import FastAPI, Query, HTTPException, Response, Request, Header
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
 from urllib.parse import urlparse
 import time
 import uvicorn
+import os
+
+from .upload_tokens import get_upload_token, remove_upload_token
+
 
 from .application.action_service import ActionService
 from .application.login_service import LoginService
@@ -55,7 +60,7 @@ app = FastAPI(title="Browser Bridge API", version="1.0.0")
 notification_service = NotificationService()
 native_session_manager = NativeSessionManager()
 site_registry = SiteRegistry()
-browser_runtime = CdpRuntime(native_session_manager=native_session_manager)
+browser_runtime = CdpRuntime(native_session_manager=native_session_manager, site_registry=site_registry)
 extension_runtime = ExtensionRuntime(native_session_manager=native_session_manager, site_registry=site_registry)
 site_registry.register("weibo", WeiboSite())
 site_registry.register("x", XSite())
@@ -755,6 +760,81 @@ def dev_reload_extension(req: DevReloadExtensionRequest):
         })
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.api_route("/dev/file/get", methods=["GET", "OPTIONS"])
+def dev_file_get(
+    request: Request,
+    response: Response,
+    id: Optional[str] = Query(None),
+    x_browser_bridge_tab_id: Optional[str] = Header(None, alias="X-Browser-Bridge-Tab-Id"),
+    x_browser_bridge_session_id: Optional[str] = Header(None, alias="X-Browser-Bridge-Session-Id"),
+):
+    # Set CORS headers
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "X-Browser-Bridge-Tab-Id, X-Browser-Bridge-Session-Id"
+    response.headers["Cache-Control"] = "no-store"
+
+    if request.method == "OPTIONS":
+        return Response(status_code=200)
+
+    # 1. Check IP restriction (must be 127.0.0.1 or localhost loopback)
+    client_host = request.client.host if request.client else None
+    if client_host not in ("127.0.0.1", "localhost", "::1"):
+        raise HTTPException(status_code=403, detail="Forbidden: local loopback only")
+
+    if not id:
+        raise HTTPException(status_code=400, detail="Missing id parameter")
+
+    # 2. Get upload token (Read-only validation first)
+    token = get_upload_token(id)
+    if not token:
+        raise HTTPException(status_code=404, detail="Invalid or expired token")
+
+    # 3. Check 30 seconds TTL
+    if time.time() - token["created_at"] > 30.0:
+        remove_upload_token(id)
+        raise HTTPException(status_code=410, detail="Token expired")
+
+    # 4. Check Tab ID matching
+    tab_id_bound = token["tab_id"]
+    if str(tab_id_bound) != str(x_browser_bridge_tab_id):
+        raise HTTPException(status_code=403, detail="Forbidden: Tab ID mismatch")
+
+    # 5. Check Session ID matching
+    session_id_bound = token["session_id"]
+    if str(session_id_bound) != str(x_browser_bridge_session_id):
+        raise HTTPException(status_code=403, detail="Forbidden: Session ID mismatch")
+
+    # 6. Check Origin header matches expected_origin
+    origin = request.headers.get("Origin") or ""
+    expected_origin = token["expected_origin"]
+    if origin.rstrip("/") != expected_origin.rstrip("/"):
+        raise HTTPException(status_code=403, detail="Forbidden: Origin mismatch")
+
+    # 7. Check file existence and safety rules (e.g. max size 50MB)
+    file_path = token["path"]
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="File not found")
+
+    try:
+        size = os.path.getsize(file_path)
+    except Exception:
+        raise HTTPException(status_code=500, detail="Unable to read file size")
+
+    if size > 50 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="File too large (max 50MB)")
+
+    # 8. Check-before-consume atomicity:
+    # Just before returning the file, destroy the token physically to prevent reuse.
+    remove_upload_token(id)
+
+    return FileResponse(
+        path=file_path,
+        media_type=token.get("mime") or "application/octet-stream",
+        filename=os.path.basename(file_path),
+    )
 
 
 # === Playwright routes (Path C: complex page operations) ===

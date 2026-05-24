@@ -287,6 +287,25 @@ Telegram 已可用；微信先按企业微信/兼容 webhook 预留。
 - 如果 workflow 返回的 `targetId` 为 `null`，通常表示临时页已在 workflow 内关闭
 - 如果传入 `targetId`，表示“指定执行容器”，不表示保持当前页原样不动
 
+## 开发辅助与安全控制 API
+
+| 端点 | 功能 |
+|------|------|
+| `POST /dev/reload-extension` | 开发期自动同步并热重载浏览器扩展 |
+| `GET /dev/file/get` | 本地文件极速直拉端点，用于上传等大文件分片内存直注 |
+
+### 本地大文件流式直拉接口 `/dev/file/get`
+
+为了彻底停用 Edge/Chrome 调试横幅警告且不受 Native Messaging 1MB 通道大小限制，本系统设计了基于内容脚本直连 Local Daemon 的文件直拉机制：
+- **CORS 预检**：支持 OPTIONS 预检，并接受 `X-Browser-Bridge-Tab-Id` 与 `X-Browser-Bridge-Session-Id` 自定义请求头。
+- **安全检查**：
+  1. 物理来源限制：仅支持 `127.0.0.1` / `localhost` 本地回环接口访问。
+  2. 令牌强校验：每次上传下发，后端临时生成 30秒 TTL 的 fileId (Token)。
+  3. 四维绑定：严格校验 Tab ID、Session ID、和预期页面 Origin。
+  4. 极速消费：采用“先校验、后消费”的原子销毁机制，即将返回数据流时立即物理销毁 Token。
+
+---
+
 ## 什么时候不该直接看这份文档
 
 - 想判断“是代码问题还是宿主环境问题”：读 [development.md](development.md)

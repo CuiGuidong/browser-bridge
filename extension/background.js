@@ -90,6 +90,65 @@ async function handleNativeCommand(msg) {
     } else if (method === 'tabs.close') {
       await chrome.tabs.remove(params.tabId);
       result = { closed: true };
+    } else if (method === 'tab.navigate') {
+      const tab = await chrome.tabs.update(params.tabId, { url: params.url });
+      result = { tab: normalizeTab(tab) };
+    } else if (method === 'tab.reload') {
+      await chrome.tabs.reload(params.tabId, { bypassCache: params.ignoreCache !== false });
+      result = { reloaded: true };
+    } else if (method === 'tab.evaluate') {
+      const execResults = await chrome.scripting.executeScript({
+        target: { tabId: params.tabId },
+        func: (expr) => {
+          try {
+            return { ok: true, value: window.eval(expr) };
+          } catch (e) {
+            return { ok: false, error: e.message || String(e) };
+          }
+        },
+        args: [params.expression],
+        world: 'MAIN'
+      });
+      if (execResults && execResults[0]) {
+        const res = execResults[0].result;
+        if (res && res.ok) {
+          result = { result: { value: res.value } };
+        } else {
+          throw new Error(res ? res.error : "Failed to execute script");
+        }
+      } else {
+        throw new Error("No execution result returned");
+      }
+    } else if (method === 'tab.screenshot') {
+      const tab = await chrome.tabs.get(params.tabId);
+      const windowId = tab.windowId;
+      const activeTabs = await chrome.tabs.query({ windowId: windowId, active: true });
+      const originalActiveTabId = activeTabs && activeTabs[0] ? activeTabs[0].id : null;
+      let wasSwitched = false;
+      if (originalActiveTabId !== params.tabId) {
+        await chrome.tabs.update(params.tabId, { active: true });
+        wasSwitched = true;
+        await new Promise((resolve) => setTimeout(resolve, 300));
+      }
+      try {
+        const dataUrl = await chrome.tabs.captureVisibleTab(windowId, { format: params.format || 'png' });
+        const base64Data = dataUrl.split(',')[1];
+        result = { data: base64Data };
+      } finally {
+        if (wasSwitched && originalActiveTabId !== null) {
+          await chrome.tabs.update(originalActiveTabId, { active: true });
+        }
+      }
+    } else if (method === 'tab.uploadFile') {
+      result = await new Promise((resolve) => {
+        chrome.tabs.sendMessage(params.tabId, { action: 'domFileUpload', payload: params }, (response) => {
+          if (chrome.runtime.lastError) {
+            resolve({ ok: false, error: chrome.runtime.lastError.message });
+          } else {
+            resolve(response || { ok: false, error: 'No response from content script' });
+          }
+        });
+      });
     } else if (method.startsWith('debugger.')) {
       result = await handleDebuggerCommand(method, params);
     } else if (method === 'semantic.invoke') {

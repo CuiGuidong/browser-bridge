@@ -381,3 +381,25 @@ tasks:
       - Site semantics remain in extension adapter DOM logic
       - Private or reverse-engineered site APIs are not used
       - Required tests, compile checks, extension syntax checks, and real browser smoke checks pass
+
+  - id: BBH020
+    title: Implement No-Debugger and Debugger Fallback Double Mode Architecture
+    status: done
+    priority: high
+    files:
+      - bridge/app/config.py
+      - bridge/app/sites/registry.py
+      - bridge/app/browser/cdp_runtime.py
+      - bridge/app/native_browser_runtime.py
+      - bridge/app/server.py
+      - bridge/app/upload_tokens.py
+      - extension/background.js
+      - extension/content.js
+      - scripts/dev_reload_extension.sh
+      - .gitignore
+    acceptance:
+      - Double-mode default is normal (no-debugger) and respects DEVELOPMENT_MODE loaded from .env.local in config.py
+      - Allowed hosts match dot-boundary safely (resisting evilweibo.com)
+      - Upload is stream-based through upload_tokens avoiding Circular imports
+      - No-debugger mode successfully passes Weibo read_post and Xiaohongshu upload baseline smoke tests 100% without header warning banner.
+

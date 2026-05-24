@@ -4,13 +4,14 @@ from ..native_browser_runtime import NativeBrowserRuntime
 class CdpRuntime:
     """Browser runtime facade. Delegates all operations to NativeBrowserRuntime."""
 
-    def __init__(self, native_session_manager=None):
+    def __init__(self, native_session_manager=None, site_registry=None):
         self._native_sm = native_session_manager
+        self._site_registry = site_registry
         self._native_runtime = None
 
     def _get_native_runtime(self):
         if self._native_runtime is None:
-            self._native_runtime = NativeBrowserRuntime(self._native_sm)
+            self._native_runtime = NativeBrowserRuntime(self._native_sm, site_registry=self._site_registry)
         return self._native_runtime
 
     def get_version(self):

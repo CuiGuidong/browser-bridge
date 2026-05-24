@@ -5,12 +5,61 @@ through the Native Session Manager to the browser extension via Native Messaging
 """
 import time
 from urllib.parse import urlparse
+from fastapi import HTTPException
+from . import config
 
 
 class NativeBrowserRuntime:
-    def __init__(self, session_manager):
+    def __init__(self, session_manager, site_registry=None):
         self._sm = session_manager
         self._tab_limit = 30
+        self._site_registry = site_registry
+
+    def _assert_host_allowed(self, target_id):
+        # 1. Check development mode exemption
+        if config.DEVELOPMENT_MODE:
+            return
+
+        # 2. Check registry availability
+        if not self._site_registry:
+            return
+
+        # 3. Resolve native tab ID
+        native_tab_id = self._resolve_native_tab_id(target_id)
+        if native_tab_id is None:
+            return
+
+        # 4. Fetch tab info to retrieve url
+        tab_info = self._find_tab_by_id(native_tab_id)
+        if not tab_info:
+            return
+
+        url = tab_info.get("url") or ""
+        if not url:
+            return
+
+        try:
+            parsed = urlparse(url)
+            hostname = parsed.hostname
+            if not hostname:
+                return
+        except Exception:
+            return
+
+        # 5. Check against registered allowed hosts
+        is_allowed = False
+        allowed_hosts = self._site_registry.get_allowed_hosts()
+        for allowed_host in allowed_hosts:
+            if hostname == allowed_host or hostname.endswith("." + allowed_host):
+                is_allowed = True
+                break
+
+        if not is_allowed:
+            raise HTTPException(
+                status_code=403,
+                detail="security_violation: Host is not in the registered site allowlist"
+            )
+
 
     def _sid(self):
         return self._sm.get_active_session()
@@ -100,8 +149,7 @@ class NativeBrowserRuntime:
             return None
         tab_id = candidate.get("nativeTabId")
         self._cmd("tabs.activate", {"tabId": tab_id})
-        self._cmd("debugger.send", {"tabId": tab_id, "command": "Page.enable", "params_": {}})
-        self._cmd("debugger.send", {"tabId": tab_id, "command": "Page.navigate", "params_": {"url": url}})
+        self._cmd("tab.navigate", {"tabId": tab_id, "url": url})
         self._wait_for_page_load(tab_id, timeout_seconds=15)
         updated = self._find_tab_by_id(tab_id) or candidate
         updated["reused"] = True
@@ -120,9 +168,8 @@ class NativeBrowserRuntime:
         tab_id = self._resolve_native_tab_id(target_id)
         if tab_id is None:
             return None
-        # Enable Page events and navigate
-        self._cmd("debugger.send", {"tabId": tab_id, "command": "Page.enable", "params_": {}})
-        self._cmd("debugger.send", {"tabId": tab_id, "command": "Page.navigate", "params_": {"url": url}})
+        # Navigate using high level tab.navigate command
+        self._cmd("tab.navigate", {"tabId": tab_id, "url": url})
         self._cmd("tabs.activate", {"tabId": tab_id})
         # Wait for page load to complete
         self._wait_for_page_load(tab_id, timeout_seconds=15)
@@ -136,10 +183,9 @@ class NativeBrowserRuntime:
         """Poll until page readyState is 'complete'."""
         start = time.time()
         while time.time() - start < timeout_seconds:
-            result = self._cmd("debugger.send", {
+            result = self._cmd("tab.evaluate", {
                 "tabId": tab_id,
-                "command": "Runtime.evaluate",
-                "params_": {"expression": "document.readyState", "returnByValue": True},
+                "expression": "document.readyState",
             }, timeout=5)
             state = ((result.get("data") or {}).get("result") or {}).get("value")
             if state == "complete":
@@ -152,7 +198,7 @@ class NativeBrowserRuntime:
         if tab_id is None:
             return None
         tab = self._find_tab_by_id(tab_id)
-        result = self._cmd("debugger.send", {"tabId": tab_id, "command": "Page.reload", "params_": {"ignoreCache": True}})
+        result = self._cmd("tab.reload", {"tabId": tab_id, "ignoreCache": True})
         if not result.get("ok"):
             return {"targetId": str(tab_id), "url": tab.get("url") if tab else None, "reloaded": False, "error": str(result.get("error"))}
         return {"targetId": str(tab_id), "url": tab.get("url") if tab else None, "reloaded": True}
@@ -212,6 +258,7 @@ class NativeBrowserRuntime:
         return tabs[0] if tabs else None
 
     def get_page_content(self, target_id=None, max_chars=40000):
+        self._assert_host_allowed(target_id)
         tab_id = self._resolve_native_tab_id(target_id)
         if tab_id is None:
             return None
@@ -231,7 +278,7 @@ return text + (root.nodeType === Node.ELEMENT_NODE ? "\\n" : "");
 const raw = extractText(document);
 return raw.trim().slice(0, {int(max_chars)});
 }})()'''
-        result = self._cmd("debugger.send", {"tabId": tab_id, "command": "Runtime.evaluate", "params_": {"expression": expression, "returnByValue": True}})
+        result = self._cmd("tab.evaluate", {"tabId": tab_id, "expression": expression})
         value = ((result.get("data") or {}).get("result") or {}).get("value")
         return {
             "targetId": str(tab_id),
@@ -241,12 +288,12 @@ return raw.trim().slice(0, {int(max_chars)});
         }
 
     def capture_screenshot(self, target_id=None, fmt="png"):
+        self._assert_host_allowed(target_id)
         tab_id = self._resolve_native_tab_id(target_id)
         if tab_id is None:
             return None
         tab = self._find_tab_by_id(tab_id)
-        self._cmd("debugger.send", {"tabId": tab_id, "command": "Page.enable", "params_": {}})
-        result = self._cmd("debugger.send", {"tabId": tab_id, "command": "Page.captureScreenshot", "params_": {"format": fmt}})
+        result = self._cmd("tab.screenshot", {"tabId": tab_id, "format": fmt})
         data = (result.get("data") or {}).get("data", "")
         return {
             "targetId": str(tab_id),
@@ -257,6 +304,7 @@ return raw.trim().slice(0, {int(max_chars)});
         }
 
     def query_elements(self, selector, target_id=None, limit=20):
+        self._assert_host_allowed(target_id)
         tab_id = self._resolve_native_tab_id(target_id)
         if tab_id is None:
             return None
@@ -270,7 +318,7 @@ return raw.trim().slice(0, {int(max_chars)});
     href: el.href || "", value: ('value' in el ? el.value || "" : "")
   }}));
 }})()'''
-        result = self._cmd("debugger.send", {"tabId": tab_id, "command": "Runtime.evaluate", "params_": {"expression": expression, "returnByValue": True}})
+        result = self._cmd("tab.evaluate", {"tabId": tab_id, "expression": expression})
         value = ((result.get("data") or {}).get("result") or {}).get("value") or []
         return {
             "targetId": str(tab_id),
@@ -281,6 +329,7 @@ return raw.trim().slice(0, {int(max_chars)});
         }
 
     def probe_page_readiness(self, target_id=None, timeout_seconds=15, interval_seconds=1, selector=None):
+        self._assert_host_allowed(target_id)
         tab_id = self._resolve_native_tab_id(target_id)
         if tab_id is None:
             return None
@@ -333,7 +382,7 @@ return raw.trim().slice(0, {int(max_chars)});
     {selector_check}
   }};
 }})()'''
-        result = self._cmd("debugger.send", {"tabId": tab_id, "command": "Runtime.evaluate", "params_": {"expression": expression, "returnByValue": True}}, timeout=10)
+        result = self._cmd("tab.evaluate", {"tabId": tab_id, "expression": expression}, timeout=10)
         probe = (result.get("data") or {}).get("result") or {}
         value = probe.get("value") or {}
         value["ready"] = (
@@ -345,13 +394,15 @@ return raw.trim().slice(0, {int(max_chars)});
         return value
 
     def execute_js(self, expression, target_id=None):
+        self._assert_host_allowed(target_id)
         tab_id = self._resolve_native_tab_id(target_id)
         if tab_id is None:
             return None
-        result = self._cmd("debugger.send", {"tabId": tab_id, "command": "Runtime.evaluate", "params_": {"expression": expression, "returnByValue": True}})
+        result = self._cmd("tab.evaluate", {"tabId": tab_id, "expression": expression})
         return ((result.get("data") or {}).get("result") or {}).get("value")
 
     def set_file_input_files_by_selector(self, target_id, selector, files):
+        self._assert_host_allowed(target_id)
         tab_id = self._resolve_native_tab_id(target_id)
         if tab_id is None:
             return None
@@ -362,47 +413,86 @@ return raw.trim().slice(0, {int(max_chars)});
         if not normalized_files:
             raise ValueError("files is required")
 
-        # Step 1-2: Enable Page and DOM
-        self._cmd("debugger.send", {"tabId": tab_id, "command": "Page.enable", "params_": {}})
-        self._cmd("debugger.send", {"tabId": tab_id, "command": "DOM.enable", "params_": {}})
+        url = tab.get("url") if tab else ""
+        if not url:
+            url = "https://weibo.com/"
+        
+        try:
+            parsed = urlparse(url)
+            expected_origin = f"{parsed.scheme}://{parsed.netloc}"
+        except Exception:
+            expected_origin = "https://weibo.com"
 
-        # Step 3: Get document root
-        doc_result = self._cmd("debugger.send", {"tabId": tab_id, "command": "DOM.getDocument", "params_": {"depth": 1, "pierce": True}})
-        root_node_id = ((doc_result.get("data") or {}).get("root") or {}).get("nodeId")
-        if not root_node_id:
-            return {"ok": False, "targetId": str(tab_id), "selector": selector, "error": "DOM.getDocument failed"}
+        session_id = self._sid()
+        if not session_id:
+            return {"ok": False, "error": "No active session"}
 
-        # Step 4: Query selector
-        query_result = self._cmd("debugger.send", {"tabId": tab_id, "command": "DOM.querySelector", "params_": {"nodeId": root_node_id, "selector": selector}})
-        node_id = (query_result.get("data") or {}).get("nodeId")
-        if not node_id:
-            return {"ok": False, "targetId": str(tab_id), "title": tab.get("title") if tab else None, "url": tab.get("url") if tab else None, "selector": selector, "files": normalized_files, "error": "file input not found"}
+        from .upload_tokens import issue_upload_token
+        import mimetypes
+        import os
 
-        # Step 5: Set files
-        self._cmd("debugger.send", {"tabId": tab_id, "command": "DOM.setFileInputFiles", "params_": {"nodeId": node_id, "files": normalized_files}})
+        file_ids = []
+        for file_path in normalized_files:
+            if not os.path.exists(file_path):
+                raise FileNotFoundError(f"File not found: {file_path}")
+            size = os.path.getsize(file_path)
+            mime, _ = mimetypes.guess_type(file_path)
+            mime = mime or "application/octet-stream"
+            
+            file_id = issue_upload_token(
+                path=file_path,
+                size=size,
+                mime=mime,
+                session_id=session_id,
+                tab_id=tab_id,
+                expected_origin=expected_origin
+            )
+            file_ids.append(file_id)
 
-        # Step 6: Resolve node to objectId
-        resolve_result = self._cmd("debugger.send", {"tabId": tab_id, "command": "DOM.resolveNode", "params_": {"nodeId": node_id}})
-        object_id = (((resolve_result.get("data") or {}).get("object")) or {}).get("objectId")
+        files_payload = []
+        for fpath, fid in zip(normalized_files, file_ids):
+            files_payload.append({
+                "name": os.path.basename(fpath),
+                "fileId": fid
+            })
 
-        # Step 7: Dispatch events
-        if object_id:
-            self._cmd("debugger.send", {"tabId": tab_id, "command": "Runtime.callFunctionOn", "params_": {
-                "objectId": object_id,
-                "functionDeclaration": """function() {
-                    this.dispatchEvent(new Event('input', { bubbles: true }));
-                    this.dispatchEvent(new Event('change', { bubbles: true }));
-                    return { fileCount: this.files ? this.files.length : 0, firstFileName: this.files && this.files[0] ? this.files[0].name : null };
-                }""",
-                "returnByValue": True,
-            }})
+        result = self._cmd("tab.uploadFile", {
+            "tabId": tab_id,
+            "sessionId": session_id,
+            "selector": selector,
+            "files": files_payload
+        })
+
+        if not result.get("ok"):
+            return {
+                "ok": False,
+                "targetId": str(tab_id),
+                "title": tab.get("title") if tab else None,
+                "url": url,
+                "selector": selector,
+                "files": normalized_files,
+                "error": str((result.get("error") or {}).get("message") or result.get("error"))
+            }
+
+        upload_res = result.get("data") or {}
+        if not upload_res.get("ok"):
+            return {
+                "ok": False,
+                "targetId": str(tab_id),
+                "title": tab.get("title") if tab else None,
+                "url": url,
+                "selector": selector,
+                "files": normalized_files,
+                "error": upload_res.get("error") or "Upload injection failed"
+            }
 
         return {
             "ok": True,
             "targetId": str(tab_id),
             "title": tab.get("title") if tab else None,
-            "url": tab.get("url") if tab else None,
+            "url": url,
             "selector": selector,
-            "nodeId": node_id,
             "files": normalized_files,
+            "fileCount": upload_res.get("fileCount"),
+            "firstFileName": upload_res.get("firstFileName")
         }

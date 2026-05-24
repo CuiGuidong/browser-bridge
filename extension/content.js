@@ -378,6 +378,46 @@ window.addEventListener('message', (event) => {
   }
 });
 
+async function handleDomFileUpload(payload) {
+  const { selector, files, sessionId, tabId } = payload;
+  try {
+    const input = document.querySelector(selector);
+    if (!input) {
+      return { ok: false, error: `file input not found: ${selector}` };
+    }
+
+    const dt = new DataTransfer();
+    for (const fileInfo of files) {
+      const { name, fileId } = fileInfo;
+      const fetchUrl = `http://127.0.0.1:17777/dev/file/get?id=${encodeURIComponent(fileId)}`;
+      const response = await fetch(fetchUrl, {
+        headers: {
+          "X-Browser-Bridge-Tab-Id": String(tabId),
+          "X-Browser-Bridge-Session-Id": String(sessionId)
+        }
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to fetch file from bridge, status: ${response.status}`);
+      }
+      const blob = await response.blob();
+      const file = new File([blob], name, { type: blob.type });
+      dt.items.add(file);
+    }
+
+    input.files = dt.files;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+
+    return {
+      ok: true,
+      fileCount: input.files ? input.files.length : 0,
+      firstFileName: input.files && input.files[0] ? input.files[0].name : null
+    };
+  } catch (error) {
+    return { ok: false, error: error.message || String(error) };
+  }
+}
+
 chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
   if (request.action === 'bridgeRpc') {
     handleBridgeRpc(request.payload).then(sendResponse);
@@ -387,6 +427,10 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
     reportSnapshot('reconnect');
     sendResponse({ ok: true });
     return false;
+  }
+  if (request.action === 'domFileUpload') {
+    handleDomFileUpload(request.payload).then(sendResponse);
+    return true;
   }
 });
 

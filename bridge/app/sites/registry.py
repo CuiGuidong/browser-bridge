@@ -16,3 +16,12 @@ class SiteRegistry:
             site_id: site_module.capabilities()
             for site_id, site_module in sorted(self._sites.items())
         }
+
+    def get_allowed_hosts(self) -> list[str]:
+        hosts = set()
+        for site_module in self._sites.values():
+            if hasattr(site_module, "hosts") and site_module.hosts:
+                for host in site_module.hosts:
+                    hosts.add(host)
+        return sorted(list(hosts))
+
