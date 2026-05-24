@@ -1,4 +1,9 @@
-# Native Messaging Host 迁移实施计划（历史计划）
+# Native Messaging Host 迁移实施计划 (Historical / Superseded)
+
+> [!IMPORTANT]
+> **历史设计/实施过程产物 (Historical / Superseded)**
+> 本文件是 `feature/native-messaging` 分支在迁移与双模式架构设计过程中的历史 spec/plan，仅用于记录设计背景、讨论线索和历史推演。
+> **它不代表当前项目的最终架构事实**。关于项目的最新及正式事实，请以正式文档 [docs/architecture.md](file:///home/cuiguidong/workspace/personal/projects/Python/browser-bridge-project/docs/architecture.md) 以及实际运行代码为准。
 
 > **⚠️ 本计划已全部执行完毕。正文为历史参考，不代表当前实现细节。**
 

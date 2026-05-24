@@ -197,23 +197,23 @@
 
 必须遵守以下边界：
 
-- `CDP` 只负责浏览器控制和诊断，不承载站点 DOM 语义
+- `Browser Runtime` 只负责浏览器控制和诊断，不承载站点 DOM 语义
 - 站点 DOM 语义只放在 `extension/adapters/<site>-adapter.js`
 - 固定流程放在 `bridge/app/sites/<site>/workflows/`
 - `bridge/app/` 不复制站点 DOM 选择器
 - skill 只做输入归一化、调用 workflow、整理输出
 - skill 不重新接管页面生命周期
 - 外部业务系统只调用 HTTP API
-- 外部业务系统不依赖扩展、tab、CDP 或 adapter 内部细节
+- 外部业务系统不依赖扩展、tab、Browser Runtime 或 adapter 内部细节
 - 新站点优先按 adapter + site module + workflow 扩展
 - 不为单个站点随意新增专属 HTTP endpoint
 - 不把业务系统状态机塞进 `browser-bridge`
 - 不使用站点私有、逆向或未正式公开的 API 替代页面适配；不要模仿站点内部 REST、GraphQL、签名、cookie/header 请求来绕过真实页面
-- 站点读取优先基于真实浏览器页面的 DOM、可见状态和 extension adapter 语义；如确需调用官方公开 API，必须先说明来源、风险和账号安全影响，并取得用户明确同意
+- 站点读取优先基于真实浏览器页面的 DOM、可见状态 and extension adapter 语义；如确需调用官方公开 API，必须先说明来源、风险和账号安全影响，并取得用户明确同意
 
 允许的分层关系：
 
-- CDP：打开页面、复用标签页、导航、截图、基础 JS、诊断
+- Browser Runtime：打开页面、复用标签页、导航、截图、基础 JS、诊断（主路径为 NativeBrowserRuntime，Fallback/诊断时为 CdpRuntime）
 - Extension Adapter：站点匹配、页面类型、ready 探测、读取、动作、校验
 - Workflow：固定步骤、页面生命周期、临时 tab 管理、流程级验证
 - Skill / Agent：开放式判断、业务编排、输入归一化、结果总结
@@ -327,7 +327,7 @@
 
 页面研究、交互探测、发布流程调试时：
 
-- 优先通过现有 Bridge / CDP 主链路控制宿主机真实浏览器
+- 优先通过现有 Bridge / Browser Runtime（默认 Native 模式，诊断时 Fallback CDP）控制宿主机真实浏览器
 - 调试尽量低频、串行
 - 先确认一次导航结果
 - 再逐步追加采样

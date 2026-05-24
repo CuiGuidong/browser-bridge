@@ -5,7 +5,7 @@ project:
 
 architecture:
   browser_control_layer:
-    owner: cdp
+    owner: browser_runtime
     allowed:
       - open_page
       - reuse_tab

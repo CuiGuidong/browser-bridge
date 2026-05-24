@@ -30,7 +30,7 @@ _状态：接口参考_
 | 端点 | 功能 |
 |------|------|
 | `GET /health` | 健康检查 |
-| `GET /version` | 浏览器 / CDP 版本信息 |
+| `GET /version` | 浏览器版本信息（CDP Fallback 时含 CDP 诊断版本） |
 | `GET /tabs` | 列出浏览器 tab |
 | `POST /open` | 打开或复用页面 |
 | `POST /activate` | 激活 tab |

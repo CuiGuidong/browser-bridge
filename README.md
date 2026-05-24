@@ -46,7 +46,7 @@ Skill / Agent
 
 分层职责很简单：
 
-- `CDP`：浏览器控制与诊断
+- `Browser Runtime`：浏览器控制与诊断（默认 Native Messaging，调试时 Cdp）
 - `Extension + Adapter`：站点语义
 - `Bridge + Workflow`：固定流程与页面生命周期
 - `Skill / Agent`：开放式决策与长链推理

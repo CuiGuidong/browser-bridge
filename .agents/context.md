@@ -14,7 +14,7 @@ Skill / Script / Agent / External App
 
 主要目录：
 
-- `bridge/app/`：HTTP API、CDP runtime、workflow 调度、站点注册。
+- `bridge/app/`：HTTP API、Browser Runtime (Native & Cdp)、workflow 调度、站点注册。
 - `extension/`：浏览器扩展、content script、background、站点 adapter。
 - `skills/`：面向 Codex/Agent 的站点 skill 脚本。
 - `docs/`：公开架构、API、站点能力和实现指南。

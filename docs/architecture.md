@@ -48,8 +48,8 @@ Browser Bridge 是一个本地优先的浏览器桥，允许 Agent / skill 通�
 Skill / Script / Agent
   -> Browser Bridge HTTP API
     -> Application Layer
-      -> Browser Runtime (CDP)
-      -> Extension Runtime (RPC + State)
+      -> Browser Runtime (NativeBrowserRuntime / Fallback CDP)
+      -> Extension Runtime (RPC + State / Native Messaging)
       -> Site Registry
       -> Site Adapter
       -> Site Workflow
@@ -57,7 +57,7 @@ Skill / Script / Agent
 
 ### 4.1 核心原则
 
-- `CDP` 只负责浏览器级能力
+- `Browser Runtime` 只负责浏览器级能力（通过 Native Messaging 控制扩展或 Fallback CDP）
 - `Extension + Adapter` 只负责页面内能力和站点语义
 - `Bridge` 只做编排，不直接写站点 DOM 规则
 - `Workflow` 只负责步骤固定、确定性强的任务
@@ -65,30 +65,34 @@ Skill / Script / Agent
 
 ### 4.2 一个必须明确的原则
 
-`CDP` 和 `Extension` 是**协作关系**，不是默认主备关系。
+`Browser Runtime` 和 `Extension` 是**协作关系**，不是默认主备关系。
 
 这句话的含义很重要：
 
-- 不能把 `CDP` 定义成“站点语义 fallback”
-- 不能要求“扩展做一份 X 逻辑，CDP 再做一份 X 逻辑兜底”
+- 不能把 `Browser Runtime` 定义成“站点语义 fallback”
+- 不能要求“扩展做一份 X 逻辑，底层控制层再做一份 X 逻辑兜底”
 - 不能在架构上默认所有站点能力都要“双实现”
 
 更合理的原则是：
 
-- 浏览器控制能力天然属于 `CDP`
+- 浏览器控制能力天然属于 `Browser Runtime`
 - 站点语义能力天然属于 `Extension + Adapter`
-- 如果未来某一项页面能力用 `CDP` 更简单，那就**直接把该能力定义在 `CDP` 侧**
-- 但这不叫 fallback，而是这项能力本来就属于 `CDP`
+- 如果未来某一项页面能力用 `Browser Runtime` 更简单，那就**直接把该能力定义在 `Browser Runtime` 侧**
+- 但这不叫 fallback，而是这项能力本来就属于 `Browser Runtime`
 
 换句话说：
 
-- `CDP` 负责浏览器控制与诊断
+- `Browser Runtime` 负责浏览器控制与诊断（主路径为 Native Messaging，开发调试/Fallback 时为 CDP）
 - `Extension` 负责站点语义
-- 不是“扩展失败了就让 CDP 模拟一遍整个站点语义”
+- 不是“扩展失败了就让控制层模拟一遍整个站点语义”
 
 ## 5. 分层职责
 
-### 5.1 Browser Runtime（CDP）
+### 5.1 Browser Runtime
+
+`Browser Runtime` 包含两种模式：
+1. **Native 模式 (NativeBrowserRuntime)**：默认主路径。通过 Native Messaging 协议向后台扩展（`background.js`）发送高层高特权指令（如 `tab.navigate`、`tab.evaluate`、`tab.screenshot`），借助 Extension MV3 API 避开调试横幅完成页面控制和安全脚本执行。
+2. **CDP 模式 (CdpRuntime)**：调试/Fallback 备用路径。在 `DEVELOPMENT_MODE` 开发配置或主动启用 fallback 时，通过 CDP 控制通道对浏览器进行底层指令下发。
 
 职责：
 
@@ -523,7 +527,7 @@ X：
 
 1. 这个能力是浏览器控制，还是站点语义？
 2. 这个能力是原子能力，还是开放式任务？
-3. 这项能力更适合放扩展，还是更适合直接放 CDP？
+3. 这项能力更适合放扩展，还是更适合直接放 Browser Runtime？
 
 对应规则：
 
@@ -675,9 +679,9 @@ extension/adapters/
 - 先把原子能力做稳
 - 先把“页面前置条件”定义清楚，再做状态变更动作
 
-### 9.6 什么时候直接用 CDP
+### 9.6 什么时候直接用 Browser Runtime
 
-如果某项能力满足以下条件，可以直接定义在 `CDP` 侧：
+如果某项能力满足以下条件，可以直接通过 `Browser Runtime` 侧实现（基于 NativeBrowserRuntime / CdpRuntime 接口）：
 
 - 完全是浏览器控制问题
 - 不依赖复杂 DOM 语义
@@ -744,9 +748,9 @@ extension/adapters/
 
 ## 12. 最终判断
 
-对本项目来说，最佳实践不是继续堆 selector API，也不是让 `CDP` 重复实现站点语义，而是：
+对本项目来说，最佳实践不是继续堆 selector API，也不是让 `Browser Runtime` 重复实现站点语义，而是：
 
-- 用 `CDP` 管浏览器
+- 用 `Browser Runtime` 管浏览器
 - 用 `Extension + Adapter` 管站点语义
 - 用 `Bridge` 管编排
 - 用 `Workflow` 管固定流程
