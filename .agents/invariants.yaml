@@ -89,7 +89,7 @@ required_local_operations:
 
 quality_gates:
   python_compile:
-    command: "env PYTHONPYCACHEPREFIX=/tmp/browser-bridge-pycache python3 -m py_compile bridge/app/server.py bridge/app/cdp_service.py bridge/app/browser/cdp_runtime.py"
+    command: "env PYTHONPYCACHEPREFIX=/tmp/browser-bridge-pycache python3 -m py_compile bridge/app/server.py bridge/app/native_host_shim.py bridge/app/native_session_manager.py bridge/app/sites/registry.py bridge/app/native_browser_runtime.py"
   health:
     command: "curl --noproxy '*' -sS http://127.0.0.1:17777/health"
   baseline:

@@ -164,6 +164,7 @@ Telegram 已可用；微信先按企业微信/兼容 webhook 预留。
 | `POST /native/session/register` | Native host shim 注册 session |
 | `GET /native/session/pull` | Native host shim 长轮询命令 |
 | `POST /native/session/result` | Native host shim 回传结果/报告 |
+| `POST /native/session/unregister` | Native host shim 注销 session |
 
 ## Playwright API
 
