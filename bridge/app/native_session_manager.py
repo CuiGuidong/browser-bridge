@@ -70,7 +70,7 @@ class NativeSessionManager:
         """Long-pull: wait for next command from the queue. Thread-safe blocking."""
         with self._lock:
             if session_id not in self._sessions:
-                return None
+                return {"_error": "session_not_found"}
             self._sessions[session_id]["last_pull"] = time.time()
 
         deadline = time.time() + timeout_seconds
@@ -78,12 +78,12 @@ class NativeSessionManager:
             with self._lock:
                 q = self._command_queues.get(session_id)
                 if q is None:
-                    return None
+                    return {"_error": "session_not_found"}
                 if q:
                     return q.pop(0)
-            time.sleep(0.1)  # Poll interval
+            time.sleep(0.1)
 
-        return None  # Timeout
+        return None  # Normal timeout, no commands available
 
     def store_result(self, command_id, result):
         """Store result from shim. Wakes up the waiting send_command caller."""

@@ -23,9 +23,10 @@ class ActionService:
 
     def health(self):
         version = self.browser_runtime.get_version()
+        native_session = self.extension_runtime._native_sm.get_active_session() if self.extension_runtime._native_sm else None
         return {
             "bridge": "alive",
-            "cdp": "connected",
+            "nativeSession": "connected" if native_session else "disconnected",
             "browser": version.get("Browser"),
             "protocolVersion": version.get("Protocol-Version"),
         }

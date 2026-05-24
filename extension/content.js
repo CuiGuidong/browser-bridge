@@ -337,58 +337,6 @@ function reportSnapshot(kind = 'page-state') {
 }
 
 let observer = null;
-let bridgeRpcPollStarted = false;
-let bridgeRpcInFlight = false;
-
-async function pollBridgeCommandOnce() {
-  if (bridgeRpcInFlight) return;
-  bridgeRpcInFlight = true;
-  try {
-    const response = await chrome.runtime.sendMessage({
-      action: 'bridgePullOnce',
-      pageUrl: location.href,
-    });
-    const command = response?.command;
-    if (!command) return;
-    if (command.method === 'dev_reload_extension') {
-      await chrome.runtime.sendMessage({
-        action: 'bridgeSubmitResult',
-        commandId: command.id,
-        result: {
-          ok: true,
-          source: 'extension-rpc',
-          method: command.method,
-          reloading: true,
-        },
-      });
-      await chrome.runtime.sendMessage({ action: 'reloadExtension' });
-      return;
-    }
-    const result = await handleBridgeRpc({
-      method: command.method,
-      params: command.params || {},
-      commandId: command.id,
-    });
-    await chrome.runtime.sendMessage({
-      action: 'bridgeSubmitResult',
-      commandId: command.id,
-      result,
-    });
-  } catch (error) {
-    console.warn('[Browser Bridge] bridge rpc poll failed:', error?.message || String(error));
-  } finally {
-    bridgeRpcInFlight = false;
-  }
-}
-
-function startBridgeRpcPolling() {
-  if (bridgeRpcPollStarted) return;
-  bridgeRpcPollStarted = true;
-  void pollBridgeCommandOnce();
-  setInterval(() => {
-    void pollBridgeCommandOnce();
-  }, 1000);
-}
 
 function startObservation() {
   if (observer) observer.disconnect();
@@ -443,4 +391,3 @@ document.dispatchEvent(new CustomEvent('browserBridgeReady', {
 
 reportSnapshot('initial');
 startObservation();
-startBridgeRpcPolling();

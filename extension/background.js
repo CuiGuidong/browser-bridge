@@ -133,6 +133,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     setTimeout(() => chrome.runtime.reload(), 50);
     return true;
   }
+  if (request.action === 'getStatus') {
+    sendResponse({ connected: !!nativePort, browser: navigator.userAgent });
+    return false;
+  }
 });
 
 async function postReport(payload) {

@@ -80,12 +80,14 @@ def register_session():
 
 
 def pull_command():
-    """Long-poll for next command from daemon."""
+    """Long-poll for next command from daemon. Returns command dict, None for timeout, or 'reregister' sentinel."""
     if not SESSION_ID:
         return None
     resp = get_json(f"/native/session/pull?sessionId={SESSION_ID}&timeoutSeconds=25", timeout=30)
     if resp and resp.get("ok"):
         cmd = resp.get("data", {}).get("command")
+        if cmd and isinstance(cmd, dict) and cmd.get("_error") == "session_not_found":
+            return "reregister"
         return cmd
     return None
 
@@ -104,6 +106,14 @@ def daemon_to_extension():
     while True:
         try:
             cmd = pull_command()
+            if cmd == "reregister":
+                with open(log_path, 'a') as f:
+                    f.write(f'[shim] session not found, re-registering\n')
+                    f.flush()
+                if not register_session():
+                    import time
+                    time.sleep(2)
+                continue
             if cmd is None:
                 import time
                 time.sleep(1)
