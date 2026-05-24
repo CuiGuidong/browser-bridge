@@ -127,15 +127,41 @@ async function handleSemanticInvoke(params) {
 async function snapshotAllTabs() {
   const tabs = await chrome.tabs.query({});
   let reported = 0;
+  let skipped = 0;
   for (const tab of tabs) {
+    const url = tab.url || '';
+    if (url.startsWith('chrome://') || url.startsWith('edge://') || url.startsWith('about:') || url.startsWith('chrome-extension://')) {
+      skipped++;
+      continue;
+    }
     try {
-      await chrome.tabs.sendMessage(tab.id, { action: 'requestSnapshot' });
+      await new Promise((resolve, reject) => {
+        chrome.tabs.sendMessage(tab.id, { action: 'requestSnapshot' }, (response) => {
+          if (chrome.runtime.lastError) {
+            reject(new Error(chrome.runtime.lastError.message));
+          } else {
+            resolve(response);
+          }
+        });
+      });
       reported++;
     } catch (e) {
-      // Content script not injected on this tab, skip
+      // Content script not injected or page loading, skip
     }
   }
-  return { reported, total: tabs.length };
+  const targetCount = tabs.length - skipped;
+  if (reported === 0 && targetCount > 0) {
+    return {
+      reported,
+      total: tabs.length,
+      skipped,
+      error: {
+        code: 'no_tabs_reported',
+        message: `No active page tabs (${targetCount} candidates) successfully reported snapshots. Content scripts might not be injected.`
+      }
+    };
+  }
+  return { reported, total: tabs.length, skipped };
 }
 
 // ===== Message listeners (content.js → background.js) =====

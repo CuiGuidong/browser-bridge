@@ -4,7 +4,7 @@
 
 **实际实现与原计划的偏差（合并汇总）：**
 
-1. **通道协议**：实现使用 HTTP long-poll（`/native/session/register`、`/native/session/pull`、`/native/session/result`、`/native/session/report`），不是原计划的 WebSocket `/native/ws`。原因：宿主机无 `websockets` Python 库且无 pip 安装能力。
+1. **通道协议**：实现使用 HTTP long-poll（`/native/session/register`、`/native/session/pull`、`/native/session/result`，实际通过 result 端点承载 `{type:"report"}`），不是原计划的 WebSocket `/native/ws`。原因：宿主机无 `websockets` Python 库且无 pip 安装能力。
 2. **shim 实现**：使用 `select.select()` 轮询 stdin（5s 超时重试），解决浏览器启动 shim 后 stdin 立即 EOF 的问题。
 3. **NativeSessionManager**：threading.Lock + threading.Event 同步模型，HTTP long-poll + 命令队列；FastAPI endpoint 通过 `asyncio.to_thread()` 包装。
 4. **session 失效信号**：`pull_command` 对未知 session 返回 `{"_error": "session_not_found"}`，shim 收到后退出并由扩展重连。

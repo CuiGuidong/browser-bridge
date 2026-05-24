@@ -456,8 +456,18 @@ async def native_session_register(req: NativeSessionRegisterRequest):
     import threading
     def _delayed_snapshot():
         import time
+        import logging
+        logger = logging.getLogger("bridge.server")
         time.sleep(2)  # Wait for shim to fully connect
-        native_session_manager.send_command(session_id, "snapshot.all", timeout_seconds=15)
+        res = native_session_manager.send_command(session_id, "snapshot.all", timeout_seconds=15)
+        if not res.get("ok"):
+            logger.error(f"[SnapshotRecovery] snapshot.all failed to complete: {res.get('error')}")
+        else:
+            data = res.get("data") or {}
+            if "error" in data:
+                logger.warning(f"[SnapshotRecovery] snapshot.all returned diagnostic error: {data['error']}")
+            else:
+                logger.info(f"[SnapshotRecovery] snapshot.all succeeded: {data.get('reported')}/{data.get('total')} tabs reported")
     threading.Thread(target=_delayed_snapshot, daemon=True).start()
     return ok("native-session-register", {"sessionId": session_id})
 
@@ -697,17 +707,48 @@ def login_check(req: LoginCheckRequest):
 @app.post("/dev/reload-extension")
 def dev_reload_extension(req: DevReloadExtensionRequest):
     try:
-        # Send reload command via native session
+        # 1. Pre-select target tabs to reload before the extension disconnects
+        selected_tabs = []
+        if req.reloadPages:
+            tabs = browser_runtime.list_tabs()
+            target_id_set = set(req.targetIds or [])
+            for tab in tabs:
+                if target_id_set:
+                    if tab.get("id") in target_id_set:
+                        selected_tabs.append(tab)
+                    continue
+                if _host_matches(tab.get("url"), req.siteHosts or []):
+                    selected_tabs.append(tab)
+
+        # 2. Send reload command via current active native session
         sid = native_session_manager.get_active_session()
         if sid:
             extension_result = native_session_manager.send_command(sid, "dev.reload", timeout_seconds=req.timeoutSeconds)
         else:
             extension_result = {"ok": False, "error": "no_active_session"}
 
-        time.sleep(max(req.delaySeconds, 0))
+        # 3. Wait for new session to reconnect after extension reload
+        new_sid = None
+        if sid and extension_result.get("ok"):
+            start_time = time.time()
+            while time.time() - start_time < 8.0:
+                current_sid = native_session_manager.get_active_session()
+                if current_sid and current_sid != sid:
+                    new_sid = current_sid
+                    break
+                time.sleep(0.1)
+
+        # Sleep buffer for extension startup/injections
+        time.sleep(max(req.delaySeconds, 0.5))
+
+        # 4. Reload those pre-selected tabs using the newly established session
         pages = []
-        if req.reloadPages:
-            pages = _reload_dev_pages(target_ids=req.targetIds, site_hosts=req.siteHosts)
+        if selected_tabs:
+            for tab in selected_tabs:
+                result = browser_runtime.reload_tab(tab.get("id"))
+                if result:
+                    pages.append(result)
+
         return ok("dev-reload-extension", {
             "extension": extension_result.get("data", extension_result) if isinstance(extension_result, dict) else extension_result,
             "pages": pages,

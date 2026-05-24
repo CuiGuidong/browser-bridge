@@ -7,7 +7,7 @@ _状态：已实现，正文为历史设计参考，**不代表当前架构**_
 >
 > 实际实现与本 spec 在以下关键点偏离：
 >
-> 1. **通道协议**：实现使用 HTTP long-poll（`/native/session/register`、`/native/session/pull`、`/native/session/result`、`/native/session/report`），**不是** spec 中描述的 WebSocket `/native/ws`。原因：宿主机无 `websockets` Python 库且无 pip 安装能力。
+> 1. **通道协议**：实现使用 HTTP long-poll（`/native/session/register`、`/native/session/pull`、`/native/session/result`，实际通过 result 端点承载 `{type:"report"}`），**不是** spec 中描述的 WebSocket `/native/ws`。原因：宿主机无 `websockets` Python 库且无 pip 安装能力。
 > 2. **shim 实现**：使用 `select.select()` 轮询 stdin（5s 超时重试），**不是** 阻塞 `read()` 或线程模型。
 > 3. **CDP 直连已完全删除**：`BROWSER_RUNTIME` 仅支持 `auto`/`native_only` 两值（功能等价），不存在 `cdp_only`，无 CDP 回退路径，`cdp_client.py` / `cdp_ws_client.py` / `cdp_service.py` 全部删除。
 > 4. **HTTP 轮询端点已删除**：`/extension/pull`、`/extension/result`、`/extension/report` 全部移除，扩展只通过 Native Messaging 通道。
