@@ -22,29 +22,47 @@ class NativeBrowserRuntime:
 
         # 2. Check registry availability
         if not self._site_registry:
-            return
+            raise HTTPException(
+                status_code=403,
+                detail="security_violation: Site registry is not initialized"
+            )
 
         # 3. Resolve native tab ID
         native_tab_id = self._resolve_native_tab_id(target_id)
         if native_tab_id is None:
-            return
+            raise HTTPException(
+                status_code=403,
+                detail="security_violation: Unable to resolve native tab ID"
+            )
 
         # 4. Fetch tab info to retrieve url
         tab_info = self._find_tab_by_id(native_tab_id)
         if not tab_info:
-            return
+            raise HTTPException(
+                status_code=403,
+                detail="security_violation: Tab info not found"
+            )
 
         url = tab_info.get("url") or ""
         if not url:
-            return
+            raise HTTPException(
+                status_code=403,
+                detail="security_violation: Empty page URL"
+            )
 
         try:
             parsed = urlparse(url)
             hostname = parsed.hostname
             if not hostname:
-                return
-        except Exception:
-            return
+                raise HTTPException(
+                    status_code=403,
+                    detail="security_violation: Empty page hostname"
+                )
+        except Exception as e:
+            raise HTTPException(
+                status_code=403,
+                detail=f"security_violation: URL parse failed: {str(e)}"
+            )
 
         # 5. Check against registered allowed hosts
         is_allowed = False
@@ -57,7 +75,7 @@ class NativeBrowserRuntime:
         if not is_allowed:
             raise HTTPException(
                 status_code=403,
-                detail="security_violation: Host is not in the registered site allowlist"
+                detail=f"security_violation: Host '{hostname}' is not in the registered site allowlist"
             )
 
 

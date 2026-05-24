@@ -770,14 +770,15 @@ def dev_file_get(
     x_browser_bridge_tab_id: Optional[str] = Header(None, alias="X-Browser-Bridge-Tab-Id"),
     x_browser_bridge_session_id: Optional[str] = Header(None, alias="X-Browser-Bridge-Session-Id"),
 ):
-    # Set CORS headers
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
-    response.headers["Access-Control-Allow-Headers"] = "X-Browser-Bridge-Tab-Id, X-Browser-Bridge-Session-Id"
-    response.headers["Cache-Control"] = "no-store"
+    cors_headers = {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, OPTIONS",
+        "Access-Control-Allow-Headers": "X-Browser-Bridge-Tab-Id, X-Browser-Bridge-Session-Id",
+        "Cache-Control": "no-store",
+    }
 
     if request.method == "OPTIONS":
-        return Response(status_code=200)
+        return Response(status_code=200, headers=cors_headers)
 
     # 1. Check IP restriction (must be 127.0.0.1 or localhost loopback)
     client_host = request.client.host if request.client else None
@@ -834,6 +835,7 @@ def dev_file_get(
         path=file_path,
         media_type=token.get("mime") or "application/octet-stream",
         filename=os.path.basename(file_path),
+        headers=cors_headers,
     )
 
 
