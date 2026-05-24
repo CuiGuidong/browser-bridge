@@ -94,6 +94,8 @@ async function handleNativeCommand(msg) {
       result = await handleDebuggerCommand(method, params);
     } else if (method === 'semantic.invoke') {
       result = await handleSemanticInvoke(params);
+    } else if (method === 'snapshot.all') {
+      result = await snapshotAllTabs();
     } else if (method === 'dev.reload') {
       result = { reloading: true };
       nativePort.postMessage({ id, result });
@@ -120,6 +122,20 @@ async function handleSemanticInvoke(params) {
       }
     });
   });
+}
+
+async function snapshotAllTabs() {
+  const tabs = await chrome.tabs.query({});
+  let reported = 0;
+  for (const tab of tabs) {
+    try {
+      await chrome.tabs.sendMessage(tab.id, { action: 'requestSnapshot' });
+      reported++;
+    } catch (e) {
+      // Content script not injected on this tab, skip
+    }
+  }
+  return { reported, total: tabs.length };
 }
 
 // ===== Message listeners (content.js → background.js) =====

@@ -1,12 +1,26 @@
-# Native Messaging Host 迁移实施计划
+# Native Messaging Host 迁移实施计划（历史计划）
 
-> **给执行 Agent：** 按任务逐项执行，保持改动聚焦，运行列出的验证。只有当完成的项目变更达到可独立解释、可独立回滚的边界时，才调用 `finalize-change`。除非用户明确要求，计划产物保持未暂存。所有任务在独立分支 `feature/native-messaging` 上执行。
+> **⚠️ 本计划已全部执行完毕。正文为历史参考，不代表当前实现细节。**
 
-**实现偏差记录（阶段 1 完成后）：**
-- shim 从 WebSocket 方案改为 HTTP long-poll（宿主机无 websockets 库且无 pip），新增 `/native/session/register`、`/native/session/pull`、`/native/session/result` 三个 HTTP 端点
-- shim 使用 `select.select()` 轮询 stdin 而非阻塞 `read()`，解决浏览器启动 shim 后 stdin EOF 导致立即退出的问题
-- NativeSessionManager 从 WebSocket handler 改为 HTTP long-poll + 命令队列模式
-- session 清理：注册新 session 时自动清理 60 秒未 pull 的僵尸 session
+**实际实现与原计划的偏差（合并汇总）：**
+
+1. **通道协议**：实现使用 HTTP long-poll（`/native/session/register`、`/native/session/pull`、`/native/session/result`、`/native/session/report`），不是原计划的 WebSocket `/native/ws`。原因：宿主机无 `websockets` Python 库且无 pip 安装能力。
+2. **shim 实现**：使用 `select.select()` 轮询 stdin（5s 超时重试），解决浏览器启动 shim 后 stdin 立即 EOF 的问题。
+3. **NativeSessionManager**：threading.Lock + threading.Event 同步模型，HTTP long-poll + 命令队列；FastAPI endpoint 通过 `asyncio.to_thread()` 包装。
+4. **session 失效信号**：`pull_command` 对未知 session 返回 `{"_error": "session_not_found"}`，shim 收到后退出并由扩展重连。
+5. **session 清理**：注册新 session 时清理 60 秒未活动的僵尸 session。
+6. **CDP 直连完全删除**：阶段 5 一次性删除 `cdp_client.py` / `cdp_ws_client.py` / `cdp_service.py`，`BROWSER_RUNTIME` 仅保留 `auto`/`native_only`（功能等价，均纯 native）。
+7. **HTTP 轮询端点完全删除**：`/extension/pull`、`/extension/result`、`/extension/report` 全部移除；扩展只走 Native Messaging。
+8. **新会话自动快照**：daemon 在 session 注册后异步发送 `snapshot.all` 命令，扩展遍历所有 tab 触发 `requestSnapshot`，保证 `/extension/state` 报告缓存在 bridge 重启后能自动恢复。
+
+**当前架构以代码和 `docs/` 为准**：
+- `bridge/app/native_session_manager.py` / `native_host_shim.py` / `native_browser_runtime.py`
+- `extension/background.js` / `extension/content.js`
+- `docs/operations.md` / `docs/interfaces.md` / `docs/development.md`
+
+---
+
+> **以下为原始计划正文，仅用于追溯执行轨迹。**
 
 **目标：** 去掉 `--remote-debugging-port=9333` 启动要求，将浏览器控制从 CDP 直连迁移到扩展侧 `chrome.debugger` + Native Messaging 通道
 
@@ -58,7 +72,7 @@
 
 ### Task 1.2：实现 Native Session Manager
 
-**Purpose：** Bridge daemon 侧的 WebSocket server，管理扩展 session，路由命令和结果
+**Purpose：** Bridge daemon 侧的 HTTP 长轮询 server，管理扩展 session，路由命令和结果
 
 **Files：**
 - Create: `bridge/app/native_session_manager.py`
@@ -78,7 +92,7 @@
 - [x] 编译检查：`env PYTHONPYCACHEPREFIX=/tmp/browser-bridge-pycache python3 -m py_compile bridge/app/native_session_manager.py bridge/app/server.py`
 
 **Acceptance：** WebSocket endpoint `/native/ws` 可接受连接，session 注册和命令收发正常
-**Verification：** 重启 bridge，用 Python websockets 客户端连接 `ws://127.0.0.1:17777/native/ws`，发送 `{"id":"t1","result":{"test":1}}` 不报错
+**Verification：** 重启 bridge，用 Python websockets 客户端连接 `http://127.0.0.1:17777/native/session/register`，发送 `{"id":"t1","result":{"test":1}}` 不报错
 
 ### Task 1.3：实现 Native Host Shim
 
@@ -95,7 +109,7 @@
   import struct, sys, json, asyncio, queue
   import websockets
 
-  BRIDGE_WS_URL = "ws://127.0.0.1:17777/native/ws"
+  BRIDGE_WS_URL = "http://127.0.0.1:17777/native/session/register"
 
   def read_native_message():
       raw_length = sys.stdin.buffer.read(4)
@@ -357,12 +371,12 @@
 **Steps：**
 - [x] 在 `config.py` 新增：
   ```python
-  BROWSER_RUNTIME = os.getenv("BROWSER_RUNTIME", "auto")  # auto | native_only | cdp_only
+  BROWSER_RUNTIME = os.getenv("BROWSER_RUNTIME", "auto")  # auto | native_only | native_only（严格只走 native）
   ```
 - [x] 在 `cdp_runtime.py` 的 `CdpRuntime` 类中：
   - 构造函数接收 `native_session_manager` 参数（可选）
   - 每个方法根据 `BROWSER_RUNTIME` 决定路由：
-    - `cdp_only` → 始终用现有 CDP 实现
+    - `native_only（严格只走 native）
     - `native_only` → 始终用 NativeBrowserRuntime，无活跃 session 时抛错
     - `auto`（默认） → 优先 native（有活跃 session 时），否则 CDP
   - 提取内部方法 `_use_native()` 判断当前是否应走 native 通道

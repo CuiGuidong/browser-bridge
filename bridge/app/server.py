@@ -452,6 +452,13 @@ class NativeSessionResultRequest(BaseModel):
 @app.post("/native/session/register")
 async def native_session_register(req: NativeSessionRegisterRequest):
     session_id = native_session_manager.register_session()
+    # Trigger all content scripts to re-report after new session connects
+    import threading
+    def _delayed_snapshot():
+        import time
+        time.sleep(2)  # Wait for shim to fully connect
+        native_session_manager.send_command(session_id, "snapshot.all", timeout_seconds=15)
+    threading.Thread(target=_delayed_snapshot, daemon=True).start()
     return ok("native-session-register", {"sessionId": session_id})
 
 @app.get("/native/session/pull")

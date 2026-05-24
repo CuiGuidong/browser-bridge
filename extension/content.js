@@ -383,6 +383,11 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
     handleBridgeRpc(request.payload).then(sendResponse);
     return true;
   }
+  if (request.action === 'requestSnapshot') {
+    reportSnapshot('reconnect');
+    sendResponse({ ok: true });
+    return false;
+  }
 });
 
 document.dispatchEvent(new CustomEvent('browserBridgeReady', {

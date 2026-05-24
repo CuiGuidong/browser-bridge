@@ -1,9 +1,23 @@
-# Native Messaging Host 迁移设计规格
+# Native Messaging Host 迁移设计规格（历史设计）
 
 _日期：2026-05-24_
-_状态：已实现，部分过期 — 见下方说明_
+_状态：已实现，正文为历史设计参考，**不代表当前架构**_
 
-> **实现偏差**：最终实现使用 HTTP long-poll（`/native/session/register|pull|result`）替代 spec 中设计的 WebSocket（`/native/ws`）。原因：宿主机无 `websockets` 库且无 pip。shim 使用 `select()` 轮询 stdin 而非阻塞 `read()`。`BROWSER_RUNTIME` 不再支持 `cdp_only`（CDP 直连已删除）。以 `.agents/plans/` 顶部偏差记录和代码为准。
+> **⚠️ 重要提示：本 spec 仅为历史设计参考，不再维护。**
+>
+> 实际实现与本 spec 在以下关键点偏离：
+>
+> 1. **通道协议**：实现使用 HTTP long-poll（`/native/session/register`、`/native/session/pull`、`/native/session/result`、`/native/session/report`），**不是** spec 中描述的 WebSocket `/native/ws`。原因：宿主机无 `websockets` Python 库且无 pip 安装能力。
+> 2. **shim 实现**：使用 `select.select()` 轮询 stdin（5s 超时重试），**不是** 阻塞 `read()` 或线程模型。
+> 3. **CDP 直连已完全删除**：`BROWSER_RUNTIME` 仅支持 `auto`/`native_only` 两值（功能等价），不存在 `cdp_only`，无 CDP 回退路径，`cdp_client.py` / `cdp_ws_client.py` / `cdp_service.py` 全部删除。
+> 4. **HTTP 轮询端点已删除**：`/extension/pull`、`/extension/result`、`/extension/report` 全部移除，扩展只通过 Native Messaging 通道。
+> 5. **session 失效信号**：daemon 通过 `pull_command` 返回 `{"_error": "session_not_found"}`，shim 收到后退出并由扩展重连。
+> 6. **新会话自动快照**：daemon 在 session 注册后异步发送 `snapshot.all` 命令，扩展遍历所有 tab 触发 `requestSnapshot`，恢复 `/extension/state` 报告缓存。
+>
+> **当前架构以代码为准**：`bridge/app/native_session_manager.py`、`bridge/app/native_host_shim.py`、`bridge/app/native_browser_runtime.py`、`extension/background.js`。
+> **运维细节以 `docs/operations.md`、`docs/interfaces.md`、`docs/development.md` 为准。**
+>
+> 以下正文保留原设计稿，仅用于追溯设计动机和决策背景。
 
 ## 1. 目标
 
@@ -54,7 +68,7 @@ Bridge daemon (:17777)
 ```
 systemd
   └── browser-bridge.service (Bridge daemon, 长期运行, :17777)
-        └── NativeSessionManager (WebSocket server at /native/ws)
+        └── NativeSessionManager (HTTP 长轮询 server at /native/ws)
 
 Edge 浏览器
   └── Browser Bridge Extension
@@ -62,7 +76,7 @@ Edge 浏览器
               └── 浏览器启动 native host 子进程
                     └── browser-bridge-native-shim.py
                           ├── stdin/stdout ←→ 扩展 (Native Messaging)
-                          └── WebSocket ←→ Bridge daemon (:17777/native/ws)
+                          └── HTTP 长轮询 ←→ Bridge daemon (:17777/native/ws)
 ```
 
 ### 2.4 双向通道模型
@@ -72,7 +86,7 @@ Native Host shim 与 Bridge daemon 之间通过 **WebSocket** 建立持久双向
 **连接建立：**
 1. 浏览器扩展调用 `chrome.runtime.connectNative("com.cuiguidong.browserbridge")`
 2. 浏览器按系统 manifest 启动 `browser-bridge-native-shim.py` 子进程
-3. shim 启动后，向 Bridge daemon 发起 WebSocket 连接 `ws://127.0.0.1:17777/native/ws`
+3. shim 启动后，向 Bridge daemon 发起 WebSocket 连接 `http://127.0.0.1:17777/native/session/register`
 4. daemon 的 `NativeSessionManager` 注册此 session，分配 sessionId
 
 **命令下发（daemon → shim → 扩展）：**
@@ -389,7 +403,7 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 | 文件 | 职责 |
 |------|------|
 | `bridge/app/native_host_shim.py` | Native Messaging 协议编解码 + WebSocket 转接 |
-| `bridge/app/native_session_manager.py` | WebSocket server、session 注册、命令队列、结果路由 |
+| `bridge/app/native_session_manager.py` | HTTP 长轮询 server、session 注册、命令队列、结果路由 |
 | `bridge/app/native_browser_runtime.py` | 实现与 CdpRuntime 相同的 15 个方法接口 |
 | `scripts/install-native-host.sh` | 在系统中注册 native host manifest |
 | `native-messaging/com.cuiguidong.browserbridge.json` | Native host manifest |
@@ -413,7 +427,7 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 |----|------|
 | `auto`（默认） | 优先使用 native session，无活跃 native session 时回退 CDP 直连 |
 | `native_only` | 只使用 native session，无活跃 session 时报错，不回退 CDP |
-| `cdp_only` | 只使用 CDP 直连，不使用 native session（兼容模式） |
+| `native_only（严格只走 native）
 
 **阶段 2/3 验收必须在 `BROWSER_RUNTIME=native_only` 且浏览器未开 `--remote-debugging-port` 下通过。** 如果在 `auto` 模式下测试，CDP 回退可能掩盖 native 通道的失败。
 
@@ -447,7 +461,7 @@ import threading
 
 import websockets
 
-BRIDGE_WS_URL = "ws://127.0.0.1:17777/native/ws"
+BRIDGE_WS_URL = "http://127.0.0.1:17777/native/session/register"
 
 def read_native_message():
     """Read one Native Messaging message from stdin (length-prefixed JSON)."""
@@ -524,7 +538,7 @@ if __name__ == '__main__':
 
 - 建立独立分支 `feature/native-messaging`
 - 实现 `native_host_shim.py`（length-prefixed JSON 编解码 + WebSocket 转接）
-- 实现 `native_session_manager.py`（WebSocket server + session 注册）
+- 实现 `native_session_manager.py`（HTTP 长轮询 server + session 注册）
 - 安装 native host manifest
 - 扩展 background.js 新增 Native Messaging 连接（**保留现有 HTTP 轮询不动**）
 - **验证**：ping 往返成功、tabs.list 返回真实标签页

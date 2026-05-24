@@ -86,7 +86,7 @@ class ReadService:
         )
         if result is None:
             return None
-        result["source"] = "cdp"
+        result["source"] = "native"
         return result
 
     def debug_extension_match(self, target_id=None, target_url=None):
