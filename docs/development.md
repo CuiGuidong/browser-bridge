@@ -25,28 +25,20 @@ tests/               # 测试
 
 ## 安装与启动
 
-### 1. 启动带 CDP 的浏览器
+### 1. 启动浏览器
+
+正常启动 Chrome 或 Edge 即可，**无需** `--remote-debugging-port` 参数。
+
+### 2. 安装 Native Host Manifest
 
 ```bash
-# macOS — Edge
-open -a "Microsoft Edge" --args --remote-debugging-port=9222
-
-# macOS — Chrome
-open -a "Google Chrome" --args --remote-debugging-port=9222
-
-# Linux — Chrome
-google-chrome --remote-debugging-port=9222
+# 查看扩展 ID（在 edge://extensions 或 chrome://extensions 中）
+./scripts/install-native-host.sh <extension-id>
 ```
 
-默认 CDP 端口为 `9222`。如本地端口被占用，可通过环境变量覆盖：
+该脚本将 native host manifest 安装到系统目录，使浏览器扩展能通过 Native Messaging 与 Bridge 通信。
 
-```bash
-export CDP_PUBLIC_HOST=127.0.0.1
-export CDP_CONNECT_HOST=127.0.0.1
-export CDP_PORT=9222
-```
-
-### 2. 启动 Bridge
+### 3. 启动 Bridge
 
 ```bash
 cd bridge
@@ -60,9 +52,9 @@ Bridge 默认监听 `http://127.0.0.1:17777`，可通过 `BRIDGE_HOST` 和 `BRID
 
 交互式文档：`http://127.0.0.1:17777/docs`
 
-### 3. 加载扩展
+### 4. 加载扩展
 
-在 `chrome://extensions` 或 `edge://extensions` 中开启开发者模式，加载 `extension/` 目录。
+在 `chrome://extensions` 或 `edge://extensions` 中开启开发者模式，加载 `extension/` 目录。扩展启动后会自动通过 Native Messaging 连接 Bridge。
 
 ## 开发心智模型
 

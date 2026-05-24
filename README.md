@@ -71,29 +71,18 @@ Skill / Agent
 
 ## 快速开始
 
-### 1. 启动带 CDP 的浏览器
+### 1. 启动浏览器
+
+正常启动 Chrome 或 Edge 即可，**无需** `--remote-debugging-port` 参数。
+
+### 2. 安装 Native Host Manifest
 
 ```bash
-# Edge (macOS)
-open -a "Microsoft Edge" --args --remote-debugging-port=9222
-
-# Chrome (macOS)
-open -a "Google Chrome" --args --remote-debugging-port=9222
-
-# Chrome (Linux)
-google-chrome --remote-debugging-port=9222
+# 查看扩展 ID（在 edge://extensions 或 chrome://extensions 中）
+./scripts/install-native-host.sh <extension-id>
 ```
 
-默认示例使用浏览器常见的 `9222` 端口。  
-如果你的本地环境使用了不同 host / port，可在启动 bridge 前通过环境变量覆盖：
-
-```bash
-export CDP_PUBLIC_HOST=127.0.0.1
-export CDP_CONNECT_HOST=127.0.0.1
-export CDP_PORT=9222
-```
-
-### 2. 启动 Bridge
+### 3. 启动 Bridge
 
 ```bash
 cd bridge

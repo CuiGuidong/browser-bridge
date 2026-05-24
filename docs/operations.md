@@ -37,15 +37,7 @@ python -m app.server
 |------|--------|------|
 | `BRIDGE_HOST` | `127.0.0.1` | 监听地址 |
 | `BRIDGE_PORT` | `17777` | 监听端口 |
-
-### CDP 连接
-
-| 变量 | 默认值 | 说明 |
-|------|--------|------|
-| `CDP_PUBLIC_HOST` | `127.0.0.1` | 浏览器对外 host |
-| `CDP_CONNECT_HOST` | 同 `CDP_PUBLIC_HOST` | Bridge 连接 CDP 的 host |
-| `CDP_PORT` | `9222` | CDP 端口 |
-| `CDP_TIMEOUT_SECONDS` | `10` | CDP 操作超时 |
+| `BROWSER_RUNTIME` | `auto` | 浏览器控制通道：`auto`（优先 native，回退 CDP）或 `native_only` |
 
 在 OrbStack VM 中访问宿主机浏览器时，`CDP_CONNECT_HOST` 需设为 `host.orb.internal`。
 
