@@ -7,7 +7,7 @@
 优先使用临时 pycache，避免本地权限问题：
 
 ```bash
-env PYTHONPYCACHEPREFIX=/tmp/browser-bridge-pycache python3 -m py_compile bridge/app/server.py bridge/app/cdp_service.py bridge/app/browser/cdp_runtime.py
+env PYTHONPYCACHEPREFIX=/tmp/browser-bridge-pycache python3 -m py_compile bridge/app/server.py bridge/app/browser/cdp_runtime.py bridge/app/native_browser_runtime.py bridge/app/native_session_manager.py
 ```
 
 如果本次改动涉及站点 workflow 或服务启动：

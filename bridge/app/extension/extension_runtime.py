@@ -15,6 +15,16 @@ class ExtensionRuntime:
         self._site_registry = site_registry
 
     def get_state(self) -> Dict[str, Any]:
+        # Aggregate reports from native session manager
+        if self._native_sm:
+            native_report_entry = self._native_sm.get_report()
+            if native_report_entry:
+                payload = native_report_entry.get("payload")
+                if payload:
+                    self._state["lastReport"] = payload
+                    if not self._state["reports"] or self._state["reports"][-1] is not payload:
+                        self._state["reports"].append(payload)
+                        self._state["reports"] = self._state["reports"][-120:]
         return self._state
 
     def store_report(self, report: Dict[str, Any]) -> Dict[str, Any]:
@@ -24,13 +34,31 @@ class ExtensionRuntime:
         return {"accepted": True}
 
     def get_hint(self, target_url: Optional[str] = None):
-        # Prefer native report cache if available
+        # Collect all available reports (native + legacy)
+        candidates = list(self._state.get("reports") or [])
         if self._native_sm:
-            native_report = self._native_sm.get_report()
-            if native_report:
-                return native_report.get("payload")
-        report, _ = self.find_hint_with_debug(target_url)
-        return report
+            native_entry = self._native_sm.get_report()
+            if native_entry:
+                native_payload = native_entry.get("payload")
+                if native_payload and native_payload not in candidates:
+                    candidates.append(native_payload)
+
+        if not candidates:
+            return None
+
+        # If no target_url, return the latest report
+        if not target_url:
+            return candidates[-1]
+
+        # Match by target_url using existing normalization
+        # Search from newest to oldest
+        for report in reversed(candidates):
+            report_url = ((report or {}).get("page") or {}).get("url")
+            if self._match_reason(report_url, target_url):
+                return report
+
+        # No match found — return None (caller should fall back to browser runtime probe)
+        return None
 
     def _resolve_semantic_tab_id(self, target_id=None, target_url=None, site=None):
         """Resolve target to a nativeTabId via native session's tabs.list."""

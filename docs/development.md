@@ -89,7 +89,7 @@ python3 skills/weibo-assistant/scripts/read_post.py 'https://weibo.com/610571376
 ### Python 编译检查
 
 ```bash
-env PYTHONPYCACHEPREFIX=/tmp/browser-bridge-pycache python3 -m py_compile bridge/app/server.py bridge/app/cdp_service.py bridge/app/browser/cdp_runtime.py
+env PYTHONPYCACHEPREFIX=/tmp/browser-bridge-pycache python3 -m py_compile bridge/app/server.py bridge/app/browser/cdp_runtime.py bridge/app/native_browser_runtime.py bridge/app/native_session_manager.py
 ```
 
 ### 调试入口

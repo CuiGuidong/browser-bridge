@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Query, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Query, HTTPException
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
 from urllib.parse import urlparse
@@ -441,14 +441,6 @@ def extension_get_state():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
-@app.websocket("/native/ws")
-async def native_ws_endpoint(ws: WebSocket):
-    await ws.accept()
-    try:
-        await native_session_manager.handle_connection(ws)
-    except WebSocketDisconnect:
-        pass
 
 class NativeSessionRegisterRequest(BaseModel):
     type: str = "extension"

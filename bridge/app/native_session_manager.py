@@ -87,7 +87,8 @@ class NativeSessionManager:
 
     def store_result(self, command_id, result):
         """Store result from shim. Wakes up the waiting send_command caller."""
-        rf = self._pending_results.pop(command_id, None)
+        with self._lock:
+            rf = self._pending_results.pop(command_id, None)
         if rf and not rf.is_set():
             if "error" in result:
                 rf.set_result({"ok": False, "error": result["error"]})
@@ -108,9 +109,16 @@ class NativeSessionManager:
             if session_id not in self._sessions:
                 return {"ok": False, "error": {"code": "session_not_found", "message": f"Session {session_id} not found"}}
 
-        cmd_id = self.enqueue_command(session_id, method, params)
-        rf = _ResultFuture(session_id)
-        self._pending_results[cmd_id] = rf
+            # Create future BEFORE enqueueing to prevent race condition
+            cmd_id = f"cmd_{uuid.uuid4().hex[:8]}"
+            rf = _ResultFuture(session_id)
+            self._pending_results[cmd_id] = rf
+
+            # Enqueue command
+            cmd_msg = {"id": cmd_id, "method": method, "params": params or {}}
+            q = self._command_queues.get(session_id)
+            if q is not None:
+                q.append(cmd_msg)
 
         try:
             result = rf.wait(timeout_seconds)

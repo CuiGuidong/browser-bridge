@@ -138,7 +138,7 @@ def main():
     t.start()
 
     # Main thread: extension → daemon (results/reports via stdin)
-    # Poll stdin with select; never exit — run as a daemon
+    # Exit on stdin EOF — browser will launch a new shim on reconnect
     import select
     with open(log_path, 'a') as f:
         f.write(f'[shim] entering main loop, waiting for stdin data\n')
@@ -149,14 +149,11 @@ def main():
             if ready:
                 msg = read_native_message()
                 if msg is None:
-                    # stdin EOF — extension disconnected, but keep running
-                    # (browser may reconnect later)
+                    # stdin EOF — extension disconnected, exit cleanly
                     with open(log_path, 'a') as f:
-                        f.write(f'[shim] stdin EOF, waiting for reconnect\n')
+                        f.write(f'[shim] stdin EOF, exiting\n')
                         f.flush()
-                    import time
-                    time.sleep(5)
-                    continue
+                    break
                 post_result(msg)
         except Exception as e:
             with open(log_path, 'a') as f:

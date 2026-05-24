@@ -10,13 +10,8 @@ _状态：接口参考_
 
 补充：
 
-- CDP 连接地址当前支持通过环境变量配置
-- 默认假设浏览器 CDP 暴露在 `127.0.0.1:9222`
-- 如本地环境不是默认值，可覆盖：
-  - `CDP_PUBLIC_HOST`
-  - `CDP_CONNECT_HOST`
-  - `CDP_PORT`
-  - `CDP_TIMEOUT_SECONDS`
+- 浏览器控制通过 Native Messaging 通道（扩展 ↔ Bridge），无需 `--remote-debugging-port`
+- `BROWSER_RUNTIME` 环境变量控制通道选择：`auto`（默认）或 `native_only`
 
 如果你更关心“这个项目为什么这样分层”，先读：
 
@@ -165,10 +160,10 @@ Telegram 已可用；微信先按企业微信/兼容 webhook 预留。
 
 | 端点 | 功能 |
 |------|------|
-| `POST /extension/report` | 扩展被动上报页面状态 |
-| `GET /extension/state` | 查看最近扩展状态 |
-| `GET /extension/pull` | 扩展主动拉取桥端命令 |
-| `POST /extension/result` | 扩展回传主动命令结果 |
+| `GET /extension/state` | 查看最近扩展状态（含 native report 缓存） |
+| `POST /native/session/register` | Native host shim 注册 session |
+| `GET /native/session/pull` | Native host shim 长轮询命令 |
+| `POST /native/session/result` | Native host shim 回传结果/报告 |
 
 ## Playwright API
 
