@@ -11,7 +11,7 @@ _状态：接口参考_
 补充：
 
 - 浏览器控制通过 Native Messaging 通道（扩展 ↔ Bridge），无需 `--remote-debugging-port`
-- `BROWSER_RUNTIME` 环境变量控制通道选择：`auto`（默认）或 `native_only`
+- `BROWSER_RUNTIME` 为历史兼容配置，当前无实际行为差异，页面控制全部由 NativeBrowserRuntime 跑通并走 Native Messaging 通道
 
 如果你更关心“这个项目为什么这样分层”，先读：
 

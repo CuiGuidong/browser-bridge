@@ -37,7 +37,7 @@ python -m app.server
 |------|--------|------|
 | `BRIDGE_HOST` | `127.0.0.1` | 监听地址 |
 | `BRIDGE_PORT` | `17777` | 监听端口 |
-| `BROWSER_RUNTIME` | `auto` | 浏览器控制通道：`auto`（优先 native session）或 `native_only`（严格只走 native） |
+| `BROWSER_RUNTIME` | `auto` | 历史兼容配置项。当前无行为差异，所有页面控制已全面由 NativeBrowserRuntime 跑通并走 Native Messaging 通道。 |
 
 > **残留说明**：`/playwright/*` 端点仍通过 Playwright CDP 连接浏览器，不受 `BROWSER_RUNTIME` 控制。这是独立的调试通道，不在本次 native 迁移范围内。
 
