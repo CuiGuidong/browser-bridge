@@ -491,6 +491,11 @@ async def native_session_result(req: NativeSessionResultRequest):
         native_session_manager.store_result(msg["id"], msg)
     return ok("native-session-result", {"stored": True})
 
+@app.post("/native/session/unregister")
+async def native_session_unregister(sessionId: str = Query(...)):
+    native_session_manager.unregister_session(sessionId)
+    return ok("native-session-unregister", {"unregistered": True})
+
 @app.get("/debug/extension-match")
 def debug_extension_match(
     targetId: Optional[str] = Query(None),

@@ -76,7 +76,7 @@ curl --noproxy '*' -sS 'http://127.0.0.1:17777/site/capabilities?site=<site>&tar
 
 链路失败时，按以下顺序定位，不要先改代码：
 
-1. **浏览器**：是否已启动，CDP 端口是否可访问
+1. **浏览器**：是否已启动，Native Session 是否已连接（健康检查 `/health` 返回 `nativeSession: connected`）
 2. **Bridge**：`/health` 是否正常，是否是最新代码并已重启
 3. **扩展**：是否已重载，目标页面是否已刷新，`/extension/state` 是否有最近上报
 4. **目标页**：`/tabs` 能否看到目标页，`/site/capabilities` 是否命中正确页面

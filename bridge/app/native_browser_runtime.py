@@ -434,7 +434,7 @@ return raw.trim().slice(0, {int(max_chars)});
         url = tab.get("url") if tab else ""
         if not url:
             url = "https://weibo.com/"
-        
+
         try:
             parsed = urlparse(url)
             expected_origin = f"{parsed.scheme}://{parsed.netloc}"
@@ -456,7 +456,7 @@ return raw.trim().slice(0, {int(max_chars)});
             size = os.path.getsize(file_path)
             mime, _ = mimetypes.guess_type(file_path)
             mime = mime or "application/octet-stream"
-            
+
             file_id = issue_upload_token(
                 path=file_path,
                 size=size,

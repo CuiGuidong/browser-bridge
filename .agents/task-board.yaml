@@ -402,4 +402,3 @@ tasks:
       - Allowed hosts match dot-boundary safely (resisting evilweibo.com)
       - Upload is stream-based through upload_tokens avoiding Circular imports
       - No-debugger mode successfully passes Weibo read_post and Xiaohongshu upload baseline smoke tests 100% without header warning banner.
-

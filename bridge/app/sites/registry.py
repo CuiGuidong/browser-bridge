@@ -24,4 +24,3 @@ class SiteRegistry:
                 for host in site_module.hosts:
                     hosts.add(host)
         return sorted(list(hosts))
-

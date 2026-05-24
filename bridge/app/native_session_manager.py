@@ -106,6 +106,7 @@ class NativeSessionManager:
     def send_command(self, session_id, method, params=None, timeout_seconds=30):
         """Send a command and wait for the result. Thread-safe blocking."""
         with self._lock:
+            self._cleanup_stale_sessions()
             if session_id not in self._sessions:
                 return {"ok": False, "error": {"code": "session_not_found", "message": f"Session {session_id} not found"}}
 
@@ -136,6 +137,7 @@ class NativeSessionManager:
     def get_active_session(self):
         """Return the most recently active session_id, or None."""
         with self._lock:
+            self._cleanup_stale_sessions()
             if not self._sessions:
                 return None
             return max(self._sessions, key=lambda sid: self._sessions[sid].get("last_pull", self._sessions[sid].get("created", 0)))
@@ -146,6 +148,7 @@ class NativeSessionManager:
         if not sid:
             return None
         with self._lock:
+            self._cleanup_stale_sessions()
             return self._report_cache.get(sid)
 
     @property

@@ -79,6 +79,21 @@ def register_session():
     return False
 
 
+def unregister_session():
+    """Unregister this session with the bridge daemon."""
+    if not SESSION_ID:
+        return
+    import os
+    log_path = os.path.expanduser('~/.browser-bridge-shim.log')
+    with open(log_path, 'a') as f:
+        f.write(f'[shim] unregistering session {SESSION_ID}...\n')
+        f.flush()
+    resp = post_json(f"/native/session/unregister?sessionId={SESSION_ID}", {})
+    with open(log_path, 'a') as f:
+        f.write(f'[shim] unregister response: {resp}\n')
+        f.flush()
+
+
 def pull_command():
     """Long-poll for next command from daemon. Returns command dict, None for timeout, or 'reregister' sentinel."""
     if not SESSION_ID:
@@ -187,5 +202,6 @@ if __name__ == '__main__':
             import traceback
             traceback.print_exc(file=f)
         finally:
+            unregister_session()
             f.write(f'[shim] exited\n')
             f.flush()
