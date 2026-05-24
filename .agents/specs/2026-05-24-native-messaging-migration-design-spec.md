@@ -1,7 +1,9 @@
 # Native Messaging Host 迁移设计规格
 
 _日期：2026-05-24_
-_状态：第二轮评审修订_
+_状态：已实现，部分过期 — 见下方说明_
+
+> **实现偏差**：最终实现使用 HTTP long-poll（`/native/session/register|pull|result`）替代 spec 中设计的 WebSocket（`/native/ws`）。原因：宿主机无 `websockets` 库且无 pip。shim 使用 `select()` 轮询 stdin 而非阻塞 `read()`。`BROWSER_RUNTIME` 不再支持 `cdp_only`（CDP 直连已删除）。以 `.agents/plans/` 顶部偏差记录和代码为准。
 
 ## 1. 目标
 
