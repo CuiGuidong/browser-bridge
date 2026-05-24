@@ -7,7 +7,7 @@
 ## 前置条件
 
 - Python 3.10+
-- Chrome 或 Edge 浏览器（主路径为 Native 扩展，备用调试支持 CDP）
+- Chrome 或 Edge 浏览器（支持加载扩展，且已建立 Native Messaging 连接）
 - 浏览器扩展加载能力（开发者模式）
 
 ## 项目结构

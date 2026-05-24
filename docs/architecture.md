@@ -48,7 +48,7 @@ Browser Bridge 是一个本地优先的浏览器桥，允许 Agent / skill 通�
 Skill / Script / Agent
   -> Browser Bridge HTTP API
     -> Application Layer
-      -> Browser Runtime (NativeBrowserRuntime / Fallback CDP)
+      -> Browser Runtime (NativeBrowserRuntime)
       -> Extension Runtime (RPC + State / Native Messaging)
       -> Site Registry
       -> Site Adapter
@@ -57,7 +57,7 @@ Skill / Script / Agent
 
 ### 4.1 核心原则
 
-- `Browser Runtime` 只负责浏览器级能力（通过 Native Messaging 控制扩展或 Fallback CDP）
+- `Browser Runtime` 只负责浏览器级能力（基于 Native Messaging 控制扩展）
 - `Extension + Adapter` 只负责页面内能力和站点语义
 - `Bridge` 只做编排，不直接写站点 DOM 规则
 - `Workflow` 只负责步骤固定、确定性强的任务
@@ -82,7 +82,7 @@ Skill / Script / Agent
 
 换句话说：
 
-- `Browser Runtime` 负责浏览器控制与诊断（主路径为 Native Messaging，开发调试/Fallback 时为 CDP）
+- `Browser Runtime` 负责浏览器控制与诊断（全面通过 Native Messaging 协议执行，底层无自动 CDP 通道切换）
 - `Extension` 负责站点语义
 - 不是“扩展失败了就让控制层模拟一遍整个站点语义”
 
@@ -90,9 +90,9 @@ Skill / Script / Agent
 
 ### 5.1 Browser Runtime
 
-`Browser Runtime` 包含两种模式：
-1. **Native 模式 (NativeBrowserRuntime)**：默认主路径。通过 Native Messaging 协议向后台扩展（`background.js`）发送高层高特权指令（如 `tab.navigate`、`tab.evaluate`、`tab.screenshot`），借助 Extension MV3 API 避开调试横幅完成页面控制和安全脚本执行。
-2. **CDP 模式 (CdpRuntime)**：调试/Fallback 备用路径。在 `DEVELOPMENT_MODE` 开发配置或主动启用 fallback 时，通过 CDP 控制通道对浏览器进行底层指令下发。
+`Browser Runtime` 的事实与定位：
+1. **Native 模式是唯一主路径**：正式 Browser Runtime 均通过 `NativeBrowserRuntime` 实现。使用 Native Messaging 协议向扩展（`background.js`）分发高层指令（如 `tab.navigate`、`tab.evaluate`、`tab.screenshot` 等），避开调试横幅。
+2. **CdpRuntime 是历史兼容 Facade**：代码层面的 `CdpRuntime` 是为了保障外部 API 历史接口契约调用一致性而保留的 Facade 代理层，它在内部直接且全部委托给了 `NativeBrowserRuntime` 执行。当前服务**不存在**协议层或进程层自动 Fallback CDP 端口的底层链路；开发版 Manifest 保留的 debugger 权限与 CDP 诊断指令仅供开发者在本地手动监控调试分析使用，不对后端提供自动降级切换。
 
 职责：
 
@@ -681,7 +681,7 @@ extension/adapters/
 
 ### 9.6 什么时候直接用 Browser Runtime
 
-如果某项能力满足以下条件，可以直接通过 `Browser Runtime` 侧实现（基于 NativeBrowserRuntime / CdpRuntime 接口）：
+如果某项能力满足以下条件，可以直接通过 `Browser Runtime` 侧实现（基于 `NativeBrowserRuntime` 接口）：
 
 - 完全是浏览器控制问题
 - 不依赖复杂 DOM 语义

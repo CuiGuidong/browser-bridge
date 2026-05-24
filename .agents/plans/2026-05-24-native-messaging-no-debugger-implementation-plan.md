@@ -11,7 +11,7 @@
 
 **计划密度：** Detailed low-context
 
-**实现思路：** 
+**实现思路：**
 1. 后端彻底改发高层 Native 协议指令，全面覆盖 navigate, reload, evaluate, screenshot, upload 等常规调用；
 2. 扩展在 `handleNativeCommand(msg)` 入口拦截高层指令，使用 `chrome.tabs` 与 `chrome.scripting` (world: 'MAIN') 在后台完全平替 CDP；
 3. 大文件通过独立的 `upload_tokens.py` 模块提供“先校验、后消费”的 Ticket 签发，由内容脚本直接跨域 fetch 本地 Blob 进行 DOM 直注，彻底隔离并杜绝 Python 循环导入；
@@ -72,8 +72,8 @@
 git status --short
 ```
 预期：
-`D extension/manifest.json` (在暂存区表现为删除)  
-`?? extension/manifest.prod.json`  
+`D extension/manifest.json` (在暂存区表现为删除)
+`?? extension/manifest.prod.json`
 `?? extension/manifest.dev.json`
 
 ---

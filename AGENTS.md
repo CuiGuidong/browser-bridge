@@ -213,7 +213,7 @@
 
 允许的分层关系：
 
-- Browser Runtime：打开页面、复用标签页、导航、截图、基础 JS、诊断（主路径为 NativeBrowserRuntime，Fallback/诊断时为 CdpRuntime）
+- Browser Runtime：打开页面、复用标签页、导航、截图、基础 JS、诊断（均由 NativeBrowserRuntime 承载执行，底层无自动 CDP 通道切换；CdpRuntime 为历史兼容 Facade）
 - Extension Adapter：站点匹配、页面类型、ready 探测、读取、动作、校验
 - Workflow：固定步骤、页面生命周期、临时 tab 管理、流程级验证
 - Skill / Agent：开放式判断、业务编排、输入归一化、结果总结
@@ -327,7 +327,7 @@
 
 页面研究、交互探测、发布流程调试时：
 
-- 优先通过现有 Bridge / Browser Runtime（默认 Native 模式，诊断时 Fallback CDP）控制宿主机真实浏览器
+- 优先通过现有 Bridge / Browser Runtime（以 NativeBrowserRuntime 作为主路径）控制宿主机真实浏览器
 - 调试尽量低频、串行
 - 先确认一次导航结果
 - 再逐步追加采样

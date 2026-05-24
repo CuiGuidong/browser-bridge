@@ -5,7 +5,7 @@
 > 本文件是 `feature/native-messaging` 分支在迁移与双模式架构设计过程中的历史 spec/plan，仅用于记录设计背景、讨论线索和历史推演。
 > **它不代表当前项目的最终架构事实**。关于项目的最新及正式事实，请以正式文档 [docs/architecture.md](file:///home/cuiguidong/workspace/personal/projects/Python/browser-bridge-project/docs/architecture.md) 以及实际运行代码为准。
 
-_日期：2026-05-24_  
+_日期：2026-05-24_
 _状态：已实现并归档，**不代表当前架构**_
 
 ---
@@ -253,7 +253,7 @@ _状态：已实现并归档，**不代表当前架构**_
 ```javascript
 async function handleTabEvaluate(params) {
   const { tabId, expression } = params;
-  
+
   const results = await chrome.scripting.executeScript({
     target: { tabId: tabId },
     world: 'MAIN',
@@ -284,16 +284,16 @@ async function handleTabEvaluate(params) {
     ```javascript
     async function handleTabScreenshot(params) {
       const { tabId, format } = params;
-      
+
       const targetTab = await chrome.tabs.get(tabId);
       const windowId = targetTab.windowId;
-      
+
       // 1. 获取该窗口当前活动状态的 tab
       const activeTabs = await chrome.tabs.query({ windowId: windowId, active: true });
       const originalActiveTab = activeTabs[0];
-      
+
       let wasSwitched = false;
-      
+
       try {
         if (originalActiveTab && originalActiveTab.id !== tabId) {
           // 2. 现场不一致，切换至目标 tab
@@ -302,12 +302,12 @@ async function handleTabEvaluate(params) {
           // 3. 经验等待（非同步阻塞对齐，150ms 经验延迟），等待浏览器完成当前帧渲染
           await new Promise((resolve) => setTimeout(resolve, 150));
         }
-        
+
         // 4. 执行截图
         const dataUrl = await chrome.tabs.captureVisibleTab(windowId, {
           format: format || 'png'
         });
-        
+
         const base64Data = dataUrl.split(',')[1];
         return { data: base64Data };
       } finally {
@@ -327,10 +327,10 @@ async function handleTabEvaluate(params) {
 // background.js 转发逻辑（极轻量）：
 async function handleTabUploadFile(params) {
   const { tabId, sessionId, selector, files } = params;
-  
+
   // 注入 tabId 与 sessionId 供内容脚本拉取文件时作为头部携带
   const filesWithTabContext = files.map(f => ({ ...f, tabId, sessionId }));
-  
+
   return new Promise((resolve) => {
     chrome.tabs.sendMessage(tabId, {
       action: 'domFileUpload',
