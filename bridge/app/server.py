@@ -119,19 +119,6 @@ class EvaluateRequest(BaseModel):
     targetId: Optional[str] = None
 
 
-class ExtensionReportRequest(BaseModel):
-    source: str = "extension"
-    site: Optional[str] = None
-    kind: str = "page-state"
-    page: Dict[str, Any]
-    signals: Dict[str, Any] = {}
-    content: Dict[str, Any] = {}
-
-
-class ExtensionCommandResultRequest(BaseModel):
-    commandId: str
-    result: Dict[str, Any]
-
 
 class SiteReadRequest(BaseModel):
     site: str
@@ -447,40 +434,10 @@ def probe_readiness(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/extension/report")
-def extension_report(req: ExtensionReportRequest):
-    try:
-        result = action_service.store_extension_report(req.model_dump())
-        return ok("extension-report", result)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
 @app.get("/extension/state")
 def extension_get_state():
     try:
         return ok("extension-state", action_service.extension_state())
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/extension/pull")
-def extension_pull(
-    timeoutSeconds: float = Query(1),
-    pageUrl: Optional[str] = Query(None),
-):
-    try:
-        command = action_service.pull_extension_command(timeout_seconds=timeoutSeconds, page_url=pageUrl)
-        return ok("extension-pull", {"command": command})
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.post("/extension/result")
-def extension_result(req: ExtensionCommandResultRequest):
-    try:
-        result = action_service.store_extension_result(req.commandId, req.result)
-        return ok("extension-result", result)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -519,24 +476,6 @@ async def native_session_result(req: NativeSessionResultRequest):
     elif "id" in msg:
         native_session_manager.store_result(msg["id"], msg)
     return ok("native-session-result", {"stored": True})
-
-@app.post("/native/debug/ping")
-async def native_debug_ping():
-    sid = native_session_manager.get_active_session()
-    if not sid:
-        return fail("native-debug-ping", "no_active_session", "No native session connected")
-    import asyncio
-    result = await asyncio.to_thread(native_session_manager.send_command, sid, "ping", None, 10)
-    return ok("native-debug-ping", result.get("data", {}))
-
-@app.post("/native/debug/tabs")
-async def native_debug_tabs():
-    sid = native_session_manager.get_active_session()
-    if not sid:
-        return fail("native-debug-tabs", "no_active_session", "No native session connected")
-    import asyncio
-    result = await asyncio.to_thread(native_session_manager.send_command, sid, "tabs.list", None, 10)
-    return ok("native-debug-tabs", result.get("data", {}))
 
 @app.get("/debug/extension-match")
 def debug_extension_match(
@@ -759,23 +698,19 @@ def login_check(req: LoginCheckRequest):
 @app.post("/dev/reload-extension")
 def dev_reload_extension(req: DevReloadExtensionRequest):
     try:
-        extension_result = extension_runtime.invoke(
-            "dev_reload_extension",
-            {},
-            timeout_seconds=req.timeoutSeconds,
-        )
-        if not extension_result.get("ok"):
-            return ok("dev-reload-extension", {
-                "extension": extension_result,
-                "pages": [],
-            })
+        # Send reload command via native session
+        sid = native_session_manager.get_active_session()
+        if sid:
+            extension_result = native_session_manager.send_command(sid, "dev.reload", timeout_seconds=req.timeoutSeconds)
+        else:
+            extension_result = {"ok": False, "error": "no_active_session"}
 
         time.sleep(max(req.delaySeconds, 0))
         pages = []
         if req.reloadPages:
             pages = _reload_dev_pages(target_ids=req.targetIds, site_hosts=req.siteHosts)
         return ok("dev-reload-extension", {
-            "extension": extension_result,
+            "extension": extension_result.get("data", extension_result) if isinstance(extension_result, dict) else extension_result,
             "pages": pages,
         })
     except Exception as e:

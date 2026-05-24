@@ -1,8 +1,6 @@
 // Background service worker for Browser Bridge Extension
 
-const BRIDGE_URL = 'http://127.0.0.1:17777';
-
-// ===== Native Messaging (阶段 1-3: 与 HTTP 轮询并行) =====
+// ===== Native Messaging =====
 let nativePort = null;
 
 function connectNative() {
@@ -96,6 +94,11 @@ async function handleNativeCommand(msg) {
       result = await handleDebuggerCommand(method, params);
     } else if (method === 'semantic.invoke') {
       result = await handleSemanticInvoke(params);
+    } else if (method === 'dev.reload') {
+      result = { reloading: true };
+      nativePort.postMessage({ id, result });
+      setTimeout(() => chrome.runtime.reload(), 50);
+      return; // Already sent result
     } else {
       result = { error: 'unknown method' };
     }
@@ -108,7 +111,6 @@ async function handleNativeCommand(msg) {
 async function handleSemanticInvoke(params) {
   const { tabId, method, params: semParams } = params;
   if (!tabId) return { error: { code: 'missing_tab_id', message: 'No tabId in semantic.invoke' } };
-  // Forward to content script via chrome.tabs.sendMessage, reusing handleBridgeRpc
   return new Promise((resolve) => {
     chrome.tabs.sendMessage(tabId, { action: 'bridgeRpc', payload: { method, params: semParams, commandId: `native_${Date.now()}` } }, (response) => {
       if (chrome.runtime.lastError) {
@@ -120,7 +122,7 @@ async function handleSemanticInvoke(params) {
   });
 }
 
-// ===== HTTP 轮询（阶段 1-3 保留，阶段 5 清理） =====
+// ===== Message listeners (content.js → background.js) =====
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'extensionSnapshot') {
     postReport(request.payload).then((delivered) => sendResponse({ ok: true, delivered }));
@@ -131,18 +133,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     setTimeout(() => chrome.runtime.reload(), 50);
     return true;
   }
-  if (request.action === 'bridgePullOnce') {
-    handleBridgePullOnce(request, sender, sendResponse);
-    return true;
-  }
-  if (request.action === 'bridgeSubmitResult') {
-    handleBridgeSubmitResult(request.commandId, request.result, sendResponse);
-    return true;
-  }
 });
 
 async function postReport(payload) {
-  // Prefer native channel
   if (nativePort) {
     try {
       nativePort.postMessage({ type: 'report', payload });
@@ -151,91 +144,13 @@ async function postReport(payload) {
       console.warn('[Browser Bridge] native report failed:', error.message);
     }
   }
-  // Fallback to HTTP
-  try {
-    await fetch(`${BRIDGE_URL}/extension/report`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    return true;
-  } catch (error) {
-    console.warn('[Browser Bridge] report failed:', error.message);
-    return false;
-  }
+  return false;
 }
 
-async function fetchBridgeJson(path, init = {}) {
-  const response = await fetch(`${BRIDGE_URL}${path}`, init);
-  return await response.json();
-}
-
-async function pullBridgeCommand(timeoutSeconds = 1, pageUrl = '') {
-  const qs = new URLSearchParams({
-    timeoutSeconds: String(timeoutSeconds),
-  });
-  if (pageUrl) qs.set('pageUrl', pageUrl);
-  const body = await fetchBridgeJson(`/extension/pull?${qs.toString()}`);
-  return body?.data?.command || null;
-}
-
-async function postBridgeCommandResult(commandId, result) {
-  await fetchBridgeJson('/extension/result', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ commandId, result }),
-  });
-}
-
-async function handleBridgePullOnce(request, sender, sendResponse) {
-  try {
-    const command = await pullBridgeCommand(1, request.pageUrl || sender?.tab?.url || '');
-    sendResponse({ ok: true, command });
-  } catch (error) {
-    sendResponse({ ok: false, error: error.message });
-  }
-}
-
-async function handleBridgeSubmitResult(commandId, result, sendResponse) {
-  try {
-    await postBridgeCommandResult(commandId, result);
-    sendResponse({ ok: true });
-  } catch (error) {
-    sendResponse({ ok: false, error: error.message });
-  }
-}
-
-async function handleDevCommand(command) {
-  if (!command || command.method !== 'dev_reload_extension') return false;
-  await postBridgeCommandResult(command.id, {
-    ok: true,
-    source: 'extension-background',
-    method: command.method,
-    reloading: true,
-  });
-  setTimeout(() => chrome.runtime.reload(), 50);
-  return true;
-}
-
-async function pollDevCommandOnce() {
-  try {
-    const command = await pullBridgeCommand(1, 'chrome-extension://browser-bridge/background');
-    await handleDevCommand(command);
-  } catch (error) {
-    console.warn('[Browser Bridge] dev command poll failed:', error.message);
-  }
-}
-
-void pollDevCommandOnce();
-setInterval(() => {
-  void pollDevCommandOnce();
-}, 1000);
-
-// Keep service worker alive: MV3 suspends workers after ~30s of inactivity.
+// ===== Keepalive =====
 chrome.alarms.create('keepalive', { periodInMinutes: 0.4 });
 chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name === 'keepalive') {
-    if (!nativePort) connectNative();
-    void pollDevCommandOnce();
+  if (alarm.name === 'keepalive' && !nativePort) {
+    connectNative();
   }
 });

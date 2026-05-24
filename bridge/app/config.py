@@ -14,14 +14,4 @@ def _get_int(name, default):
 BRIDGE_HOST = os.getenv("BRIDGE_HOST", "127.0.0.1")
 BRIDGE_PORT = _get_int("BRIDGE_PORT", 17777)
 
-BROWSER_RUNTIME = os.getenv("BROWSER_RUNTIME", "auto")  # auto | native_only | cdp_only
-
-CDP_PUBLIC_HOST = os.getenv("CDP_PUBLIC_HOST", "127.0.0.1")
-CDP_CONNECT_HOST = os.getenv("CDP_CONNECT_HOST", CDP_PUBLIC_HOST)
-CDP_PORT = _get_int("CDP_PORT", 9222)
-
-CDP_BASE_URL = f"http://{CDP_PUBLIC_HOST}:{CDP_PORT}"
-CDP_CONNECT_BASE_URL = f"http://{CDP_CONNECT_HOST}:{CDP_PORT}"
-CDP_HOST_HEADER = f"{CDP_PUBLIC_HOST}:{CDP_PORT}"
-CDP_WS_BASE_URL = f"ws://{CDP_PUBLIC_HOST}:{CDP_PORT}"
-CDP_TIMEOUT_SECONDS = _get_int("CDP_TIMEOUT_SECONDS", 10)
+BROWSER_RUNTIME = os.getenv("BROWSER_RUNTIME", "auto")  # auto | native_only
