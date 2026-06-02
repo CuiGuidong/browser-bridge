@@ -17,7 +17,7 @@ bridge/app/          # HTTP API 服务（FastAPI）
 extension/           # 浏览器扩展（Manifest V3）
 skills/              # 面向 Agent 的站点 skill 脚本
 docs/                # 项目文档
-.agents/             # Agent 协作层（约束、任务、验证）
+agents/             # Agent 协作层（约束、任务、验证）
 temp/                # 本地临时材料与运行时审计日志
 scripts/             # 开发辅助脚本
 tests/               # 测试

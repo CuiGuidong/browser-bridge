@@ -43,9 +43,9 @@
 3. `docs/index.md`
 4. `docs/architecture.md`
 5. `docs/development.md`
-6. `.agents/context.md`
-7. `.agents/invariants.yaml`
-8. `.agents/task-board.yaml`
+6. `agents/context.md`
+7. `agents/invariants.yaml`
+8. `agents/task-board.yaml`
 
 按任务需要再读：
 
@@ -121,17 +121,17 @@
    - 与 `media-agent-suite` 的跨项目 issue-like 协作合同
    - 基座能力需求、支持状态、验收方式
 
-11. `.agents/invariants.yaml`
+11. `agents/invariants.yaml`
    - 架构硬约束
    - 禁止模式
    - 不可破坏的边界
 
-12. `.agents/task-board.yaml`
+12. `agents/task-board.yaml`
    - 当前任务状态
    - 已完成、进行中、待办任务
    - 后续开发入口
 
-13. `.agents/quality-gates.md`
+13. `agents/quality-gates.md`
    - 验证命令
    - 不同改动类型对应的检查方式
     - 是否需要跑真实浏览器链路
@@ -150,11 +150,11 @@
 
 每次开发前：
 
-1. 从 `.agents/task-board.yaml` 领取或确认任务
-2. 对照 `.agents/invariants.yaml` 检查边界
+1. 从 `agents/task-board.yaml` 领取或确认任务
+2. 对照 `agents/invariants.yaml` 检查边界
 3. 给出简短计划
 4. 只修改完成当前任务所需的最少文件
-5. 按 `.agents/quality-gates.md` 运行相关验证
+5. 按 `agents/quality-gates.md` 运行相关验证
 6. 更新任务状态或说明未完成原因
 
 如果任务不在 `task-board` 中：
@@ -245,7 +245,7 @@
 
 - `docs/new-site-adaptation-guide.md`
 - `docs/architecture.md`
-- `.agents/invariants.yaml`
+- `agents/invariants.yaml`
 - 现有成熟站点实现
 
 新增站点的基本落点：
@@ -297,19 +297,19 @@
 
 - 运行 `./scripts/dev_reload_extension.sh`（该脚本先同步文件到宿主机，再触发扩展自重载，最后刷新目标页面——三步原子操作，不可拆分或跳过）
 - 不要请求用户手动在 `edge://extensions` 中重载——脚本已自动完成
-- 如果脚本报错，按 `.agents/quality-gates.md` 排查，而不是立即请求人工介入
+- 如果脚本报错，按 `agents/quality-gates.md` 排查，而不是立即请求人工介入
 - 至少验证一个站点语义读取
 - 不要只看文件保存结果就宣布完成
 
 修改 `bridge/app/` 后：
 
-- 按 `LOCAL_DEV.md` 和 `.agents/quality-gates.md` 重启 Bridge
+- 按 `LOCAL_DEV.md` 和 `agents/quality-gates.md` 重启 Bridge
 - 运行相关健康检查
 - 涉及 workflow 或站点行为时，做对应真实链路验证
 
 修改文档后：
 
-- 按 `.agents/quality-gates.md` 做文档检查
+- 按 `agents/quality-gates.md` 做文档检查
 - 不要把本地机器事实写入公开文档
 - 不要把临时决策写成长期规则
 
@@ -381,9 +381,9 @@
 - 站点支持：`docs/capabilities.md`
 - 新站点适配：`docs/new-site-adaptation-guide.md`
 - 本地机器事实：`LOCAL_DEV.md`
-- 架构约束：`.agents/invariants.yaml`
-- 验证规则：`.agents/quality-gates.md`
-- 当前任务：`.agents/task-board.yaml`
+- 架构约束：`agents/invariants.yaml`
+- 验证规则：`agents/quality-gates.md`
+- 当前任务：`agents/task-board.yaml`
 - 跨项目合同：`docs/contracts/`
 - 临时计划、运行时审计日志、草案：`temp/`
 

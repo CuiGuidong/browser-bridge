@@ -24,7 +24,7 @@
 | `video-asset-pipeline-design.md` | 视频管线设计 | B 站/抖音视频理解管线草案（暂不实现） |
 | `contracts/media-agent-suite-contract.md` | 跨项目合同 | 与 media-agent-suite 的基座能力需求、交付状态和验收方式 |
 
-## .agents/ — Agent 协作层
+## agents/ — Agent 协作层
 
 | 文件 | 用途 |
 |------|------|
@@ -46,7 +46,7 @@
 
 ## 读取顺序
 
-**首次接手**：`AGENTS.md` → `LOCAL_DEV.md` → `README.md` → `docs/index.md` → `docs/architecture.md` → `docs/development.md` → `.agents/context.md` → `.agents/invariants.yaml` → `.agents/task-board.yaml`
+**首次接手**：`AGENTS.md` → `LOCAL_DEV.md` → `README.md` → `docs/index.md` → `docs/architecture.md` → `docs/development.md` → `agents/context.md` → `agents/invariants.yaml` → `agents/task-board.yaml`
 
 **按任务深入**：
 

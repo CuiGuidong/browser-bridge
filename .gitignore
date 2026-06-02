@@ -51,5 +51,6 @@ temp/
 .clawhub/
 .openclaw/
 .codex
+agents/
 LOCAL_DEV.md
 extension/manifest.json
