@@ -941,3 +941,7 @@ def playwright_wait_selector(
 
 def run():
     uvicorn.run(app, host=BRIDGE_HOST, port=BRIDGE_PORT)
+
+
+if __name__ == "__main__":
+    run()

@@ -8,7 +8,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-SHIM_PATH="$PROJECT_ROOT/bridge/app/native_host_shim.py"
+SHIM_PATH="$PROJECT_ROOT/bridge/app/native_host_shim_wrapper.sh"
 HOST_NAME="com.cuiguidong.browserbridge"
 
 if [[ $# -lt 1 ]]; then
@@ -42,7 +42,7 @@ EOF
 }
 
 echo "Installing native host manifest..."
-echo "  Shim path: $SHIM_PATH"
+echo "  Shim wrapper path: $SHIM_PATH"
 echo "  Extension ID: $EXTENSION_ID"
 echo ""
 

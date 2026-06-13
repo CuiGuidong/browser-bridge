@@ -11,9 +11,72 @@ import sys
 import json
 import threading
 import urllib.request
+import os
+from pathlib import Path
 
-BRIDGE_URL = "http://127.0.0.1:17777"
+
+def _load_env_file(path):
+    values = {}
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, value = line.split("=", 1)
+                key = key.strip()
+                value = value.strip()
+                if (value.startswith('"') and value.endswith('"')) or (
+                    value.startswith("'") and value.endswith("'")
+                ):
+                    value = value[1:-1]
+                if key:
+                    values[key] = value
+    except FileNotFoundError:
+        pass
+    except Exception:
+        pass
+    return values
+
+
+def _resolve_bridge_url():
+    if os.environ.get("BRIDGE_URL"):
+        return os.environ["BRIDGE_URL"].rstrip("/")
+
+    repo_root = Path(__file__).resolve().parents[2]
+    env_values = _load_env_file(repo_root / ".env.local")
+    if env_values.get("BRIDGE_URL"):
+        return env_values["BRIDGE_URL"].rstrip("/")
+
+    host = env_values.get("BRIDGE_HOST") or os.environ.get("BRIDGE_HOST") or "127.0.0.1"
+    port = env_values.get("BRIDGE_PORT") or os.environ.get("BRIDGE_PORT") or "17777"
+    connect_host = "127.0.0.1" if host == "0.0.0.0" else host
+    return f"http://{connect_host}:{port}".rstrip("/")
+
+
+BRIDGE_URL = _resolve_bridge_url()
 SESSION_ID = None
+
+
+def _log(message, exc_info=None):
+    line = f"[shim] {message}\n"
+    log_path = os.environ.get("BROWSER_BRIDGE_SHIM_LOG")
+    if log_path:
+        try:
+            with open(log_path, "a", encoding="utf-8") as f:
+                f.write(line)
+                if exc_info is not None:
+                    import traceback
+                    traceback.print_exception(type(exc_info), exc_info, exc_info.__traceback__, file=f)
+                f.flush()
+            return
+        except Exception:
+            pass
+    sys.stderr.write(line)
+    if exc_info is not None:
+        import traceback
+        traceback.print_exception(type(exc_info), exc_info, exc_info.__traceback__, file=sys.stderr)
+    sys.stderr.flush()
 
 
 def read_native_message():
@@ -64,15 +127,9 @@ def get_json(path, timeout=30):
 def register_session():
     """Register this shim as a native session with the bridge daemon."""
     global SESSION_ID
-    import os
-    log_path = os.path.expanduser('~/.browser-bridge-shim.log')
-    with open(log_path, 'a') as f:
-        f.write(f'[shim] registering session...\n')
-        f.flush()
+    _log("registering session...")
     resp = post_json("/native/session/register", {"type": "extension"})
-    with open(log_path, 'a') as f:
-        f.write(f'[shim] register response: {resp}\n')
-        f.flush()
+    _log(f"register response: {resp}")
     if resp and resp.get("ok"):
         SESSION_ID = resp["data"]["sessionId"]
         return True
@@ -83,15 +140,9 @@ def unregister_session():
     """Unregister this session with the bridge daemon."""
     if not SESSION_ID:
         return
-    import os
-    log_path = os.path.expanduser('~/.browser-bridge-shim.log')
-    with open(log_path, 'a') as f:
-        f.write(f'[shim] unregistering session {SESSION_ID}...\n')
-        f.flush()
+    _log(f"unregistering session {SESSION_ID}...")
     resp = post_json(f"/native/session/unregister?sessionId={SESSION_ID}", {})
-    with open(log_path, 'a') as f:
-        f.write(f'[shim] unregister response: {resp}\n')
-        f.flush()
+    _log(f"unregister response: {resp}")
 
 
 def pull_command():
@@ -116,15 +167,11 @@ def post_result(msg):
 
 def daemon_to_extension():
     """Thread: pull commands from daemon and write to stdout (extension)."""
-    import os
-    log_path = os.path.expanduser('~/.browser-bridge-shim.log')
     while True:
         try:
             cmd = pull_command()
             if cmd == "reregister":
-                with open(log_path, 'a') as f:
-                    f.write(f'[shim] session not found, re-registering\n')
-                    f.flush()
+                _log("session not found, re-registering")
                 if not register_session():
                     import time
                     time.sleep(2)
@@ -134,28 +181,19 @@ def daemon_to_extension():
                 time.sleep(1)
                 continue
             write_native_message(cmd)
-            with open(log_path, 'a') as f:
-                f.write(f'[shim] wrote command to stdout: {cmd.get("method", "?")}\n')
-                f.flush()
+            _log(f"wrote command to stdout: {cmd.get('method', '?')}")
         except Exception as e:
-            with open(log_path, 'a') as f:
-                f.write(f'[shim] daemon_to_extension error: {e}\n')
-                f.flush()
+            _log(f"daemon_to_extension error: {e}")
             import time
             time.sleep(2)
 
 
 def main():
     import os
-    log_path = os.path.expanduser('~/.browser-bridge-shim.log')
-    with open(log_path, 'a') as f:
-        f.write(f'[shim] main() started, pid={os.getpid()}\n')
-        f.flush()
+    _log(f"main() started, pid={os.getpid()}")
 
     if not register_session():
-        with open(log_path, 'a') as f:
-            f.write(f'[shim] registration failed, exiting\n')
-            f.flush()
+        _log("registration failed, exiting")
         return
 
     # Background thread: daemon → extension (commands via stdout)
@@ -165,9 +203,7 @@ def main():
     # Main thread: extension → daemon (results/reports via stdin)
     # Exit on stdin EOF — browser will launch a new shim on reconnect
     import select
-    with open(log_path, 'a') as f:
-        f.write(f'[shim] entering main loop, waiting for stdin data\n')
-        f.flush()
+    _log("entering main loop, waiting for stdin data")
     while True:
         try:
             ready, _, _ = select.select([sys.stdin.buffer], [], [], 5.0)
@@ -175,33 +211,22 @@ def main():
                 msg = read_native_message()
                 if msg is None:
                     # stdin EOF — extension disconnected, exit cleanly
-                    with open(log_path, 'a') as f:
-                        f.write(f'[shim] stdin EOF, exiting\n')
-                        f.flush()
+                    _log("stdin EOF, exiting")
                     break
                 post_result(msg)
         except Exception as e:
-            with open(log_path, 'a') as f:
-                f.write(f'[shim] main loop error: {e}\n')
-                f.flush()
+            _log(f"main loop error: {e}")
             import time
             time.sleep(2)
 
 
 if __name__ == '__main__':
     import os
-    log_path = os.path.expanduser('~/.browser-bridge-shim.log')
-    with open(log_path, 'a') as f:
-        f.write(f'[shim] started, pid={os.getpid()}\n')
-        f.flush()
-        try:
-            main()
-        except Exception as e:
-            f.write(f'[shim] fatal: {e}\n')
-            f.flush()
-            import traceback
-            traceback.print_exc(file=f)
-        finally:
-            unregister_session()
-            f.write(f'[shim] exited\n')
-            f.flush()
+    _log(f"started, pid={os.getpid()}")
+    try:
+        main()
+    except Exception as e:
+        _log(f"fatal: {e}", exc_info=e)
+    finally:
+        unregister_session()
+        _log("exited")

@@ -16,7 +16,8 @@
 | 文件 | 权威范围 | 说明 |
 |------|----------|------|
 | `architecture.md` | 正式架构约束 | 分层职责、核心原则、数据模型、扩展指南 |
-| `development.md` | 开发指南 | 前置条件、安装、启动、开发工作流、调试方法、避坑点 |
+| `installation.md` | 安装指南 | macOS、Windows + WSL、Linux 单机安装 |
+| `development.md` | 开发指南 | 开发工作流、调试方法、扩展重载、避坑点 |
 | `operations.md` | 运维指南 | systemd 服务管理、环境变量、代理、故障排查 |
 | `interfaces.md` | 接口参考 | HTTP API、workflow 参数、站点能力声明 |
 | `capabilities.md` | 站点能力矩阵 | 支持的站点、能力、输入形态、当前限制 |
@@ -48,9 +49,12 @@
 
 **首次接手**：`AGENTS.md` → `LOCAL_DEV.md` → `README.md` → `docs/index.md` → `docs/architecture.md` → `docs/development.md` → `agents/context.md` → `agents/invariants.yaml` → `agents/task-board.yaml`
 
+**首次安装**：`README.md` → `docs/installation.md` → `docs/operations.md`
+
 **按任务深入**：
 
 - 涉及 API → `docs/interfaces.md`
+- 涉及安装 → `docs/installation.md`
 - 涉及站点能力 → `docs/capabilities.md`
 - 涉及新增站点 → `docs/new-site-adaptation-guide.md`
 - 涉及视频/媒体 → `docs/video-asset-pipeline-design.md`

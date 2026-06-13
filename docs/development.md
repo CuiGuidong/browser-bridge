@@ -1,6 +1,11 @@
 # 开发指南
 
-本指南面向需要在本地搭建和开发 Browser Bridge 的开发者或 Agent，覆盖环境搭建、开发工作流、调试方法和关键避坑点。
+本指南面向需要修改 Browser Bridge 代码的开发者或 Agent，覆盖开发工作流、调试方法和关键避坑点。
+
+普通用户安装入口见：
+
+- [README.md](../README.md)
+- [installation.md](installation.md)
 
 本机个性化配置（端口、代理、宿主机路径等）见 `LOCAL_DEV.md`。
 
@@ -29,7 +34,7 @@ tests/               # 测试
 
 正常启动 Chrome 或 Edge 即可，**无需** `--remote-debugging-port` 参数。
 
-### 2. 安装 Native Host Manifest
+### 2. 安装 Native Host
 
 ```bash
 # 查看扩展 ID（在 edge://extensions 或 chrome://extensions 中）
@@ -37,6 +42,21 @@ tests/               # 测试
 ```
 
 该脚本将 native host manifest 安装到系统目录，使浏览器扩展能通过 Native Messaging 与 Bridge 通信。
+
+Windows + WSL 开发时不要使用这个 Linux/macOS shell 脚本安装 Windows 侧 Native Host。先运行：
+
+```bash
+./scripts/setup_wsl.sh
+```
+
+再按脚本输出在 Windows PowerShell 中执行：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File "<windows-path>\install-native-host.ps1" `
+  -ExtensionId "<extension-id>" `
+  -Browser both `
+  -BridgeUrl "http://127.0.0.1:17777"
+```
 
 ### 3. 启动 Bridge
 
@@ -70,6 +90,12 @@ Bridge 默认监听 `http://127.0.0.1:17777`，可通过 `BRIDGE_HOST` 和 `BRID
 
 高频原因：浏览器没开、Native Session 未连接（例如扩展未加载或 Native Host 未安装）、扩展没重载、页面没刷新、沙箱看不到宿主浏览器。
 
+Windows + WSL 下尤其注意：
+
+- 正式 Edge profile 的扩展 ID 才能写入 Native Host manifest；临时 profile 跑通不代表正式浏览器已接入。
+- 如果沙箱里 `curl 127.0.0.1:17777` 失败，但真实 WSL shell 成功，应按宿主侧结果判断 Bridge 状态。
+- Windows Native Host 应由 Windows 浏览器直接启动 Windows 可执行文件，再通过 HTTP 连接 WSL Bridge；不要用 `.cmd` 或 `wsl.exe` 转发 Native Messaging stdin/stdout。
+
 ## 验证方式
 
 ### 健康检查
@@ -89,7 +115,7 @@ python3 skills/weibo-assistant/scripts/read_post.py 'https://weibo.com/610571376
 ### Python 编译检查
 
 ```bash
-env PYTHONPYCACHEPREFIX=/tmp/browser-bridge-pycache python3 -m py_compile bridge/app/server.py bridge/app/browser/cdp_runtime.py bridge/app/native_browser_runtime.py bridge/app/native_session_manager.py
+env PYTHONPYCACHEPREFIX=/tmp/browser-bridge-pycache python3 -m py_compile bridge/app/server.py bridge/app/browser/cdp_runtime.py bridge/app/native_browser_runtime.py bridge/app/native_session_manager.py bridge/app/native_host_shim.py
 ```
 
 ### 调试入口
@@ -205,6 +231,21 @@ env PYTHONPYCACHEPREFIX=/tmp/browser-bridge-pycache python3 -m py_compile bridge
 | 读到骨架页或上一页内容 | 页面未完成加载就触发了读取 |
 | workflow 返回 `targetId: null` | 临时标签页已在 workflow 内关闭，正常现象 |
 | 图片缓存下载失败 | 检查 bridge 服务环境中的代理配置和网络可达性 |
+| Native Host 报异常消息长度 | stdout 被 shell / wrapper 噪音污染，检查 manifest 是否指向可靠的 native host 进程 |
+
+### 临时产物清理
+
+调试 Windows + WSL 链路时可能创建临时 Edge profile、临时扩展副本、pycache 或图片缓存。正式验证完成后应清理这些临时目录，避免把调试状态误认为产品安装状态：
+
+```text
+C:\Users\<user>\AppData\Local\Temp\browser-bridge-edge-profile
+C:\Users\<user>\AppData\Local\Temp\browser-bridge-extension
+/tmp/browser-bridge-pycache
+/tmp/browser-bridge-edge-profile
+/tmp/browser-bridge-cache
+```
+
+不要删除 `%LOCALAPPDATA%\BrowserBridge\NativeHost`，它是 Windows Native Host 的正式用户级安装目录。
 
 ### 图片缓存注意事项
 
