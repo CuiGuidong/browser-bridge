@@ -318,6 +318,7 @@
 - 将对应 skill 目录完整复制到 `/home/cuiguidong/workspace/AI/agent-workflow/skills/personal-tools/`，覆盖同名目录
 - 新建 skill 时同步创建，修改已有 skill 时同步覆盖
 - 目标目录是 Agent 工作流的运行时 skill 来源，必须保持与本项目 `skills/` 一致
+- 同步后删除目标目录中的 `__pycache__`、`.pyc` 等编译产物，不将过程产物带入运行时
 
 需要用户配合的动作未完成前，不给出最终测试结论。
 
