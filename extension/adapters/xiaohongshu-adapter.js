@@ -454,8 +454,7 @@ function extractPostImages() {
   const images = Array.from(document.querySelectorAll('img'))
     .map((img) => img.currentSrc || img.src || '')
     .filter((src) => src && /^https?:/i.test(src))
-    .filter((src) => /xhscdn\.com/i.test(src))
-    .filter((src) => /\/notes?_pre_post/i.test(src))
+    .filter((src) => /sns-webpic.*xhscdn\.com/i.test(src))
     .filter((src) => !/\/comment\//i.test(src));
   return Array.from(new Set(images)).slice(0, 12);
 }
