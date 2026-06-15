@@ -1,8 +1,9 @@
 import json
+import os
 import urllib.request
 
 
-BRIDGE_URL = "http://127.0.0.1:17777"
+BRIDGE_URL = os.environ.get("BRIDGE_URL", "http://127.0.0.1:17777")
 
 _proxy_handler = urllib.request.ProxyHandler({})
 _opener = urllib.request.build_opener(_proxy_handler)
