@@ -32,13 +32,18 @@ def _resolve_bridge_url():
     if os.environ.get("BRIDGE_URL"):
         return os.environ["BRIDGE_URL"].rstrip("/")
 
-    repo_root = Path(__file__).resolve().parents[3]
-    env_values = _load_env_file(repo_root / ".env.local")
-    if env_values.get("BRIDGE_URL"):
-        return env_values["BRIDGE_URL"].rstrip("/")
+    script_dir = Path(__file__).resolve().parent
+    local_env = _load_env_file(script_dir / ".env")
+    if local_env.get("BRIDGE_URL"):
+        return local_env["BRIDGE_URL"].rstrip("/")
 
-    host = env_values.get("BRIDGE_HOST") or os.environ.get("BRIDGE_HOST") or "127.0.0.1"
-    port = env_values.get("BRIDGE_PORT") or os.environ.get("BRIDGE_PORT") or "17777"
+    repo_root = Path(__file__).resolve().parents[3]
+    repo_env = _load_env_file(repo_root / ".env.local")
+    if repo_env.get("BRIDGE_URL"):
+        return repo_env["BRIDGE_URL"].rstrip("/")
+
+    host = local_env.get("BRIDGE_HOST") or repo_env.get("BRIDGE_HOST") or os.environ.get("BRIDGE_HOST") or "127.0.0.1"
+    port = local_env.get("BRIDGE_PORT") or repo_env.get("BRIDGE_PORT") or os.environ.get("BRIDGE_PORT") or "17777"
     return f"http://{host}:{port}"
 
 
