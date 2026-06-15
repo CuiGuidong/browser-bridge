@@ -319,6 +319,7 @@
 - 新建 skill 时同步创建，修改已有 skill 时同步覆盖
 - 目标目录是 Agent 工作流的运行时 skill 来源，必须保持与本项目 `skills/` 一致
 - 同步后删除目标目录中的 `__pycache__`、`.pyc` 等编译产物，不将过程产物带入运行时
+- agent-workflow 是独立 Git 仓库，同步后派 subagent 在该仓库内完成 `git add` + `git commit`，不在主会话中切换 Git 目录
 
 需要用户配合的动作未完成前，不给出最终测试结论。
 
