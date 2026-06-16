@@ -3,7 +3,6 @@ import sys
 import time
 
 from bridge_client import workflow_run
-from x_targets import build_author_from_page_url, extract_status_id
 
 
 def read_single_post(url):
@@ -11,8 +10,6 @@ def read_single_post(url):
         workflow_data = {}
         payload = {}
         content = ""
-        canonical_url = url
-        author = None
         for attempt in range(2):
             workflow_data = workflow_run(
                 "x",
@@ -35,9 +32,6 @@ def read_single_post(url):
 
             payload = workflow_data.get("data") or {}
             content = (((payload.get("content") or {}).get("primaryText")) or "").strip()
-            page = payload.get("page") or {}
-            canonical_url = page.get("url") or url
-            author = build_author_from_page_url(canonical_url)
             if content:
                 break
             if attempt == 0:
@@ -47,30 +41,17 @@ def read_single_post(url):
             print(json.dumps({
                 "ok": False,
                 "error": payload.get("error") or "No content found",
-                "source": payload.get("source"),
+                "source": (payload.get("summary") or {}).get("source"),
             }))
             return
 
         print(json.dumps({
             "ok": True,
-            "url": url,
-            "canonicalUrl": canonical_url,
-            "source": (payload.get("summary") or {}).get("source"),
             "workflow": payload.get("workflow"),
-            "author": author,
-            "post": {
-                "url": canonical_url,
-                "statusId": extract_status_id(canonical_url),
-            },
-            "results": {
-                "text": content,
-                "analysis": {
-                    "length": len(content),
-                    "is_worth_reading": len(content) > 10,
-                },
-            },
-            "data": content,
-        }))
+            "source": (payload.get("summary") or {}).get("source"),
+            "pageType": (payload.get("summary") or {}).get("pageType"),
+            "data": payload,
+        }, ensure_ascii=False))
     except Exception as e:
         print(json.dumps({"ok": False, "error": str(e)}))
 

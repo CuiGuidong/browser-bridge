@@ -23,20 +23,11 @@ def read_post(target):
         return
 
     payload = workflow_data.get("data") or {}
-    content = payload.get("content") or {}
     print(json.dumps({
         "ok": bool(payload.get("ok")),
         "workflow": payload.get("workflow"),
         "source": (payload.get("summary") or {}).get("source"),
         "pageType": (payload.get("summary") or {}).get("pageType"),
-        "post": {
-            "url": (content.get("url") or normalized.get("url")),
-            "author": content.get("author"),
-            "publishedAt": content.get("publishedAt"),
-            "text": content.get("text"),
-            "images": content.get("images") or [],
-            "metrics": content.get("metrics") or {},
-        },
         "data": payload,
     }, ensure_ascii=False))
 

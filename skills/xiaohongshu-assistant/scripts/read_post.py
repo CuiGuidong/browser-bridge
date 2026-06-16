@@ -2,7 +2,7 @@ import json
 import sys
 
 from bridge_client import workflow_run
-from xiaohongshu_targets import classify_read_post_input, extract_note_id
+from xiaohongshu_targets import classify_read_post_input
 
 
 def read_post(target):
@@ -28,23 +28,11 @@ def read_post(target):
         return
 
     payload = workflow_data.get("data") or {}
-    content = payload.get("content") or {}
     print(json.dumps({
         "ok": bool(payload.get("ok")),
         "workflow": payload.get("workflow"),
         "source": (payload.get("summary") or {}).get("source"),
         "pageType": (payload.get("summary") or {}).get("pageType"),
-        "note": {
-            "id": extract_note_id((content.get("url") or url)),
-            "url": (content.get("url") or url),
-        },
-        "results": {
-            "title": content.get("title"),
-            "author": content.get("author"),
-            "text": content.get("text"),
-            "images": content.get("images") or [],
-            "videos": content.get("videos") or [],
-        },
         "data": payload,
     }, ensure_ascii=False))
 
