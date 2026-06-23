@@ -104,7 +104,11 @@ def run(read_service, browser_runtime, target_id=None, params=None, timeout_seco
             "debug": read_result.get("debug") or {},
         }
         content = result.get("content") or {}
-        if content.get("primaryText"):
+        post = content.get("post") if isinstance(content.get("post"), dict) else None
+        if post and post.get("text"):
+            post["text"] = process_and_spawn_downloads(post["text"])
+            content["primaryText"] = post["text"]
+        elif content.get("primaryText"):
             content["primaryText"] = process_and_spawn_downloads(content["primaryText"])
         result["content"] = content
         if opened is not None:

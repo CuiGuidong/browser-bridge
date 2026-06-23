@@ -185,6 +185,13 @@ Telegram 已可用；微信先按企业微信/兼容 webhook 预留。
 - `read_post`
   - 必填：`url`
   - 常用可选：`waitForReady`、`intervalSeconds`
+  - 返回：
+    - `content.primaryText`：兼容字段，始终等于当前 URL 目标推文的 `content.post.text`
+    - `content.post`：当前 URL status id 匹配到的目标推文，包含 `statusId`、`url`、`author`、`publishedAt`、`publishedLabel`、`text`、`media`
+    - `content.contextItems`：页面可见的其它上下文推文，字段包含 `position`、`relation`、`visibleRelationLabel`、`statusId`、`url`、`author`、`text`、`media`
+    - `content.rawPayload`：调试信息，包含 `targetStatusId`、`matchedStatusId`、`matchStrategy`、`candidateCount`、`contextCount`
+  - `contextItems.relation` 第一版使用 `visible_context`，只表示页面可见上下文，不承诺精确转发、引用或 thread 业务关系
+  - 开发调试验证需显式使用本机 Bridge：`BRIDGE_URL="http://127.0.0.1:17777"`
 - `search`
   - 必填：`keyword`
   - 兼容别名：`query`

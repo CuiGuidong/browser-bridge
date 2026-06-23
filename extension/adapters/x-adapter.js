@@ -25,10 +25,8 @@ function extractStatusId(url) {
 function findArticleByStatusUrl(url) {
   const statusId = extractStatusId(url);
   if (!statusId) return null;
-  const articles = Array.from(document.querySelectorAll('article[role="article"]'));
-  return articles.find((article) => {
-    return Array.from(article.querySelectorAll('a[href*="/status/"]')).some((link) => extractStatusId(link.href) === statusId);
-  }) || null;
+  return getTweetCandidates()
+    .find((candidate) => candidate.permalinkStatusId === statusId)?.article || null;
 }
 
 function findRemoveBookmarkControl(article) {
@@ -288,6 +286,223 @@ function cleanXPrimaryText(article, tweetText) {
   return extractRichText(fallbackContainer);
 }
 
+function getCurrentTargetStatusId() {
+  return extractStatusId(location.href);
+}
+
+function getArticlePermalinkElement(article) {
+  if (!article) return null;
+  const timeEl = article.querySelector('time');
+  const timeLink = timeEl ? timeEl.closest('a[href*="/status/"]') : null;
+  if (timeLink && extractStatusId(timeLink.href)) return timeLink;
+
+  const namedTimeLinks = Array.from(article.querySelectorAll('a[href*="/status/"]'))
+    .filter((link) => link.querySelector('time'));
+  return namedTimeLinks.find((link) => extractStatusId(link.href)) || null;
+}
+
+function getArticlePermalinkStatusId(article) {
+  const link = getArticlePermalinkElement(article);
+  return link ? extractStatusId(link.href) : null;
+}
+
+function getArticleViewportScore(article) {
+  if (!article) {
+    return {
+      visibleArea: 0,
+      topDistance: Number.MAX_SAFE_INTEGER,
+      viewportRatio: 0,
+    };
+  }
+  const rect = article.getBoundingClientRect();
+  const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+  const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+  const visibleWidth = Math.max(0, Math.min(rect.right, viewportWidth) - Math.max(rect.left, 0));
+  const visibleHeight = Math.max(0, Math.min(rect.bottom, viewportHeight) - Math.max(rect.top, 0));
+  const visibleArea = visibleWidth * visibleHeight;
+  const totalArea = Math.max(1, rect.width * rect.height);
+  return {
+    visibleArea,
+    topDistance: Math.abs(rect.top),
+    viewportRatio: visibleArea / totalArea,
+  };
+}
+
+function getTweetCandidates() {
+  const articles = Array.from(document.querySelectorAll('article[role="article"]'))
+    .filter((article) => {
+      return !!(
+        article.querySelector('time')
+        || article.querySelector('[data-testid="tweetText"]')
+        || article.querySelector('[data-testid="twitter-article-title"]')
+        || article.querySelector('[data-testid="twitterArticleRichTextView"]')
+      );
+    });
+
+  return articles.map((article, index) => {
+    const rect = article.getBoundingClientRect();
+    const permalinkEl = getArticlePermalinkElement(article);
+    const permalinkStatusId = permalinkEl ? extractStatusId(permalinkEl.href) : null;
+    const text = extractRichText(article);
+    return {
+      article,
+      index,
+      permalinkStatusId,
+      url: permalinkEl?.href || null,
+      rect: {
+        top: rect.top,
+        bottom: rect.bottom,
+        left: rect.left,
+        right: rect.right,
+        width: rect.width,
+        height: rect.height,
+      },
+      viewportScore: getArticleViewportScore(article),
+      textLength: text.length,
+    };
+  });
+}
+
+function selectTargetTweetArticle(candidates, targetStatusId) {
+  if (!candidates.length) {
+    return {
+      article: null,
+      candidate: null,
+      matchStrategy: 'not_found',
+      reason: 'no tweet candidates found',
+    };
+  }
+
+  if (targetStatusId) {
+    const exactMatches = candidates.filter((candidate) => candidate.permalinkStatusId === targetStatusId);
+    if (exactMatches.length) {
+      exactMatches.sort((a, b) => {
+        const visibleDelta = b.viewportScore.visibleArea - a.viewportScore.visibleArea;
+        if (visibleDelta !== 0) return visibleDelta;
+        return a.index - b.index;
+      });
+      return {
+        article: exactMatches[0].article,
+        candidate: exactMatches[0],
+        matchStrategy: 'article_permalink',
+        reason: null,
+      };
+    }
+  }
+
+  const visibleCandidates = candidates.filter((candidate) => candidate.viewportScore.visibleArea > 0);
+  const fallbackCandidates = visibleCandidates.length ? visibleCandidates : candidates;
+  fallbackCandidates.sort((a, b) => {
+    const visibleDelta = b.viewportScore.visibleArea - a.viewportScore.visibleArea;
+    if (visibleDelta !== 0) return visibleDelta;
+    const distanceDelta = a.viewportScore.topDistance - b.viewportScore.topDistance;
+    if (distanceDelta !== 0) return distanceDelta;
+    return a.index - b.index;
+  });
+
+  return {
+    article: fallbackCandidates[0].article,
+    candidate: fallbackCandidates[0],
+    matchStrategy: 'viewport_fallback',
+    reason: targetStatusId ? 'target permalink not found in visible candidates' : 'target status id not found in current URL',
+  };
+}
+
+function extractTweetAuthor(article) {
+  const authorEl = article?.querySelector('[data-testid="User-Name"]') || null;
+  const lines = (authorEl?.innerText || '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const handle = lines.find((line) => line.startsWith('@')) || null;
+  const displayName = lines.find((line) => {
+    return !line.startsWith('@') && !/^·$/.test(line) && !/^\d+[smhd]?$/.test(line);
+  }) || null;
+  return {
+    displayName,
+    handle,
+  };
+}
+
+function extractTweetMedia(text) {
+  const media = [];
+  const imagePattern = /\[Image: ([^\]|]+)(?: \| Alt: ([^\]]+))?\]/g;
+  let match;
+  while ((match = imagePattern.exec(text)) !== null) {
+    media.push({
+      type: 'image',
+      url: match[1].trim(),
+      alt: match[2]?.trim() || null,
+    });
+  }
+  if (/\[Video(?: |\])/.test(text)) {
+    media.push({ type: 'video' });
+  }
+  return media;
+}
+
+function extractTweetItem(article, candidate = null) {
+  const permalinkEl = getArticlePermalinkElement(article);
+  const statusId = candidate?.permalinkStatusId || (permalinkEl ? extractStatusId(permalinkEl.href) : null);
+  const text = extractRichText(article);
+  const timeEl = article?.querySelector('time') || null;
+  return {
+    statusId,
+    url: candidate?.url || permalinkEl?.href || null,
+    author: extractTweetAuthor(article),
+    publishedAt: timeEl?.getAttribute('datetime') || null,
+    publishedLabel: (timeEl?.innerText || '').trim() || null,
+    text,
+    media: extractTweetMedia(text),
+  };
+}
+
+function extractVisibleRelationLabel(article) {
+  const text = (article?.innerText || '').replace(/\s+/g, ' ').trim();
+  const match = text.match(/(转发了|reposted|quoted|引用)/i);
+  return match ? match[0] : null;
+}
+
+function extractDisplayedContext(candidates, targetArticle) {
+  const target = candidates.find((candidate) => candidate.article === targetArticle) || null;
+  if (!target) return [];
+  return candidates
+    .filter((candidate) => candidate.article !== targetArticle)
+    .map((candidate) => {
+      const item = extractTweetItem(candidate.article, candidate);
+      return {
+        position: candidate.index < target.index ? 'before' : 'after',
+        relation: 'visible_context',
+        visibleRelationLabel: extractVisibleRelationLabel(candidate.article),
+        ...item,
+      };
+    })
+    .filter((item) => item.text || item.statusId);
+}
+
+function buildReadPostContent(_baseSnapshot) {
+  const targetStatusId = getCurrentTargetStatusId();
+  const candidates = getTweetCandidates();
+  const selection = selectTargetTweetArticle(candidates, targetStatusId);
+  const post = selection.article ? extractTweetItem(selection.article, selection.candidate) : null;
+  const contextItems = selection.article ? extractDisplayedContext(candidates, selection.article) : [];
+  const primaryText = post?.text || '';
+
+  return {
+    primaryText,
+    post: post || null,
+    contextItems,
+    rawPayload: {
+      targetStatusId,
+      matchedStatusId: post?.statusId || null,
+      matchStrategy: selection.matchStrategy,
+      reason: selection.reason,
+      candidateCount: candidates.length,
+      contextCount: contextItems.length,
+    },
+  };
+}
+
 function extractXTimeline() {
   const cells = Array.from(document.querySelectorAll('[data-testid="cellInnerDiv"]'));
   const directTweets = Array.from(document.querySelectorAll('[data-testid="tweet"]'));
@@ -447,11 +662,18 @@ const xAdapter = {
     const feedModeInfo = isTimeline ? detectXHomeFeedMode() : { mode: null, activeTabText: null, tabTexts: [] };
     
     let primaryText = '';
+    let post = null;
+    let contextItems = [];
+    let readPostRawPayload = null;
     let timeline = [];
     let trends = [];
     
     if (isTweetDetail) {
-      primaryText = cleanXPrimaryText(article, tweetText);
+      const readPostContent = buildReadPostContent(baseSnapshot);
+      primaryText = readPostContent.primaryText;
+      post = readPostContent.post;
+      contextItems = readPostContent.contextItems;
+      readPostRawPayload = readPostContent.rawPayload;
     } else if (isTimeline) {
       timeline = extractXTimeline();
       if (isExplore) trends = extractXTrendingItems();
@@ -469,11 +691,12 @@ const xAdapter = {
     // until the absolute core content container (either a tweet or a long article) explicitly appears in the DOM.
     const isXArticle = !!document.querySelector('[data-testid="twitter-article-title"]') || !!document.querySelector('[data-testid="twitterArticleRichTextView"]');
     const hasCoreContent = isXArticle || !!tweetText;
+    const hasTargetPost = !!(post && post.text && post.text.length > 20);
 
     const ready = !!(
       document.readyState === 'complete' &&
       (
-        (isTweetDetail && hasCoreContent && primaryText.length > 20)
+        (isTweetDetail && hasCoreContent && hasTargetPost)
         || (isExplore && (trends.length > 0 || document.body.innerText.length > 500))
         || (isTimeline && timeline.length > 0)
         || (!isTweetDetail && !isTimeline && document.body.innerText.length > 100)
@@ -497,6 +720,10 @@ const xAdapter = {
         feedTabTexts: feedModeInfo.tabTexts,
         articleFound: !!article,
         tweetTextFound: !!tweetText,
+        targetStatusId: readPostRawPayload?.targetStatusId || null,
+        matchedStatusId: readPostRawPayload?.matchedStatusId || null,
+        matchStrategy: readPostRawPayload?.matchStrategy || null,
+        tweetCandidateCount: readPostRawPayload?.candidateCount || 0,
         loginMask,
         sensitiveGate,
         networkQuiet,
@@ -504,6 +731,9 @@ const xAdapter = {
       },
       content: {
         primaryText: primaryText,
+        post: post,
+        contextItems: contextItems,
+        rawPayload: readPostRawPayload,
         timeline: timeline,
         trends,
       },
@@ -531,9 +761,7 @@ const xAdapter = {
         kind,
         page: snap.page,
         signals: snap.signals,
-        content: {
-          primaryText: snap.content.primaryText,
-        },
+        content: snap.content,
       };
     }
     if (kind === 'read_timeline' || kind === 'list_bookmarks') {

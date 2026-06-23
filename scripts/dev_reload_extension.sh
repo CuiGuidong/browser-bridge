@@ -2,6 +2,12 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ENV_BRIDGE_URL_SET=0
+ENV_HOST_SSH_SET=0
+ENV_HOST_EXTENSION_DIR_SET=0
+[[ ${BRIDGE_URL+x} ]] && ENV_BRIDGE_URL_SET=1 && ENV_BRIDGE_URL="$BRIDGE_URL"
+[[ ${BB_HOST_SSH+x} ]] && ENV_HOST_SSH_SET=1 && ENV_HOST_SSH="$BB_HOST_SSH"
+[[ ${BB_HOST_EXTENSION_DIR+x} ]] && ENV_HOST_EXTENSION_DIR_SET=1 && ENV_HOST_EXTENSION_DIR="$BB_HOST_EXTENSION_DIR"
 BRIDGE_URL="${BRIDGE_URL:-http://127.0.0.1:17777}"
 HOST_SSH="${BB_HOST_SSH:-}"
 HOST_EXTENSION_DIR="${BB_HOST_EXTENSION_DIR:-}"
@@ -9,9 +15,21 @@ HOST_EXTENSION_DIR="${BB_HOST_EXTENSION_DIR:-}"
 if [[ -f "$ROOT_DIR/.env.local" ]]; then
   # shellcheck disable=SC1091
   source "$ROOT_DIR/.env.local"
-  BRIDGE_URL="${BRIDGE_URL:-http://127.0.0.1:17777}"
-  HOST_SSH="${BB_HOST_SSH:-}"
-  HOST_EXTENSION_DIR="${BB_HOST_EXTENSION_DIR:-}"
+  if [[ "$ENV_BRIDGE_URL_SET" -eq 1 ]]; then
+    BRIDGE_URL="$ENV_BRIDGE_URL"
+  else
+    BRIDGE_URL="${BRIDGE_URL:-http://127.0.0.1:17777}"
+  fi
+  if [[ "$ENV_HOST_SSH_SET" -eq 1 ]]; then
+    HOST_SSH="$ENV_HOST_SSH"
+  else
+    HOST_SSH="${BB_HOST_SSH:-}"
+  fi
+  if [[ "$ENV_HOST_EXTENSION_DIR_SET" -eq 1 ]]; then
+    HOST_EXTENSION_DIR="$ENV_HOST_EXTENSION_DIR"
+  else
+    HOST_EXTENSION_DIR="${BB_HOST_EXTENSION_DIR:-}"
+  fi
 fi
 
 if [[ -f "$ROOT_DIR/extension/manifest.dev.json" ]]; then
