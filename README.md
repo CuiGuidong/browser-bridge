@@ -25,11 +25,9 @@ Client / Agent
 | YouTube / 微信公众号 / 豆瓣 / HackerNews / Instagram / 雪球 / 东方财富 | 第一版只读支持：内容页、主页指标、搜索、登录状态 |
 | 1688 / 36氪 / 贴吧 / Aibase / Bloomberg / 大众点评 / 抖音 / Google / gov.cn / Grok / 虎扑 / IMDb / 京东 / linux.do / V2EX / 什么值得买 / 淘宝 / Wikipedia / 闲鱼 | 第一版低频只读支持：内容页、主页指标、搜索、登录状态 |
 
-更细的能力矩阵见 [docs/capabilities.md](docs/capabilities.md)。
-
 ## 快速开始
 
-选择与你的系统匹配的安装方式。完整步骤见 [docs/installation.md](docs/installation.md)。
+选择与你的系统匹配的安装方式。
 
 ### macOS 单机
 
@@ -75,26 +73,31 @@ Windows + WSL 路径是：WSL 运行 Bridge 和 Python venv，Windows 运行 Chr
 ./scripts/setup_wsl.sh
 ```
 
-脚本会输出 Windows PowerShell 侧的 Native Host 安装命令。完整说明见 [docs/installation.md](docs/installation.md)。
+脚本会输出：
 
-## 开发与贡献
+- Windows 浏览器需要加载的 `extension/` 路径
+- Windows PowerShell 侧 Native Host 安装命令
+- WSL 侧启动和诊断命令
 
-普通使用只需要阅读安装指南和接口文档。修改代码时请先阅读 [docs/development.md](docs/development.md)：
+安装 Native Host 时，`-Browser` 应与实际加载扩展的浏览器一致：
 
-- 站点语义放在浏览器扩展 adapter 中。
-- 固定流程放在 Bridge workflow 中。
-- Skill 或外部系统只调用稳定 HTTP API。
-- 开发调试默认使用本机 WSL + Windows 浏览器链路；跨机器运行属于部署/使用场景，不作为代码验证默认路径。
+```powershell
+powershell -ExecutionPolicy Bypass -File "<path>\install-native-host.ps1" `
+  -ExtensionId "<extension-id>" `
+  -Browser edge `
+  -BridgeUrl "http://127.0.0.1:17777"
+```
 
-## 文档
+如果使用 Chrome，把 `-Browser edge` 改成 `-Browser chrome`。只有两个浏览器都加载同一个扩展 ID 时才使用 `-Browser both`。
 
-- 安装指南：[docs/installation.md](docs/installation.md)
-- 架构规范：[docs/architecture.md](docs/architecture.md)
-- API 与 workflow：[docs/interfaces.md](docs/interfaces.md)
-- 站点能力矩阵：[docs/capabilities.md](docs/capabilities.md)
-- 开发指南：[docs/development.md](docs/development.md)
-- 运维诊断：[docs/operations.md](docs/operations.md)
-- 新站点适配：[docs/new-site-adaptation-guide.md](docs/new-site-adaptation-guide.md)
+## 使用入口
+
+- API 文档：启动后访问 `http://127.0.0.1:17777/docs`
+- 健康检查：`curl --noproxy '*' -sS http://127.0.0.1:17777/health`
+- 标签页列表：`curl --noproxy '*' -sS http://127.0.0.1:17777/tabs`
+- 扩展状态：`curl --noproxy '*' -sS http://127.0.0.1:17777/extension/state`
+
+普通用户不需要手写 Native Host manifest。脚本会生成 manifest、launcher 和浏览器注册项。
 
 ## 安全边界
 
