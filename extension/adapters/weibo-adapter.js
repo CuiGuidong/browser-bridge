@@ -153,6 +153,60 @@ function extractEngagement(lines) {
   return {};
 }
 
+function engagementToMetrics(engagement = {}) {
+  return {
+    reposts: engagement.reposts ?? null,
+    comments: engagement.comments ?? null,
+    likes: engagement.likes ?? null,
+  };
+}
+
+function isWeiboAdOrRecommendationText(text) {
+  return /(广告|推广|推荐|你可能感兴趣|热门微博|微博热搜|查看完整热搜榜单)/.test(text || '');
+}
+
+function extractCommentMetricsFromText(text) {
+  const likeMatch = (text || '').match(/(?:赞|点赞)\s*([\d.,万亿kKmM]+)|([\d.,万亿kKmM]+)\s*(?:赞|点赞)/);
+  const replyMatch = (text || '').match(/(?:回复|评论)\s*([\d.,万亿kKmM]+)|([\d.,万亿kKmM]+)\s*(?:回复|评论)/);
+  return {
+    likes: likeMatch ? (likeMatch[1] || likeMatch[2]) : null,
+    comments: null,
+    replies: replyMatch ? (replyMatch[1] || replyMatch[2]) : null,
+  };
+}
+
+function extractVisibleComments(root) {
+  const seen = new Set();
+  const candidates = Array.from((root || document).querySelectorAll('[class*="comment"], [class*="Comment"], .card-comment'))
+    .concat(Array.from(document.querySelectorAll('[class*="comment"], [class*="Comment"], .card-comment')));
+  const comments = [];
+  for (const el of candidates) {
+    if (comments.length >= 20) break;
+    const lines = splitLines(el.innerText || '');
+    const text = lines
+      .filter((line) => !isFooterBoundary(line))
+      .filter((line) => !/^(评论|按热度|按时间|发表评论)$/.test(line))
+      .join('\n')
+      .trim();
+    if (!text || text.length < 2 || text.length > 800) continue;
+    if (isWeiboAdOrRecommendationText(text)) continue;
+    const key = text.slice(0, 120);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const author = lines.find((line) => !looksLikeTimeText(line) && !/^(回复|赞|评论)$/.test(line)) || null;
+    const time = lines.find((line) => looksLikeTimeText(line)) || null;
+    comments.push({
+      authorName: author,
+      time,
+      text,
+      media: [],
+      metrics: extractCommentMetricsFromText(text),
+      platformMetrics: {},
+    });
+  }
+  return comments;
+}
+
 function extractReadableBody(lines, author, publishedAt) {
   const result = [];
   let started = false;
@@ -360,6 +414,8 @@ function extractPcPost() {
   const images = collectImageUrls(root);
   const videos = collectVideoUrls(root);
   const text = appendMediaMarkers(extractReadableBody(lines, author, publishedAt), images, videos);
+  const engagement = extractEngagement(lines);
+  const comments = extractVisibleComments(root);
   return {
     author,
     publishedAt,
@@ -367,7 +423,10 @@ function extractPcPost() {
     url: normalizeWeiboUrl(postLink?.href || location.href),
     images,
     videos,
-    engagement: extractEngagement(lines),
+    engagement,
+    metrics: engagementToMetrics(engagement),
+    comments,
+    commentsUnavailableReason: comments.length ? null : 'not_loaded',
   };
 }
 
@@ -382,6 +441,8 @@ function extractMobilePost() {
   const images = collectImageUrls(root);
   const videos = collectVideoUrls(root);
   const text = appendMediaMarkers(extractReadableBody(lines.slice(2), '', ''), images, videos);
+  const engagement = extractEngagement(lines);
+  const comments = extractVisibleComments(root);
   return {
     author,
     publishedAt,
@@ -389,7 +450,10 @@ function extractMobilePost() {
     url: normalizeWeiboUrl(location.href),
     images,
     videos,
-    engagement: extractEngagement(lines),
+    engagement,
+    metrics: engagementToMetrics(engagement),
+    comments,
+    commentsUnavailableReason: comments.length ? null : 'not_loaded',
   };
 }
 

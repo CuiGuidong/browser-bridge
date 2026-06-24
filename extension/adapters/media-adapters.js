@@ -326,9 +326,9 @@
     return (value || '').replace(/\s+/g, ' ').trim();
   }
 
-  function firstText(selectors) {
+  function firstText(selectors, root = document) {
     for (const selector of selectors) {
-      const value = compactText(document.querySelector(selector)?.innerText || '');
+      const value = compactText(root.querySelector(selector)?.innerText || '');
       if (value) return value;
     }
     return '';
@@ -825,11 +825,99 @@
     return null;
   }
 
+  function richTextWithMedia(el) {
+    if (!el) return null;
+    const parts = [];
+    const walk = (node) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        const text = compactText(node.nodeValue || '');
+        if (text) parts.push(text);
+        return;
+      }
+      if (node.nodeType !== Node.ELEMENT_NODE) return;
+      const tag = node.tagName.toUpperCase();
+      if (['SCRIPT', 'STYLE', 'NOSCRIPT', 'SVG', 'PATH'].includes(tag)) return;
+      if (tag === 'IMG') {
+        const src = node.currentSrc || node.src || '';
+        const alt = node.alt || '';
+        if (src && /^https?:/i.test(src) && !/avatar|icon|logo/i.test(src)) {
+          parts.push(alt ? `[Image: ${src} | Alt: ${alt}]` : `[Image: ${src}]`);
+        }
+        return;
+      }
+      for (const child of Array.from(node.childNodes)) {
+        walk(child);
+      }
+    };
+    walk(el);
+    return parts.join('\n\n').replace(/\n{3,}/g, '\n\n').trim() || null;
+  }
+
+  function extractZhihuRichPostText() {
+    const selectors = [
+      '.Post-RichTextContainer .RichText',
+      '.Post-Main .RichText',
+      '.RichContent-inner .RichText',
+      '.AnswerCard .RichContent-inner',
+    ];
+    for (const sel of selectors) {
+      const el = document.querySelector(sel);
+      const text = richTextWithMedia(el);
+      if (text && text.length > 20) return text;
+    }
+    return extractZhihuPostText();
+  }
+
+  function extractZhihuQuestionDescription() {
+    return firstText(['.QuestionRichText .RichText', '.QuestionHeader-detail', '[class*="QuestionHeader"] [class*="RichText"]']) || null;
+  }
+
+  function extractVisibleComments(site) {
+    if (site !== 'zhihu') return [];
+    const roots = Array.from(document.querySelectorAll('.CommentItem, [class*="CommentItem"], [class*="comment-item"]'));
+    const seen = new Set();
+    const comments = [];
+    for (const root of roots) {
+      if (comments.length >= 20) break;
+      const text = firstText([
+        '.CommentContent',
+        '.CommentItemV2-content',
+        '[class*="CommentContent"]',
+        '[class*="comment-content"]',
+      ], root);
+      if (!text || text.length < 2 || text.length > 1000) continue;
+      if (/(广告|推广|推荐)/.test(text)) continue;
+      const key = text.slice(0, 120);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const rootText = compactText(root.innerText || '');
+      const authorEl = root.querySelector('.UserLink-link, .CommentItemV2-meta a, [class*="author"]');
+      const author = compactText(authorEl?.innerText || '') || null;
+      const time = firstText(['.CommentItemV2-time', '[class*="time"]', '[class*="Time"]'], root);
+      const likeMatch = rootText.match(/([\d.,万亿kKmM]+)\s*(?:赞|赞同|likes?)/i);
+      const replyMatch = rootText.match(/([\d.,万亿kKmM]+)\s*(?:回复|评论|replies?)/i);
+      comments.push({
+        authorName: author,
+        time,
+        text,
+        media: [],
+        metrics: {
+          likes: likeMatch ? likeMatch[1] : null,
+          comments: null,
+          replies: replyMatch ? replyMatch[1] : null,
+        },
+        platformMetrics: {},
+      });
+    }
+    return comments;
+  }
+
   function readPost(site, pageType) {
     const mediaType = SITE_CONFIGS[site].mediaType;
     const url = canonicalUrl();
     const authorName = extractAuthor(site);
-    const postText = site === 'zhihu' ? extractZhihuPostText() : null;
+    const postText = site === 'zhihu' ? extractZhihuRichPostText() : null;
+    const comments = extractVisibleComments(site);
     return {
       ok: true,
       mode: 'semantic',
@@ -851,6 +939,9 @@
         videoContentParsed: mediaType === 'video' ? false : null,
         cover: absoluteUrl(meta('og:image') || meta('twitter:image') || ''),
         metrics: standardMetrics(extractPostMetrics(site)),
+        comments,
+        commentsUnavailableReason: comments.length ? null : (site === 'zhihu' ? 'not_loaded' : null),
+        questionDescription: site === 'zhihu' ? extractZhihuQuestionDescription() : null,
         rawPayload: {
           pageType,
           sourceMediaType: mediaType,

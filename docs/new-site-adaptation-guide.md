@@ -1,6 +1,6 @@
 # Browser Bridge 新站点适配实战指南
 
-_最后更新：2026-04-28_  
+_最后更新：2026-06-24_
 _状态：实施指南_
 
 相关文档：
@@ -165,7 +165,63 @@ AI 写提取逻辑时，建议默认遵守：
 - 图片、视频等媒体先保留页面可见引用，不要在站点适配阶段额外扩大下载逻辑
 - 缺字段时允许返回空值，但不要伪造字段
 
-### 5.3 ready 判断的默认偏好
+### 5.3 读帖语义模型映射
+
+新增或深化 `read_post` 时，adapter 返回 raw content，Bridge workflow 再映射为 `read_post.v1`。新增站点应优先复用现有语义字段，只有确实跨平台稳定的概念才新增通用字段。
+
+adapter raw content 至少应尽量提供：
+
+- `id` 或平台原始内容 ID
+- `url`
+- `type` 或能映射到通用内容类型的信息
+- `platformType` 或平台原生内容类型
+- `title`
+- `author`
+- `publishedAt`、`publishedLabel`、`publishedLocation`、`publishedSource`
+- `text`
+- `summary`
+- `images`、`videos` 或 `media`
+- `metrics`
+- `comments`
+- `commentsUnavailableReason`
+
+通用内容类型优先使用已有值，例如 `post`、`note`、`answer`、`discussion`、`video`。平台原生类型写入 `platformType`，例如 `tweet`、`weibo_post`、`xhs_note`、`zhihu_answer`、`reddit_post`、`bilibili_video`、`youtube_video`。
+
+`metrics` 只放跨站点通用指标：
+
+- `views`
+- `likes`
+- `comments`
+- `shares`
+- `reposts`
+- `quotes`
+- `favorites`
+
+平台特有指标进入 `platformMetrics`，并在 `platform.metricDefinitions` 中解释含义。例子：
+
+- B 站：`coins`、`danmaku`
+- Reddit：`score`、`upvoteRatio`
+- 知乎：`thanks`
+- X：公开可见书签数可用 `bookmarks`
+
+评论默认只抓可见一级评论，raw comment 建议提供：
+
+- `authorName`
+- `time`
+- `text`
+- `media`
+- `metrics.likes`
+- `metrics.comments`
+- `metrics.replies`
+- `platformMetrics`
+
+不要在默认 `read_post` 中展开评论的评论；需要深入评论分析时，应另做分页或专门 workflow。
+
+媒体顺序有语义时，正文应保留 `[Image Local: ... | Remote: ...]` 占位符；结构化 `media[]` 仍应列出同一媒体，并用 `order` 表示媒体列表顺序、`placement` 表示相对正文位置。常规短帖或笔记的正文后图片区可以只放在 `media[]`，正文不必重复。
+
+广告、推荐卡片、平台推广等非评论内容不得进入 `comments.items`。如果 adapter 能识别原因，放入过滤摘要；如果无法可靠识别，不要用硬编码敏感词误伤正常评论。
+
+### 5.4 ready 判断的默认偏好
 
 AI 不应只用以下信号判断页面 ready：
 

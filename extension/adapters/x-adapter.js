@@ -1,4 +1,5 @@
 // X (Twitter) Adapter for Browser Bridge
+const X_ADAPTER_VERSION = 'read-post-semantic-2026-06-24-2';
 
 async function expandXLongPost() {
   const showMore = Array.from(document.querySelectorAll('div[role="button"]'))
@@ -441,6 +442,35 @@ function extractTweetMedia(text) {
   return media;
 }
 
+function extractTweetMetrics(article) {
+  const text = [
+    article?.innerText || '',
+    ...Array.from(article?.querySelectorAll('[aria-label]') || []).map((el) => el.getAttribute('aria-label') || ''),
+  ].join('\n');
+  return {
+    views: extractMetricFromText(text, ['views', 'views?', '查看', '浏览']),
+    likes: extractMetricFromText(text, ['likes?', '点赞', '喜欢']),
+    comments: extractMetricFromText(text, ['replies?', 'comments?', '回复', '评论']),
+    reposts: extractMetricFromText(text, ['reposts?', 'retweets?', '转发']),
+    quotes: extractMetricFromText(text, ['quotes?', '引用']),
+  };
+}
+
+function extractMetricFromText(text, labels) {
+  const source = text || '';
+  for (const label of labels) {
+    const patterns = [
+      new RegExp(`([\\d.,万亿KMBkmb]+)\\s*${label}`, 'i'),
+      new RegExp(`${label}\\s*[:：]?\\s*([\\d.,万亿KMBkmb]+)`, 'i'),
+    ];
+    for (const pattern of patterns) {
+      const match = source.match(pattern);
+      if (match) return parseXMetricValue(match[1]);
+    }
+  }
+  return null;
+}
+
 function extractTweetItem(article, candidate = null) {
   const permalinkEl = getArticlePermalinkElement(article);
   const statusId = candidate?.permalinkStatusId || (permalinkEl ? extractStatusId(permalinkEl.href) : null);
@@ -454,13 +484,89 @@ function extractTweetItem(article, candidate = null) {
     publishedLabel: (timeEl?.innerText || '').trim() || null,
     text,
     media: extractTweetMedia(text),
+    metrics: extractTweetMetrics(article),
   };
+}
+
+function extractCommentMetrics(article) {
+  const metrics = extractTweetMetrics(article);
+  return {
+    likes: metrics.likes,
+    comments: metrics.comments,
+    replies: metrics.comments,
+  };
+}
+
+function isPromotedOrRecommendation(article) {
+  const text = (article?.innerText || '').replace(/\s+/g, ' ').trim();
+  if (/(广告|推广|Promoted|Sponsored|推荐|你可能喜欢|Who to follow|What’s happening|What's happening)/i.test(text)) {
+    return true;
+  }
+  if (!getArticlePermalinkElement(article) && /(Shop|购买|Learn more|了解更多|Install|下载|打开|立即)/i.test(text)) {
+    return true;
+  }
+  return false;
+}
+
+function isPromotedOrRecommendationItem(item) {
+  const text = (item?.text || '').replace(/\s+/g, ' ').trim();
+  if (!item?.statusId && text) {
+    return true;
+  }
+  return /(广告|推广|Promoted|Sponsored|推荐|你可能喜欢|Who to follow|What’s happening|What's happening)/i.test(text);
 }
 
 function extractVisibleRelationLabel(article) {
   const text = (article?.innerText || '').replace(/\s+/g, ' ').trim();
   const match = text.match(/(转发了|reposted|quoted|引用)/i);
   return match ? match[0] : null;
+}
+
+function extractThreadAndComments(candidates, targetArticle) {
+  const target = candidates.find((candidate) => candidate.article === targetArticle) || null;
+  if (!target) return { threadItems: [], commentItems: [], filteredItems: [] };
+  const targetAuthor = extractTweetAuthor(targetArticle);
+  const threadItems = [];
+  const commentItems = [];
+  const filteredItems = [];
+  let afterTargetThreadOpen = true;
+
+  for (const candidate of candidates.filter((item) => item.article !== targetArticle)) {
+    const item = extractTweetItem(candidate.article, candidate);
+    const promoted = isPromotedOrRecommendation(candidate.article) || isPromotedOrRecommendationItem(item);
+    if (promoted) {
+      filteredItems.push({
+        reason: 'ad_or_recommendation',
+        statusId: item.statusId,
+        authorName: item.author?.displayName || item.author?.handle || null,
+        textPreview: (item.text || '').slice(0, 160),
+      });
+      continue;
+    }
+
+    const sameAuthor = targetAuthor.handle && item.author?.handle === targetAuthor.handle;
+    const hasGeometry = Number.isFinite(candidate.rect?.top) && Number.isFinite(target.rect?.top);
+    const beforeTarget = hasGeometry ? candidate.rect.bottom <= target.rect.top : candidate.index < target.index;
+    const afterTarget = hasGeometry ? candidate.rect.top >= target.rect.bottom : candidate.index > target.index;
+    if (beforeTarget || (afterTarget && afterTargetThreadOpen && sameAuthor)) {
+      threadItems.push({
+        relation: extractVisibleRelationLabel(candidate.article) ? 'repost_chain' : 'same_thread',
+        ...item,
+      });
+    } else {
+      afterTargetThreadOpen = false;
+      commentItems.push({
+        authorName: item.author?.displayName || item.author?.handle || null,
+        time: item.publishedLabel || item.publishedAt || null,
+        text: item.text,
+        media: item.media || [],
+        metrics: extractCommentMetrics(candidate.article),
+        platformMetrics: {},
+      });
+    }
+  }
+
+  return { threadItems, commentItems, filteredItems };
 }
 
 function extractDisplayedContext(candidates, targetArticle) {
@@ -486,12 +592,18 @@ function buildReadPostContent(_baseSnapshot) {
   const selection = selectTargetTweetArticle(candidates, targetStatusId);
   const post = selection.article ? extractTweetItem(selection.article, selection.candidate) : null;
   const contextItems = selection.article ? extractDisplayedContext(candidates, selection.article) : [];
+  const { threadItems, commentItems, filteredItems } = selection.article
+    ? extractThreadAndComments(candidates, selection.article)
+    : { threadItems: [], commentItems: [], filteredItems: [] };
   const primaryText = post?.text || '';
 
   return {
     primaryText,
     post: post || null,
     contextItems,
+    threadItems,
+    commentItems,
+    filteredItems,
     rawPayload: {
       targetStatusId,
       matchedStatusId: post?.statusId || null,
@@ -499,6 +611,10 @@ function buildReadPostContent(_baseSnapshot) {
       reason: selection.reason,
       candidateCount: candidates.length,
       contextCount: contextItems.length,
+      threadCount: threadItems.length,
+      commentCount: commentItems.length,
+      filteredCount: filteredItems.length,
+      adapterVersion: X_ADAPTER_VERSION,
     },
   };
 }
@@ -664,6 +780,9 @@ const xAdapter = {
     let primaryText = '';
     let post = null;
     let contextItems = [];
+    let threadItems = [];
+    let commentItems = [];
+    let filteredItems = [];
     let readPostRawPayload = null;
     let timeline = [];
     let trends = [];
@@ -673,6 +792,9 @@ const xAdapter = {
       primaryText = readPostContent.primaryText;
       post = readPostContent.post;
       contextItems = readPostContent.contextItems;
+      threadItems = readPostContent.threadItems;
+      commentItems = readPostContent.commentItems;
+      filteredItems = readPostContent.filteredItems;
       readPostRawPayload = readPostContent.rawPayload;
     } else if (isTimeline) {
       timeline = extractXTimeline();
@@ -733,6 +855,9 @@ const xAdapter = {
         primaryText: primaryText,
         post: post,
         contextItems: contextItems,
+        threadItems: threadItems,
+        commentItems: commentItems,
+        filteredItems: filteredItems,
         rawPayload: readPostRawPayload,
         timeline: timeline,
         trends,

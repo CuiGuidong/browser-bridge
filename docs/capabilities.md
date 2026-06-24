@@ -1,6 +1,6 @@
 # Browser Bridge 站点能力矩阵
 
-_最后更新：2026-05-16_
+_最后更新：2026-06-24_
 _状态：公开能力说明_
 
 本文档回答两个问题：
@@ -87,6 +87,13 @@ _状态：公开能力说明_
 - 查看书签
 - 基于 Agent 判断执行关注或书签动作
 
+### `read_post` 语义输出
+
+- 默认 skill 输出 `read_post.v1`
+- `thread.items` 输出可见 thread、引用链路或转发链路上下文
+- `comments.items` 默认返回可见一级评论，`comments=default_first_level`
+- 广告、推荐卡片等平台正规投放或非评论内容进入过滤摘要，不进入默认评论列表
+
 ## 小红书
 
 ### 当前能力
@@ -137,6 +144,12 @@ _状态：公开能力说明_
 - 由 Agent 先准备好图文发帖内容，再由人工确认发布
 - 采集已发布笔记和主页公开指标
 
+### `read_post` 语义输出
+
+- 默认 skill 输出 `read_post.v1`
+- 常规笔记图片进入 `media[]`，正文不重复非内嵌图片区
+- `comments.items` 默认返回可见一级评论，`comments=default_first_level`
+
 ## 微博
 
 ### 当前能力
@@ -183,6 +196,12 @@ _状态：公开能力说明_
 - 搜索微博
 - 获取微博主页公开指标
 
+### `read_post` 语义输出
+
+- 默认 skill 输出 `read_post.v1`
+- 正文内图片位置有语义时保留 `[Image Local: ... | Remote: ...]` 占位符，同时在 `media[]` 中结构化列出
+- `comments.items` 默认返回可见一级评论，`comments=default_first_level`
+
 ## 知乎 / B 站 / 抖音 / Reddit / YouTube / 微信公众号 / 豆瓣 / HackerNews / Instagram / 雪球 / 东方财富 / 1688 / 36氪 / 贴吧 / Aibase / Bloomberg / 大众点评 / Google / gov.cn / Grok / 虎扑 / IMDb / 京东 / linux.do / V2EX / 什么值得买 / 淘宝 / Wikipedia / 闲鱼
 
 ### 当前能力
@@ -201,11 +220,11 @@ _状态：公开能力说明_
 
 ### 第一版基础设施边界
 
-- 知乎：读取问题/回答/文章页的标题、作者、摘要和公开互动指标；读取主页公开指标；搜索结果做语义链接列表。
-- B 站：把视频页作为 `post` 读取标题、UP 主、简介、封面和播放/点赞/评论/收藏/投币/弹幕等公开指标。
+- 知乎：读取问题/回答/文章页的标题、作者、摘要和公开互动指标；`read_post.v1` 默认输出已覆盖可见一级评论，`comments=default_first_level`；读取主页公开指标；搜索结果做语义链接列表。
+- B 站：把视频页作为 `post` 读取标题、UP 主、简介、封面和播放/点赞/评论/收藏/投币/弹幕等公开指标；`read_post.v1` 基础映射已覆盖，`coins/danmaku` 进入 `platformMetrics`，评论不在第一阶段抓取，`comments=not_in_first_phase`。
 - 抖音：把视频页作为 `post` 读取标题/描述、作者、封面和点赞/评论/收藏/分享等公开指标。
-- Reddit：读取帖子标题、正文摘要、作者、分数/评论数；读取用户或 Subreddit 页公开指标；搜索结果做语义链接列表。
-- YouTube：把视频/Shorts 页作为 `post` 读取标题、频道、描述、封面和页面可见互动指标；频道页作为 profile metrics；搜索结果做语义链接列表。
+- Reddit：读取帖子标题、正文摘要、作者、分数/评论数；`read_post.v1` 基础映射已覆盖，`score/upvoteRatio` 进入 `platformMetrics`，评论不在第一阶段抓取，`comments=not_in_first_phase`；读取用户或 Subreddit 页公开指标；搜索结果做语义链接列表。
+- YouTube：把视频/Shorts 页作为 `post` 读取标题、频道、描述、封面和页面可见互动指标；`read_post.v1` 基础映射已覆盖，评论不在第一阶段抓取，`comments=not_in_first_phase`；频道页作为 profile metrics；搜索结果做语义链接列表。
 - 微信公众号：读取 `mp.weixin.qq.com` 文章页标题、作者/公众号、摘要和封面；通过搜狗微信结果页提供搜索入口；不做群发、草稿创建或发布动作。
 - 豆瓣：读取条目、笔记、影评/书评等页面元信息和页面可见指标；搜索结果做语义链接列表。
 - HackerNews：读取 item 讨论页和用户页的公开信息；搜索通过 Algolia 结果页读取链接列表。

@@ -19,6 +19,10 @@ version: 2.1.0
 
 - 阅读单条推文：
   `python3 skills/x-assistant/scripts/read_post.py "<URL>"`
+  - 默认输出 `read_post.v1` 语义模型：`contentItem`、`thread`、`comments`、`platform`
+  - 开发排障用 `--raw` 查看 Bridge 原始 payload
+  - 需要语义结果加诊断摘要时用 `--debug`
+  - 可用 `--comment-limit N` 调整返回的已采集一级评论上限，默认 20；当前不承诺自动加载更多评论
   - ⚠️ 若输出含 `[Image Local: ...]`，**必须用 `read` 工具读取**，不能用 `image` 工具
 
 - 在 X 搜索：
@@ -58,7 +62,7 @@ version: 2.1.0
 
 推断规则：
 
-- 如果上一条是 `read_post.py` 结果，优先使用其中的 `author.handle` 或 `post.url`
+- 如果上一条是 `read_post.py` 默认结果，优先使用其中的 `contentItem.author.handle` 或 `contentItem.url`
 - 如果上一条是搜索、时间线、书签列表结果，只有在用户明确指向某一条时才执行
 - 如果指向不明确，就先问一个简短澄清问题，不要猜
 
@@ -100,6 +104,7 @@ read(file_path="/tmp/browser-bridge-cache/xxxx.jpg")
 ## 5. 输出要求
 
 - 脚本返回的是 JSON
+- `read_post.py` 默认只返回精简语义结果，不包含 `page/signals/debug/rawPayload/targetId`
 - 优先提取结构化字段，不要只复述整段文本
 - 阅读类请求要总结核心内容
 - 动作类请求要明确：

@@ -1,5 +1,11 @@
 from urllib.parse import quote
 
+from .read_post_semantics import (
+    build_read_post_diagnostics,
+    build_read_post_semantic,
+    normalize_comment_limit,
+)
+
 
 def _open_url(browser_runtime, url, target_id=None, reuse_domain=None):
     if target_id:
@@ -107,7 +113,7 @@ def run_url_read(
                     **(read_result.get("debug") or {}),
                 },
             }
-        return {
+        result = {
             "ok": True,
             "site": site,
             "workflow": workflow,
@@ -127,6 +133,11 @@ def run_url_read(
                 **(read_result.get("debug") or {}),
             },
         }
+        if workflow == "read_post" and kind == "read_post":
+            comment_limit = normalize_comment_limit(params.get("commentLimit"))
+            result["semantic"] = build_read_post_semantic(site, result, comment_limit=comment_limit)
+            result["diagnostics"] = build_read_post_diagnostics(site, result)
+        return result
     finally:
         if opened is not None and not opened.get("reused") and resolved_target_id:
             try:

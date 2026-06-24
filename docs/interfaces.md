@@ -1,6 +1,6 @@
 # Browser Bridge API 与 Workflow 参考
 
-_最后更新：2026-05-16_
+_最后更新：2026-06-24_
 _状态：接口参考_
 
 本文档聚焦：
@@ -166,6 +166,134 @@ Telegram 已可用；微信先按企业微信/兼容 webhook 预留。
 | `POST /native/session/result` | Native host shim 回传结果/报告 |
 | `POST /native/session/unregister` | Native host shim 注销 session |
 
+## `read_post.v1` 语义输出
+
+`read_post` workflow 成功响应同时保留三层数据：
+
+- `semantic`：稳定语义合同，供 skill 默认输出和外部系统读取。
+- `diagnostics`：精简诊断摘要，供 `--debug` 和排障使用。
+- 旧 raw payload：原 workflow 字段，如 `content`、`page`、`signals`、`debug`、`rawPayload`，只供 `--raw` 和开发调试使用。
+
+skill 默认只打印 `semantic`。默认输出不包含 `targetId`、`items`、`checkpoint`、`page`、`signals`、`debug`、`rawPayload`、`primaryText` 等排障字段。
+
+### 默认结构
+
+```json
+{
+  "ok": true,
+  "site": "x",
+  "schemaVersion": "read_post.v1",
+  "contentItem": {
+    "id": "2068988425072697742",
+    "url": "https://x.com/laobaishare/status/2068988425072697742",
+    "type": "post",
+    "platformType": "tweet",
+    "title": null,
+    "author": {
+      "id": null,
+      "displayName": "老白（每日干货分享）",
+      "handle": "@laobaishare",
+      "profileUrl": null,
+      "verified": null
+    },
+    "published": {
+      "at": "2026-06-22T09:24:15.000Z",
+      "label": "下午5:24 · 2026年6月22日",
+      "location": null,
+      "source": null
+    },
+    "text": "正文；如果正文中图片位置有语义，会保留 [Image Local: ... | Remote: ...] 占位符。",
+    "summary": null,
+    "tags": [],
+    "media": [
+      {
+        "type": "image",
+        "url": "https://pbs.twimg.com/media/example.jpg",
+        "localPath": "/tmp/browser-bridge-cache/example.jpg",
+        "order": 1,
+        "placement": "after_text",
+        "alt": null,
+        "title": null,
+        "source": null
+      }
+    ],
+    "metrics": {
+      "comments": null,
+      "favorites": null,
+      "likes": null,
+      "quotes": null,
+      "reposts": null,
+      "shares": null,
+      "views": null
+    },
+    "platformMetrics": {}
+  },
+  "thread": {
+    "items": [],
+    "relation": "none",
+    "complete": null
+  },
+  "comments": {
+    "items": [],
+    "limit": 20,
+    "count": 0,
+    "total": null,
+    "hasMore": null,
+    "nextCursor": null,
+    "sort": "platform_default",
+    "filtered": []
+  },
+  "platform": {
+    "labels": {},
+    "metricDefinitions": {},
+    "specific": {}
+  }
+}
+```
+
+### 字段含义
+
+- `contentItem`：当前 URL 对应的目标内容。`type` 是通用内容类型，`platformType` 是站点原生类型。
+- `thread.items`：同一内容链路中的上下文内容，例如 X thread、引用链路或转发链路。普通评论不进入这里。
+- `comments.items`：默认最多 20 条可见一级评论。每条评论只保留 `authorName`、`time`、`text`、`media`、`metrics`、`platformMetrics`，不展开评论下的二级讨论。
+- `comments.filtered`：被 adapter 识别出的广告、推荐卡片、非评论内容等过滤摘要。垃圾机器人识别属于更高层策略，不在当前字段中自动判定。
+- `media`：结构化媒体列表。`order` 表示媒体在该列表中的顺序；`placement` 表示相对正文的位置，如 `inline`、`after_text`、`cover`。当正文中的图片位置影响理解时，`text` 会保留 `[Image Local: ... | Remote: ...]` 占位符，因此 `text` 与 `media[]` 可以重复引用同一张图片。
+- `metrics`：跨站点通用互动指标，只允许 `views/likes/comments/shares/reposts/quotes/favorites`。
+- `platformMetrics`：平台特有指标，例如 B 站 `coins/danmaku`、Reddit `score/upvoteRatio`、知乎 `thanks`、X 公开书签数 `bookmarks`。
+- `platform.labels`：保留平台原始叫法，例如 X 的 Bookmark、小红书的收藏、微博的转发。
+- `platform.metricDefinitions`：当 `platformMetrics` 出现不易理解的字段时，提供字段释义。
+- `platform.specific`：平台特有但不应晋升为通用字段的信息，例如知乎问题描述、Reddit community、视频是否已解析画面。
+
+### 通用字段晋升规则
+
+新增站点或新增指标时，默认先映射到现有通用字段。只有同时满足以下条件，才考虑新增通用字段：
+
+1. 至少两个以上平台存在稳定同义行为。
+2. 字段对读帖、排序、质量判断或后续动作有稳定价值。
+3. 字段含义不会和现有 `metrics` 或 `platform.specific` 重叠。
+4. 已在 `docs/interfaces.md` 记录含义，并在合同测试中固定。
+
+不满足条件的字段进入 `platformMetrics` 或 `platform.specific`，并在必要时补 `platform.metricDefinitions`。
+
+### raw 与 debug 边界
+
+- 默认：返回 `semantic`，适合 AI Agent 和人类阅读。
+- `--debug`：返回 `semantic` 加 `diagnostics`。`diagnostics` 只包含页面标题/URL、目标匹配、候选数量、过滤数量、缺失字段和 adapter 版本等摘要，不复制完整 `signals/rawPayload/debug`。
+- `--raw`：返回完整 workflow raw payload，用于 adapter 调试、页面定位、字段排查和回归分析。
+
+`targetId: null` 在 workflow 新开临时页并关闭后属于正常运行状态；默认语义输出不暴露该字段。
+
+### 降级与失败
+
+| 场景 | 返回方式 |
+|------|----------|
+| 页面打开失败、Bridge 无法访问、workflow 异常 | `ok=false`，保留结构化错误 envelope |
+| adapter 未匹配站点或页面类型 | `ok=false`，错误码按现有 workflow 规则返回 |
+| 登录拦截、验证码、地区限制导致核心正文不可读 | `ok=false`，不伪造空语义成功 |
+| 核心正文可读但评论区不可见、未加载或登录态限制 | `semantic.ok=true`，`partial=true`，`missing=["comments"]` |
+| 单个互动指标页面不可见 | 对应指标为 `null`，不默认标记 `partial` |
+| adapter 明确报告指标区加载失败 | `partial=true`，`missing` 中加入对应指标分组 |
+
 ## Playwright API
 
 | 端点 | 功能 |
@@ -185,12 +313,12 @@ Telegram 已可用；微信先按企业微信/兼容 webhook 预留。
 - `read_post`
   - 必填：`url`
   - 常用可选：`waitForReady`、`intervalSeconds`
+  - skill 常用可选：`--comment-limit N`，默认 20，范围 `0..100`；当前第一阶段只裁剪已采集的页面可见一级评论，站点 adapter 通常最多采集前 20 条，不承诺自动加载更多评论
   - 返回：
-    - `content.primaryText`：兼容字段，始终等于当前 URL 目标推文的 `content.post.text`
-    - `content.post`：当前 URL status id 匹配到的目标推文，包含 `statusId`、`url`、`author`、`publishedAt`、`publishedLabel`、`text`、`media`
-    - `content.contextItems`：页面可见的其它上下文推文，字段包含 `position`、`relation`、`visibleRelationLabel`、`statusId`、`url`、`author`、`text`、`media`
-    - `content.rawPayload`：调试信息，包含 `targetStatusId`、`matchedStatusId`、`matchStrategy`、`candidateCount`、`contextCount`
-  - `contextItems.relation` 第一版使用 `visible_context`，只表示页面可见上下文，不承诺精确转发、引用或 thread 业务关系
+    - `semantic`：默认语义结果，结构见 `read_post.v1`
+    - `diagnostics`：精简诊断摘要，供 `--debug` 使用
+    - raw `content`：开发调试字段，包含 `post`、`threadItems`、`commentItems`、`filteredItems`、`rawPayload`
+  - raw `content.primaryText/contextItems` 仅为兼容旧调试输出保留，默认 skill 不输出，也不作为 thread/comment 关系合同
   - 开发调试验证需显式使用本机 Bridge：`BRIDGE_URL="http://127.0.0.1:17777"`
 - `search`
   - 必填：`keyword`
@@ -218,6 +346,7 @@ Telegram 已可用；微信先按企业微信/兼容 webhook 预留。
 - `read_post`
   - 必填：`url` 或 `noteId`
   - 常用可选：`waitForReady`、`intervalSeconds`
+  - 默认语义输出：`read_post.v1`；可用 `--raw` 查看 workflow raw payload，可用 `--debug` 查看语义结果和诊断摘要
 - `read_home`
   - 常用可选：`waitForReady`、`intervalSeconds`
 - `search`
@@ -242,6 +371,7 @@ Telegram 已可用；微信先按企业微信/兼容 webhook 预留。
 - `read_post`
   - 必填：`url`
   - 常用可选：`waitForReady`、`intervalSeconds`
+  - 默认语义输出：`read_post.v1`；可用 `--raw` 查看 workflow raw payload，可用 `--debug` 查看语义结果和诊断摘要
 - `read_home`
   - 常用可选：`targetCount`、`scrollRounds`、`waitForReady`、`intervalSeconds`
 - `read_hot_feed`
@@ -263,6 +393,7 @@ Telegram 已可用；微信先按企业微信/兼容 webhook 预留。
 
 - `read_post`
   - 必填：`url`
+  - 默认语义输出：`read_post.v1`
   - 知乎、Reddit、微信公众号、豆瓣、HackerNews、Instagram、雪球、东方财富、1688、36氪、贴吧、Aibase、Bloomberg、大众点评、Google、gov.cn、Grok、虎扑、IMDb、京东、linux.do、V2EX、什么值得买、淘宝、Wikipedia、闲鱼返回内容页标题、作者/来源、摘要和页面可见互动指标
   - B 站、抖音和 YouTube 返回视频页元信息和公开互动指标，不解析视频内容本身
 - `read_profile_metrics`

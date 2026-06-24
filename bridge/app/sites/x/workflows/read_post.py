@@ -1,5 +1,10 @@
 from .common import close_temporary_tab, response_target_id, wait_for_target_stable
 from ....media.image_cache import process_and_spawn_downloads
+from ...read_post_semantics import (
+    build_read_post_diagnostics,
+    build_read_post_semantic,
+    normalize_comment_limit,
+)
 
 
 def _infer_page_type(read_result):
@@ -113,6 +118,9 @@ def run(read_service, browser_runtime, target_id=None, params=None, timeout_seco
         result["content"] = content
         if opened is not None:
             result["debug"]["open"] = opened
+        comment_limit = normalize_comment_limit(params.get("commentLimit"))
+        result["semantic"] = build_read_post_semantic("x", result, comment_limit=comment_limit)
+        result["diagnostics"] = build_read_post_diagnostics("x", result)
         return result
     finally:
         close_temporary_tab(browser_runtime, opened, resolved_target_id)

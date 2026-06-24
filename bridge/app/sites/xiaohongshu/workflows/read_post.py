@@ -2,6 +2,11 @@ from urllib.parse import urlparse
 import time
 
 from ....media.image_cache import process_and_spawn_downloads
+from ...read_post_semantics import (
+    build_read_post_diagnostics,
+    build_read_post_semantic,
+    normalize_comment_limit,
+)
 
 
 def _build_note_url(params):
@@ -161,6 +166,9 @@ def run(read_service, browser_runtime, target_id=None, params=None, timeout_seco
         if content.get("text"):
             content["text"] = process_and_spawn_downloads(content["text"])
         result["content"] = content
+        comment_limit = normalize_comment_limit(params.get("commentLimit"))
+        result["semantic"] = build_read_post_semantic("xiaohongshu", result, comment_limit=comment_limit)
+        result["diagnostics"] = build_read_post_diagnostics("xiaohongshu", result)
         return result
     finally:
         if opened is not None and not opened.get("reused") and resolved_target_id:

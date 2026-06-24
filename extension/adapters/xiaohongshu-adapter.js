@@ -495,7 +495,55 @@ function extractPostText(images, videos) {
   } else {
     baseText = `${title}\n\n${descText}`;
   }
-  return appendPostMedia(baseText, images, videos);
+  return baseText.trim();
+}
+
+function extractVisiblePostComments() {
+  const seen = new Set();
+  const roots = Array.from(document.querySelectorAll('.comment-item, [class*="comment-item"], [class*="CommentItem"]'))
+    .filter((root) => !/\bcomment-item-sub\b/.test((root.className || '').toString()));
+  const comments = [];
+  for (const root of roots) {
+    if (comments.length >= 20) break;
+    const rawText = normalizeMultilineText(root.innerText || '');
+    if (!rawText || rawText.length < 2 || rawText.length > 800) continue;
+    if (/(广告|推广|推荐)/.test(rawText)) continue;
+    const lines = rawText.split('\n').map((line) => line.trim()).filter(Boolean);
+    const authorName = shortText(root.querySelector('.author .name, .name')?.innerText || lines[0] || '', 80) || null;
+    const time = shortText(root.querySelector('.date')?.innerText || '', 80)
+      || lines.find((line) => /(\d+分钟前|\d+小时前|\d+天前|昨天|今天|\d{1,2}-\d{1,2})/.test(line))
+      || null;
+    const likesText = shortText(root.querySelector('.interactions .like .count, .like .count')?.innerText || '', 40);
+    const repliesText = shortText(root.querySelector('.interactions .reply .count, .reply .count')?.innerText || '', 40);
+    const structuredText = normalizeMultilineText(root.querySelector('.content')?.innerText || '');
+    const text = structuredText || lines
+      .filter((line) => line !== authorName)
+      .filter((line) => line !== time)
+      .filter((line) => line !== likesText)
+      .filter((line) => line !== repliesText)
+      .filter((line) => !/^(赞|回复|作者|置顶评论|作者赞过)$/.test(line))
+      .filter((line) => !/^展开\d*条?回复$/.test(line))
+      .join('\n')
+      .trim();
+    if (!text || text.length < 2 || text.length > 600) continue;
+    if (/(广告|推广|推荐)/.test(text)) continue;
+    const key = text.slice(0, 120);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    comments.push({
+      authorName,
+      time,
+      text,
+      media: [],
+      metrics: {
+        likes: parseMetricValue(likesText),
+        comments: null,
+        replies: parseMetricValue(repliesText),
+      },
+      platformMetrics: {},
+    });
+  }
+  return comments;
 }
 
 function extractProfileIdFromUrl(url) {
@@ -585,6 +633,7 @@ const xiaohongshuAdapter = {
     const detailDesc = document.querySelector('#detail-desc');
     const postImages = pageType === 'post' ? extractPostImages() : [];
     const postVideos = pageType === 'post' ? extractPostVideos() : [];
+    const postComments = pageType === 'post' ? extractVisiblePostComments() : [];
     const hasVideo = pageType === 'post' ? detectHasVideo() : false;
     const ready = !!(
       document.readyState === 'complete' && (
@@ -625,6 +674,8 @@ const xiaohongshuAdapter = {
           images: postImages,
           videos: postVideos,
           metrics: extractPostMetrics(),
+          comments: postComments,
+          commentsUnavailableReason: postComments.length ? null : 'not_loaded',
           url: normalizeXiaohongshuUrl(location.href),
         } : null,
         profile: pageType === 'profile' ? {

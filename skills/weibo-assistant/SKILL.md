@@ -27,6 +27,10 @@ version: 1.0.0
 
 - 读取单条微博：
   `python3 skills/weibo-assistant/scripts/read_post.py "<url|share_text>"`
+  - 默认输出 `read_post.v1` 语义模型：`contentItem`、`thread`、`comments`、`platform`
+  - 开发排障用 `--raw` 查看 Bridge 原始 payload
+  - 需要语义结果加诊断摘要时用 `--debug`
+  - 可用 `--comment-limit N` 调整返回的已采集一级评论上限，默认 20；当前不承诺自动加载更多评论
   - ⚠️ 若输出含 `[Image Local: ...]`，**必须用 `read` 工具读取**，不能用 `image` 工具
 
 - 搜索微博：
@@ -44,13 +48,14 @@ version: 1.0.0
 
 - 首页/热门流/搜索返回结构化 `items`
 - 热搜榜返回榜单 `items`
-- 单帖优先返回：
-  - `author`
-  - `publishedAt`
-  - `text`
-  - `images`
-  - `videos`
-  - `url`
+- 单帖默认返回精简 `read_post.v1` 语义结果，不包含 `page/signals/debug/rawPayload/targetId`
+- 单帖优先读取：
+  - `contentItem.author`
+  - `contentItem.published`
+  - `contentItem.text`
+  - `contentItem.media`
+  - `contentItem.metrics`
+  - `comments.items`
 
 ## 4. ⚠️ 图片处理（重要）
 

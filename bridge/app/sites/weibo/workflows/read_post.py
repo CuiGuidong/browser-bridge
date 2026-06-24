@@ -3,6 +3,11 @@ from urllib.parse import urlparse
 
 from .common import close_temporary_tab, open_weibo_page, response_target_id
 from ....media.image_cache import process_and_spawn_downloads
+from ...read_post_semantics import (
+    build_read_post_diagnostics,
+    build_read_post_semantic,
+    normalize_comment_limit,
+)
 
 
 def _looks_like_post_url(url):
@@ -119,7 +124,7 @@ def run(read_service, browser_runtime, target_id=None, params=None, timeout_seco
         content = dict(read_result.get("content") or {})
         if content.get("text"):
             content["text"] = process_and_spawn_downloads(content["text"])
-        return {
+        result = {
             "ok": True,
             "site": "weibo",
             "workflow": "read_post",
@@ -139,5 +144,9 @@ def run(read_service, browser_runtime, target_id=None, params=None, timeout_seco
                 **(read_result.get("debug") or {}),
             },
         }
+        comment_limit = normalize_comment_limit(params.get("commentLimit"))
+        result["semantic"] = build_read_post_semantic("weibo", result, comment_limit=comment_limit)
+        result["diagnostics"] = build_read_post_diagnostics("weibo", result)
+        return result
     finally:
         close_temporary_tab(browser_runtime, opened, resolved_target_id)

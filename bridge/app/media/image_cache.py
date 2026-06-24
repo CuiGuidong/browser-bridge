@@ -85,3 +85,27 @@ def process_and_spawn_downloads(text_or_items, cache_dir=CACHE_DIR):
 
     _spawn_downloader(tasks)
     return result
+
+
+def process_media_items_and_spawn_downloads(media_items, cache_dir=CACHE_DIR):
+    if not media_items:
+        return []
+
+    tasks = []
+    result = []
+    for item in media_items:
+        if not isinstance(item, dict):
+            continue
+        new_item = dict(item)
+        media_type = new_item.get("type")
+        url = (new_item.get("url") or "").strip()
+        if media_type == "image" and url:
+            local_path = new_item.get("localPath") or build_cache_path(url, cache_dir=cache_dir)
+            new_item["localPath"] = local_path
+            tasks.append({"url": url, "path": local_path})
+        elif "localPath" not in new_item:
+            new_item["localPath"] = None
+        result.append(new_item)
+
+    _spawn_downloader(tasks)
+    return result
