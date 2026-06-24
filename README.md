@@ -1,6 +1,6 @@
 # Browser Bridge
 
-Browser Bridge 是让 Agent 在**真实浏览器**和**真实登录态**中稳定执行跨站点任务的本地桥。
+Browser Bridge 是一个开源的本地浏览器执行基座，让 Agent、脚本或本地应用可以在**真实浏览器**和**真实登录态**中读取页面、执行低风险流程，并获得结构化结果。
 
 它把浏览器控制、站点语义和固定流程拆开：
 
@@ -12,7 +12,7 @@ Client / Agent
         -> Real Browser Page
 ```
 
-当前底层控制通过 Native Messaging + 浏览器扩展完成，正常使用不需要 `--remote-debugging-port`，也不会触发浏览器调试横幅。
+当前底层控制通过 Native Messaging + 浏览器扩展完成，正常使用不需要 `--remote-debugging-port`，也不会触发浏览器调试横幅。项目不内置账号、cookie 或私有配置；所有登录态都来自用户本机浏览器。
 
 ## 当前支持
 
@@ -27,7 +27,11 @@ Client / Agent
 
 更细的能力矩阵见 [docs/capabilities.md](docs/capabilities.md)。
 
-## 快速开始：macOS 单机
+## 快速开始
+
+选择与你的系统匹配的安装方式。完整步骤见 [docs/installation.md](docs/installation.md)。
+
+### macOS 单机
 
 前置条件：
 
@@ -63,7 +67,7 @@ cd browser-bridge-project
 curl --noproxy '*' -sS http://127.0.0.1:17777/health
 ```
 
-## Windows + WSL
+### Windows + WSL
 
 Windows + WSL 路径是：WSL 运行 Bridge 和 Python venv，Windows 运行 Chrome/Edge 与 Native Host launcher。
 
@@ -72,6 +76,15 @@ Windows + WSL 路径是：WSL 运行 Bridge 和 Python venv，Windows 运行 Chr
 ```
 
 脚本会输出 Windows PowerShell 侧的 Native Host 安装命令。完整说明见 [docs/installation.md](docs/installation.md)。
+
+## 开发与贡献
+
+普通使用只需要阅读安装指南和接口文档。修改代码时请先阅读 [docs/development.md](docs/development.md)：
+
+- 站点语义放在浏览器扩展 adapter 中。
+- 固定流程放在 Bridge workflow 中。
+- Skill 或外部系统只调用稳定 HTTP API。
+- 开发调试默认使用本机 WSL + Windows 浏览器链路；跨机器运行属于部署/使用场景，不作为代码验证默认路径。
 
 ## 文档
 
@@ -93,6 +106,8 @@ Windows + WSL 路径是：WSL 运行 Bridge 和 Python venv，Windows 运行 Chr
 - 支付 / 转账
 - 发布内容 / 删除内容
 - 第三方授权
+
+Browser Bridge 不绕过验证码、MFA、风控、付费墙或平台限制，不调用站点私有逆向 API 替代真实页面读取。
 
 ## License
 

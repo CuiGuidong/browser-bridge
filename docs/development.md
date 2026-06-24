@@ -7,7 +7,7 @@
 - [README.md](../README.md)
 - [installation.md](installation.md)
 
-本机个性化配置（端口、代理、宿主机路径等）见 `LOCAL_DEV.md`。
+本仓库是公开项目。个人机器事实、Agent 过程材料、跨项目协作合同、真实账号信息和私有网络地址不进入公开提交。
 
 ## 前置条件
 
@@ -22,11 +22,28 @@ bridge/app/          # HTTP API 服务（FastAPI）
 extension/           # 浏览器扩展（Manifest V3）
 skills/              # 面向 Agent 的站点 skill 脚本
 docs/                # 项目文档
-agents/             # Agent 协作层（约束、任务、验证）
-temp/                # 本地临时材料与运行时审计日志
 scripts/             # 开发辅助脚本
 tests/               # 测试
 ```
+
+本地维护者可能额外使用 `.gitignore` 忽略的 `AGENTS.md`、`LOCAL_DEV.md`、`agents/`、`docs/contracts/` 和 `temp/`。这些文件不属于公开开发前置条件。
+
+## 环境选择
+
+代码开发和真实链路验证默认使用本机 Windows + WSL：
+
+- WSL 运行项目代码、Python venv 和 Bridge daemon。
+- Windows 运行 Edge 或 Chrome。
+- Windows Native Host launcher 由浏览器启动，再通过 HTTP 连接 WSL 内的 Bridge。
+- 开发验证默认 Bridge URL 是 `http://127.0.0.1:17777`。
+
+跨机器连接其他 Bridge（例如局域网内另一台 Mac）属于使用或投放场景，不能作为代码修改后的默认验证路径。修改 `bridge/app/`、`extension/`、workflow 或 adapter 后，除非任务明确要求远端验证，否则必须显式使用本机 Bridge：
+
+```bash
+BRIDGE_URL=http://127.0.0.1:17777 <command>
+```
+
+如果本地 `.env.local` 为日常 skill 使用指向了远端 Bridge，开发脚本和验证命令仍应显式覆盖为本机地址。
 
 ## 安装与启动
 
@@ -54,9 +71,11 @@ Windows + WSL 开发时不要使用这个 Linux/macOS shell 脚本安装 Windows
 ```powershell
 powershell -ExecutionPolicy Bypass -File "<windows-path>\install-native-host.ps1" `
   -ExtensionId "<extension-id>" `
-  -Browser both `
+  -Browser edge `
   -BridgeUrl "http://127.0.0.1:17777"
 ```
+
+如果实际加载扩展的是 Chrome，把 `-Browser edge` 改成 `-Browser chrome`。只有在 Edge 和 Chrome 都加载了同一个扩展 ID 时才使用 `-Browser both`。
 
 ### 3. 启动 Bridge
 
@@ -92,7 +111,9 @@ Bridge 默认监听 `http://127.0.0.1:17777`，可通过 `BRIDGE_HOST` 和 `BRID
 
 Windows + WSL 下尤其注意：
 
-- 正式 Edge profile 的扩展 ID 才能写入 Native Host manifest；临时 profile 跑通不代表正式浏览器已接入。
+- 必须从当前实际加载 `extension/` 目录的浏览器扩展详情页复制扩展 ID；不要从历史配置、旧日志、Preferences 搜索结果或任意 `chrome-extension://` 标签页推断。
+- Windows Native Host manifest 的 `allowed_origins` 必须匹配该扩展 ID；ID 错误会表现为 Native Session 未连接或扩展命令超时。
+- PowerShell 安装命令的 `-Browser` 必须匹配当前实际使用的浏览器。不要为了省事默认 `both`，否则容易把错误 ID 同时写入 Chrome 和 Edge。
 - 如果沙箱里 `curl 127.0.0.1:17777` 失败，但真实 WSL shell 成功，应按宿主侧结果判断 Bridge 状态。
 - Windows Native Host 应由 Windows 浏览器直接启动 Windows 可执行文件，再通过 HTTP 连接 WSL Bridge；不要用 `.cmd` 或 `wsl.exe` 转发 Native Messaging stdin/stdout。
 
@@ -107,7 +128,7 @@ curl --noproxy '*' -sS http://127.0.0.1:17777/health
 ### 基线验证（微博单帖读取）
 
 ```bash
-python3 skills/weibo-assistant/scripts/read_post.py 'https://weibo.com/6105713761/Qy80W8wXc'
+BRIDGE_URL=http://127.0.0.1:17777 python3 skills/weibo-assistant/scripts/read_post.py 'https://weibo.com/6105713761/Qy80W8wXc'
 ```
 
 基线验证确认：Bridge 在线 → 扩展与浏览器通信正常 → adapter 命中 → 图片缓存链路正常。如果基线失败，不要先在站点 DOM 逻辑上绕圈。
@@ -134,9 +155,9 @@ env PYTHONPYCACHEPREFIX=/tmp/browser-bridge-pycache python3 -m py_compile bridge
 ### 修改扩展代码后
 
 1. 修改 `extension/` 下的文件
-2. 运行 `./scripts/dev_reload_extension.sh`
-   - 该脚本执行三步原子操作：① 同步文件到宿主机扩展目录 ② 调用 Bridge API 触发扩展自重载 ③ 刷新目标站点页面
-   - **不要拆分这三步**，不要跳过同步直接重载
+2. 运行 `BRIDGE_URL=http://127.0.0.1:17777 ./scripts/dev_reload_extension.sh`
+   - 该脚本执行两步固定操作：① 调用 Bridge API 触发扩展自重载 ② 刷新目标站点页面
+   - 如果扩展目录不是直接从 WSL 路径加载，可显式设置 `BB_HOST_EXTENSION_DIR` 启用文件同步
    - **不要请求用户手动重载**——脚本已自动完成全部操作
    - 如果脚本超时或失败，先检查 bridge 是否在线（`curl --noproxy '*' -sS http://127.0.0.1:17777/health`），再检查扩展 Service Worker 状态
 3. 验证至少一个站点语义读取
@@ -146,7 +167,7 @@ env PYTHONPYCACHEPREFIX=/tmp/browser-bridge-pycache python3 -m py_compile bridge
 ### 修改 Bridge 代码后
 
 1. 修改 `bridge/app/` 下的文件
-2. 重启 Bridge 服务（`sudo systemctl restart browser-bridge.service` 或手动重启）
+2. 重启本机 Bridge。开发调试优先停止前台进程后重新运行 `./scripts/start_bridge.sh`；Linux 长期服务环境才使用 `systemctl`
 3. 运行健康检查
 
 不重启会导致 curl 仍在访问旧版逻辑。
@@ -232,6 +253,8 @@ env PYTHONPYCACHEPREFIX=/tmp/browser-bridge-pycache python3 -m py_compile bridge
 | workflow 返回 `targetId: null` | 临时标签页已在 workflow 内关闭，正常现象 |
 | 图片缓存下载失败 | 检查 bridge 服务环境中的代理配置和网络可达性 |
 | Native Host 报异常消息长度 | stdout 被 shell / wrapper 噪音污染，检查 manifest 是否指向可靠的 native host 进程 |
+| Native Session 未连接 | 核对实际浏览器、扩展 ID、Native Host `allowed_origins` 和 Bridge URL |
+| 自动打开了不是你正在用的浏览器 | 检查 `-Browser` 参数，不要默认使用 `both` |
 
 ### 临时产物清理
 
@@ -260,7 +283,7 @@ C:\Users\<user>\AppData\Local\Temp\browser-bridge-extension
 | 站点 | URL |
 |------|-----|
 | X 单帖 | `https://x.com/billtheinvestor/status/2038173185875775987` |
-| 小红书单帖 | `https://www.xiaohongshu.com/explore/69c6469e000000001d01d9d1` |
+| 小红书单帖 | 固定链接容易过期；优先从当前首页或搜索结果打开一条可见笔记后复制单帖 URL |
 | 微博单帖 | `https://weibo.com/6105713761/Qy80W8wXc` |
 | 微博首页 | `https://weibo.com/` |
 | 微博热搜 | `https://weibo.com/hot/search` |

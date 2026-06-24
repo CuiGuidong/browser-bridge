@@ -3,8 +3,7 @@ param(
     [string]$ExtensionId,
 
     [Parameter(Mandatory = $false)]
-    [ValidateSet("chrome", "edge", "both")]
-    [string]$Browser = "both",
+    [string]$Browser,
 
     [Parameter(Mandatory = $false)]
     [string]$BridgeUrl = ""
@@ -32,10 +31,16 @@ function Prompt-IfMissing {
 }
 
 $ExtensionId = Prompt-IfMissing $ExtensionId "Extension id from chrome://extensions or edge://extensions"
+$Browser = Prompt-IfMissing $Browser "Browser to register (edge/chrome/both)"
+$Browser = $Browser.Trim().ToLowerInvariant()
 $BridgeUrl = if ([string]::IsNullOrWhiteSpace($BridgeUrl)) { "http://127.0.0.1:17777" } else { $BridgeUrl.TrimEnd("/") }
 
 if ([string]::IsNullOrWhiteSpace($ExtensionId)) {
     throw "ExtensionId is required."
+}
+
+if (@("edge", "chrome", "both") -notcontains $Browser) {
+    throw "Browser must be one of: edge, chrome, both."
 }
 
 New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null

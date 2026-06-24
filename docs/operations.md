@@ -77,6 +77,8 @@ HKCU\Software\Google\Chrome\NativeMessagingHosts\com.cuiguidong.browserbridge
 
 实际存在哪个注册表项取决于安装脚本的 `-Browser` 参数。
 
+Windows + WSL 调试时，`-Browser` 应匹配当前实际加载扩展的浏览器。不要默认使用 `both`；只有 Edge 和 Chrome 都加载了同一个扩展 ID 时才使用 `both`。
+
 ## 环境变量
 
 ### Bridge 服务
@@ -144,6 +146,8 @@ curl --noproxy '*' -sS 'http://127.0.0.1:17777/site/capabilities?site=<site>&tar
 | workflow 返回 `targetId: null` | 临时标签页已在 workflow 内关闭，正常现象 |
 | 图片缓存下载失败 | 检查 bridge 服务环境中的代理配置和网络可达性 |
 | Native Host 消息长度异常 | manifest 指向的进程 stdout 输出了非协议字节；检查是否误用 `.cmd` / `wsl.exe` 转发 |
+| Native session 未连接 | 检查实际浏览器、扩展 ID、Native Host `allowed_origins`、`-Browser` 和 `BridgeUrl` 是否一致 |
+| 验证命令连到了另一台机器 | 检查 `.env.local` 或显式 `BRIDGE_URL`；开发调试默认应使用 `http://127.0.0.1:17777` |
 
 ### 旧版残留
 

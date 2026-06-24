@@ -184,8 +184,10 @@ echo "WSL setup complete."
 echo "Load this extension directory from Windows Chrome/Edge:"
 echo "  $EXTENSION_WIN_PATH"
 echo
-echo "After copying the extension id, run this in Windows PowerShell:"
-echo "  powershell -ExecutionPolicy Bypass -File \"$INSTALLER_WIN_PATH\" -ExtensionId <extension-id> -Browser both -BridgeUrl \"$BRIDGE_URL_VALUE\""
+echo "After copying the extension id from the browser that loaded the extension, run one command in Windows PowerShell:"
+echo "  powershell -ExecutionPolicy Bypass -File \"$INSTALLER_WIN_PATH\" -ExtensionId <extension-id> -Browser edge -BridgeUrl \"$BRIDGE_URL_VALUE\""
+echo "  powershell -ExecutionPolicy Bypass -File \"$INSTALLER_WIN_PATH\" -ExtensionId <extension-id> -Browser chrome -BridgeUrl \"$BRIDGE_URL_VALUE\""
+echo "Use -Browser both only when both browsers load the same extension id."
 echo
 echo "Start Bridge inside WSL:"
 echo "  ./scripts/start_bridge.sh"

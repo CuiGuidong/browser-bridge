@@ -106,11 +106,15 @@ Windows + WSL 路径中：
 ```powershell
 powershell -ExecutionPolicy Bypass -File "C:\path\to\scripts\windows\install-native-host.ps1" `
   -ExtensionId "<extension-id>" `
-  -Browser both `
+  -Browser edge `
   -BridgeUrl "http://127.0.0.1:17777"
 ```
 
-安装脚本会把 Native Host manifest 和 launcher 写入用户级目录，并在 `HKCU` 下注册 Chrome/Edge Native Messaging host。
+如果实际加载扩展的是 Chrome，把 `-Browser edge` 改成 `-Browser chrome`。只有在两个浏览器都加载了同一个扩展 ID 时才使用 `-Browser both`。
+
+扩展 ID 必须从当前实际加载 `extension/` 目录的浏览器扩展详情页复制，不要从旧日志、历史配置或任意 `chrome-extension://` 标签页推断。
+
+安装脚本会把 Native Host manifest 和 launcher 写入用户级目录，并在 `HKCU` 下注册对应浏览器的 Native Messaging host。
 
 Windows 安装产物位于：
 
@@ -133,7 +137,7 @@ Windows 安装产物位于：
 ./scripts/doctor.sh
 ```
 
-如果 `doctor.sh` 显示 Bridge 可达但 Native session 未连接，优先检查 Windows 侧是否已重新加载扩展，以及 PowerShell 安装命令中的 extension id 和 `BridgeUrl` 是否正确。
+如果 `doctor.sh` 显示 Bridge 可达但 Native session 未连接，优先检查 Windows 侧是否已重新加载扩展，以及 PowerShell 安装命令中的 extension id、`-Browser` 和 `BridgeUrl` 是否正确。
 
 ## Linux 单机安装
 
