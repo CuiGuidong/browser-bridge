@@ -175,13 +175,28 @@ function extractCommentMetricsFromText(text) {
   };
 }
 
-function extractVisibleComments(root) {
+function normalizeCommentLimit(value) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return 20;
+  return Math.min(Math.max(Math.floor(parsed), 0), 100);
+}
+
+function detectCommentsUnavailableReason(root) {
+  const text = (root?.innerText || document.body?.innerText || '').trim();
+  if (!text) return 'not_loaded';
+  if (/评论加载失败|评论暂时无法显示|无法查看评论|登录后查看评论/.test(text)) return 'not_loaded';
+  return null;
+}
+
+function extractVisibleComments(root, limit = 20) {
+  limit = normalizeCommentLimit(limit);
+  if (limit <= 0) return [];
   const seen = new Set();
   const candidates = Array.from((root || document).querySelectorAll('[class*="comment"], [class*="Comment"], .card-comment'))
     .concat(Array.from(document.querySelectorAll('[class*="comment"], [class*="Comment"], .card-comment')));
   const comments = [];
   for (const el of candidates) {
-    if (comments.length >= 20) break;
+    if (comments.length >= limit) break;
     const lines = splitLines(el.innerText || '');
     const text = lines
       .filter((line) => !isFooterBoundary(line))
@@ -404,7 +419,7 @@ function findPcDetailRoot() {
   }) || null;
 }
 
-function extractPcPost() {
+function extractPcPost(commentLimit = 20) {
   const root = findPcDetailRoot() || document.body;
   const lines = splitLines(root.innerText || '');
   const authorLink = pickAuthorLink(root);
@@ -415,7 +430,7 @@ function extractPcPost() {
   const videos = collectVideoUrls(root);
   const text = appendMediaMarkers(extractReadableBody(lines, author, publishedAt), images, videos);
   const engagement = extractEngagement(lines);
-  const comments = extractVisibleComments(root);
+  const comments = extractVisibleComments(root, commentLimit);
   return {
     author,
     publishedAt,
@@ -426,11 +441,11 @@ function extractPcPost() {
     engagement,
     metrics: engagementToMetrics(engagement),
     comments,
-    commentsUnavailableReason: comments.length ? null : 'not_loaded',
+    commentsUnavailableReason: comments.length ? null : detectCommentsUnavailableReason(root),
   };
 }
 
-function extractMobilePost() {
+function extractMobilePost(commentLimit = 20) {
   const root = Array.from(document.querySelectorAll('.card-wrap')).find((el) => {
     const text = (el.innerText || '').trim();
     return text.includes('评论') && text.includes('赞');
@@ -442,7 +457,7 @@ function extractMobilePost() {
   const videos = collectVideoUrls(root);
   const text = appendMediaMarkers(extractReadableBody(lines.slice(2), '', ''), images, videos);
   const engagement = extractEngagement(lines);
-  const comments = extractVisibleComments(root);
+  const comments = extractVisibleComments(root, commentLimit);
   return {
     author,
     publishedAt,
@@ -453,15 +468,15 @@ function extractMobilePost() {
     engagement,
     metrics: engagementToMetrics(engagement),
     comments,
-    commentsUnavailableReason: comments.length ? null : 'not_loaded',
+    commentsUnavailableReason: comments.length ? null : detectCommentsUnavailableReason(root),
   };
 }
 
-function extractCurrentPost() {
+function extractCurrentPost(commentLimit = 20) {
   if (isWeiboMobileHost()) {
-    return extractMobilePost();
+    return extractMobilePost(commentLimit);
   }
-  return extractPcPost();
+  return extractPcPost(commentLimit);
 }
 
 function getSearchKeyword() {
@@ -599,13 +614,14 @@ const weiboAdapter = {
       };
     }
     if (kind === 'read_post') {
+      const commentLimit = normalizeCommentLimit(_params?.commentLimit);
       return {
         ok: true,
         mode: 'semantic',
         kind,
         page: snap.page,
         signals: snap.signals,
-        content: snap.content.post || {},
+        content: extractCurrentPost(commentLimit),
       };
     }
     if (kind === 'read_profile_metrics') {

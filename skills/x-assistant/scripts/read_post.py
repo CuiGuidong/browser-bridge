@@ -28,9 +28,7 @@ def _print_payload(payload, mode):
 
 def read_single_post(url, mode="default", comment_limit=20):
     try:
-        workflow_data = {}
         payload = {}
-        content = ""
         for attempt in range(2):
             workflow_data = workflow_run(
                 "x",
@@ -54,19 +52,15 @@ def read_single_post(url, mode="default", comment_limit=20):
 
             payload = workflow_data.get("data") or {}
             semantic = payload.get("semantic") or {}
-            content_item = semantic.get("contentItem") or {}
-            content = (content_item.get("text") or "").strip()
-            if mode == "raw":
-                content = content or (((payload.get("content") or {}).get("primaryText")) or "").strip()
-            if content:
+            if mode == "raw" or semantic.get("ok"):
                 break
             if attempt == 0:
                 time.sleep(1.0)
 
-        if not content and mode != "raw":
+        if mode != "raw" and not (payload.get("semantic") or {}).get("ok"):
             print(json.dumps({
                 "ok": False,
-                "error": payload.get("error") or "No content found",
+                "error": payload.get("error") or "semantic payload missing",
                 "source": (payload.get("summary") or {}).get("source"),
             }))
             return

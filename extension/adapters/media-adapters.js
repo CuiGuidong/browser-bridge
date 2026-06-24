@@ -872,13 +872,29 @@
     return firstText(['.QuestionRichText .RichText', '.QuestionHeader-detail', '[class*="QuestionHeader"] [class*="RichText"]']) || null;
   }
 
-  function extractVisibleComments(site) {
+  function normalizeCommentLimit(value) {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return 20;
+    return Math.min(Math.max(Math.floor(parsed), 0), 100);
+  }
+
+  function detectCommentsUnavailableReason(site) {
+    if (site !== 'zhihu') return null;
+    const text = compactText(document.body?.innerText || '');
+    if (!text) return 'not_loaded';
+    if (/评论加载失败|评论暂时无法显示|无法查看评论|登录后查看评论|查看全部评论/.test(text)) return 'not_loaded';
+    return null;
+  }
+
+  function extractVisibleComments(site, limit = 20) {
     if (site !== 'zhihu') return [];
+    limit = normalizeCommentLimit(limit);
+    if (limit <= 0) return [];
     const roots = Array.from(document.querySelectorAll('.CommentItem, [class*="CommentItem"], [class*="comment-item"]'));
     const seen = new Set();
     const comments = [];
     for (const root of roots) {
-      if (comments.length >= 20) break;
+      if (comments.length >= limit) break;
       const text = firstText([
         '.CommentContent',
         '.CommentItemV2-content',
@@ -912,12 +928,12 @@
     return comments;
   }
 
-  function readPost(site, pageType) {
+  function readPost(site, pageType, params = {}) {
     const mediaType = SITE_CONFIGS[site].mediaType;
     const url = canonicalUrl();
     const authorName = extractAuthor(site);
     const postText = site === 'zhihu' ? extractZhihuRichPostText() : null;
-    const comments = extractVisibleComments(site);
+    const comments = extractVisibleComments(site, params.commentLimit);
     return {
       ok: true,
       mode: 'semantic',
@@ -940,7 +956,7 @@
         cover: absoluteUrl(meta('og:image') || meta('twitter:image') || ''),
         metrics: standardMetrics(extractPostMetrics(site)),
         comments,
-        commentsUnavailableReason: comments.length ? null : (site === 'zhihu' ? 'not_loaded' : null),
+        commentsUnavailableReason: comments.length ? null : detectCommentsUnavailableReason(site),
         questionDescription: site === 'zhihu' ? extractZhihuQuestionDescription() : null,
         rawPayload: {
           pageType,
@@ -1132,7 +1148,7 @@
       },
       async read(kind, params = {}) {
         const pageType = getPageType(site);
-        if (kind === 'read_post') return readPost(site, pageType);
+        if (kind === 'read_post') return readPost(site, pageType, params);
         if (kind === 'read_profile_metrics') return readProfile(site, pageType);
         if (kind === 'search') return readSearch(site, pageType, params);
         if (kind === 'read_hot') return readHot(site, pageType, params);

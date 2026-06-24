@@ -1,4 +1,5 @@
 import unittest
+from pathlib import Path
 
 from bridge.app.sites.common_workflows import run_url_read
 from bridge.app.sites.read_post_semantics import (
@@ -268,6 +269,32 @@ class ReadPostSemanticModelContractTest(unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertTrue(result["partial"])
         self.assertIn("comments", result["missing"])
+
+    def test_zero_visible_comments_without_unavailable_reason_is_complete(self):
+        payload = x_workflow_payload()
+        payload["content"]["commentItems"] = []
+        payload["content"]["commentsUnavailableReason"] = None
+
+        result = build_read_post_semantic("x", payload, comment_limit=20)
+
+        self.assertTrue(result["ok"])
+        self.assertNotIn("partial", result)
+        self.assertNotIn("missing", result)
+        self.assertEqual(result["comments"]["items"], [])
+
+    def test_adapters_do_not_hard_code_twenty_comment_cap(self):
+        root = Path(__file__).resolve().parents[1]
+        adapter_paths = [
+            root / "extension/adapters/weibo-adapter.js",
+            root / "extension/adapters/xiaohongshu-adapter.js",
+            root / "extension/adapters/media-adapters.js",
+        ]
+
+        for path in adapter_paths:
+            with self.subTest(path=path.name):
+                source = path.read_text(encoding="utf-8")
+                self.assertNotIn("comments.length >= 20", source)
+                self.assertIn("commentLimit", source)
 
     def test_read_post_semantic_contract_is_not_added_to_non_read_post_workflows(self):
         result = run_url_read(

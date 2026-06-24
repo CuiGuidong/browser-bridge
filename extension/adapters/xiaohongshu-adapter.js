@@ -498,13 +498,28 @@ function extractPostText(images, videos) {
   return baseText.trim();
 }
 
-function extractVisiblePostComments() {
+function normalizeCommentLimit(value) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return 20;
+  return Math.min(Math.max(Math.floor(parsed), 0), 100);
+}
+
+function detectCommentsUnavailableReason() {
+  const text = (document.body?.innerText || '').trim();
+  if (!text) return 'not_loaded';
+  if (/评论加载失败|评论暂时无法显示|无法查看评论|登录后查看评论/.test(text)) return 'not_loaded';
+  return null;
+}
+
+function extractVisiblePostComments(limit = 20) {
+  limit = normalizeCommentLimit(limit);
+  if (limit <= 0) return [];
   const seen = new Set();
   const roots = Array.from(document.querySelectorAll('.comment-item, [class*="comment-item"], [class*="CommentItem"]'))
     .filter((root) => !/\bcomment-item-sub\b/.test((root.className || '').toString()));
   const comments = [];
   for (const root of roots) {
-    if (comments.length >= 20) break;
+    if (comments.length >= limit) break;
     const rawText = normalizeMultilineText(root.innerText || '');
     if (!rawText || rawText.length < 2 || rawText.length > 800) continue;
     if (/(广告|推广|推荐)/.test(rawText)) continue;
@@ -544,6 +559,25 @@ function extractVisiblePostComments() {
     });
   }
   return comments;
+}
+
+function extractPostContent(commentLimit = 20) {
+  const postImages = extractPostImages();
+  const postVideos = extractPostVideos();
+  const postComments = extractVisiblePostComments(commentLimit);
+  return {
+    title: extractPostTitle(),
+    author: extractPostAuthor(),
+    authorProfileUrl: extractPostAuthorProfileUrl(),
+    externalPostId: extractPostIdFromUrl(location.href),
+    text: extractPostText(postImages, postVideos),
+    images: postImages,
+    videos: postVideos,
+    metrics: extractPostMetrics(),
+    comments: postComments,
+    commentsUnavailableReason: postComments.length ? null : detectCommentsUnavailableReason(),
+    url: normalizeXiaohongshuUrl(location.href),
+  };
 }
 
 function extractProfileIdFromUrl(url) {
@@ -631,9 +665,8 @@ const xiaohongshuAdapter = {
       : null;
     const noteItems = collectFeedItems();
     const detailDesc = document.querySelector('#detail-desc');
-    const postImages = pageType === 'post' ? extractPostImages() : [];
-    const postVideos = pageType === 'post' ? extractPostVideos() : [];
-    const postComments = pageType === 'post' ? extractVisiblePostComments() : [];
+    const post = pageType === 'post' ? extractPostContent() : null;
+    const postImages = post ? post.images : [];
     const hasVideo = pageType === 'post' ? detectHasVideo() : false;
     const ready = !!(
       document.readyState === 'complete' && (
@@ -665,19 +698,7 @@ const xiaohongshuAdapter = {
       },
       content: {
         items: noteItems,
-        post: pageType === 'post' ? {
-          title: extractPostTitle(),
-          author: extractPostAuthor(),
-          authorProfileUrl: extractPostAuthorProfileUrl(),
-          externalPostId: extractPostIdFromUrl(location.href),
-          text: extractPostText(postImages, postVideos),
-          images: postImages,
-          videos: postVideos,
-          metrics: extractPostMetrics(),
-          comments: postComments,
-          commentsUnavailableReason: postComments.length ? null : 'not_loaded',
-          url: normalizeXiaohongshuUrl(location.href),
-        } : null,
+        post,
         profile: pageType === 'profile' ? {
           url: normalizeXiaohongshuUrl(location.href),
           profileId: extractProfileIdFromUrl(location.href),
@@ -704,13 +725,14 @@ const xiaohongshuAdapter = {
   async read(kind, _params, context) {
     const snap = this.collect(context.baseSnapshot);
     if (kind === 'read_post') {
+      const commentLimit = normalizeCommentLimit(_params?.commentLimit);
       return {
         ok: true,
         mode: 'semantic',
         kind,
         page: snap.page,
         signals: snap.signals,
-        content: snap.content.post || {},
+        content: extractPostContent(commentLimit),
       };
     }
     if (kind === 'read_post_metrics') {
