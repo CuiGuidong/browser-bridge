@@ -1,5 +1,5 @@
 // X (Twitter) Adapter for Browser Bridge
-const X_ADAPTER_VERSION = 'read-post-semantic-2026-06-24-2';
+const X_ADAPTER_VERSION = 'read-post-semantic-2026-06-25-1';
 
 async function expandXLongPost() {
   const showMore = Array.from(document.querySelectorAll('div[role="button"]'))
@@ -330,6 +330,7 @@ function getArticleViewportScore(article) {
 }
 
 function getTweetCandidates() {
+  const pageStatusId = getCurrentTargetStatusId();
   const articles = Array.from(document.querySelectorAll('article[role="article"]'))
     .filter((article) => {
       return !!(
@@ -343,13 +344,20 @@ function getTweetCandidates() {
   return articles.map((article, index) => {
     const rect = article.getBoundingClientRect();
     const permalinkEl = getArticlePermalinkElement(article);
-    const permalinkStatusId = permalinkEl ? extractStatusId(permalinkEl.href) : null;
+    const isLongArticle = !!(
+      article.querySelector('[data-testid="twitter-article-title"]')
+      || article.querySelector('[data-testid="twitterArticleRichTextView"]')
+    );
+    const permalinkStatusId = (isLongArticle && pageStatusId)
+      ? pageStatusId
+      : (permalinkEl ? extractStatusId(permalinkEl.href) : null);
     const text = extractRichText(article);
     return {
       article,
       index,
       permalinkStatusId,
-      url: permalinkEl?.href || null,
+      url: (isLongArticle && pageStatusId) ? location.href : (permalinkEl?.href || null),
+      isLongArticle,
       rect: {
         top: rect.top,
         bottom: rect.bottom,
@@ -475,16 +483,42 @@ function extractTweetItem(article, candidate = null) {
   const permalinkEl = getArticlePermalinkElement(article);
   const statusId = candidate?.permalinkStatusId || (permalinkEl ? extractStatusId(permalinkEl.href) : null);
   const text = extractRichText(article);
-  const timeEl = article?.querySelector('time') || null;
+  const timeEl = candidate?.isLongArticle ? null : (article?.querySelector('time') || null);
+  const longArticlePublished = candidate?.isLongArticle ? extractLongArticlePublished(text) : null;
   return {
     statusId,
     url: candidate?.url || permalinkEl?.href || null,
     author: extractTweetAuthor(article),
-    publishedAt: timeEl?.getAttribute('datetime') || null,
-    publishedLabel: (timeEl?.innerText || '').trim() || null,
+    publishedAt: longArticlePublished?.at || timeEl?.getAttribute('datetime') || null,
+    publishedLabel: longArticlePublished?.label || (timeEl?.innerText || '').trim() || null,
     text,
     media: extractTweetMedia(text),
     metrics: extractTweetMetrics(article),
+  };
+}
+
+function extractLongArticlePublished(text) {
+  const source = text || '';
+  const match = source.match(/((上午|下午)\s*(\d{1,2}):(\d{2})\s*·\s*(\d{4})年(\d{1,2})月(\d{1,2})日)/);
+  if (!match) return null;
+
+  const label = match[1].replace(/\s+/g, '');
+  const meridiem = match[2];
+  let hour = Number(match[3]);
+  const minute = Number(match[4]);
+  const year = Number(match[5]);
+  const month = Number(match[6]);
+  const day = Number(match[7]);
+  if (![hour, minute, year, month, day].every(Number.isFinite)) {
+    return { label, at: null };
+  }
+  if (meridiem === '下午' && hour < 12) hour += 12;
+  if (meridiem === '上午' && hour === 12) hour = 0;
+
+  const date = new Date(year, month - 1, day, hour, minute, 0, 0);
+  return {
+    label,
+    at: Number.isNaN(date.getTime()) ? null : date.toISOString(),
   };
 }
 
