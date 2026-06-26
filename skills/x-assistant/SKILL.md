@@ -22,7 +22,7 @@ version: 2.1.0
   - 默认输出 `read_post.v1` 语义模型：`contentItem`、`thread`、`comments`、`platform`
   - 开发排障用 `--raw` 查看 Bridge 原始 payload
   - 需要语义结果加诊断摘要时用 `--debug`
-  - 可用 `--comment-limit N` 调整返回的已采集一级评论上限，默认 20；当前不承诺自动加载更多评论
+  - 可用 `--comment-limit N` 调整返回的一级评论上限，默认 20；workflow 会尝试滚动加载更多评论，但不保证拿到平台全量评论
   - ⚠️ 若输出含 `[Image Local: ...]`，**必须用 `read` 工具读取**，不能用 `image` 工具
 
 - 在 X 搜索：
