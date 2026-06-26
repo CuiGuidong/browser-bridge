@@ -65,6 +65,8 @@ cd browser-bridge-project
 curl --noproxy '*' -sS http://127.0.0.1:17777/health
 ```
 
+项目根 `.env.local` 只用于 Bridge 服务监听地址等本机配置，不参与 skill 默认连接目标解析。Agent skill 如需连接另一台 Bridge，应在运行命令中传入 `BRIDGE_URL`，或在对应 skill 脚本目录的 `.env` 中配置。
+
 ### Windows + WSL
 
 Windows + WSL 路径是：WSL 运行 Bridge 和 Python venv，Windows 运行 Chrome/Edge 与 Native Host launcher。
@@ -98,6 +100,12 @@ powershell -ExecutionPolicy Bypass -File "<path>\install-native-host.ps1" `
 - 扩展状态：`curl --noproxy '*' -sS http://127.0.0.1:17777/extension/state`
 
 普通用户不需要手写 Native Host manifest。脚本会生成 manifest、launcher 和浏览器注册项。
+
+生产扩展同步目标通过命令环境变量传入，例如：
+
+```bash
+BB_HOST_EXTENSION_DIR=/path/to/host/extension ./scripts/build_prod_extension.sh
+```
 
 ## 安全边界
 

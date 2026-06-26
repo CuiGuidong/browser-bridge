@@ -5,11 +5,14 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 HOST_SSH="${BB_HOST_SSH:-}"
 HOST_EXTENSION_DIR="${BB_HOST_EXTENSION_DIR:-}"
 
-if [[ -f "$ROOT_DIR/.env.local" ]]; then
-  # shellcheck disable=SC1091
-  source "$ROOT_DIR/.env.local"
-  HOST_SSH="${BB_HOST_SSH:-}"
-  HOST_EXTENSION_DIR="${BB_HOST_EXTENSION_DIR:-}"
+is_wsl() {
+  grep -qiE "microsoft|wsl" /proc/sys/kernel/osrelease 2>/dev/null
+}
+
+if [[ -n "$HOST_EXTENSION_DIR" && -z "$HOST_SSH" && "$HOST_EXTENSION_DIR" == /Users/* ]] && is_wsl; then
+  echo "Refuse to sync to macOS path from WSL without BB_HOST_SSH: $HOST_EXTENSION_DIR" >&2
+  echo "Pass a real WSL/Windows-mounted path, run this script on macOS, or set BB_HOST_SSH for remote sync." >&2
+  exit 2
 fi
 
 if [[ -f "$ROOT_DIR/extension/manifest.prod.json" ]]; then
@@ -37,5 +40,5 @@ if [[ -n "$HOST_EXTENSION_DIR" ]]; then
   fi
   echo "Production extension files successfully synced to $HOST_EXTENSION_DIR"
 else
-  echo "Skip host sync: set BB_HOST_EXTENSION_DIR in .env.local to enable extension sync to host."
+  echo "Skip host sync: set BB_HOST_EXTENSION_DIR in the command environment to enable extension sync."
 fi

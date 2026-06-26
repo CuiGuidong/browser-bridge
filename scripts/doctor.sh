@@ -114,6 +114,18 @@ check_wsl_native_host_hint() {
   info "Use the browser that actually loaded this extension. Use -Browser both only when both browsers load the same extension id."
 }
 
+check_env_local_scope() {
+  if [[ ! -f "$ENV_FILE" || ! is_wsl ]]; then
+    return
+  fi
+  if grep -Eq '^[[:space:]]*BRIDGE_URL=.*(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)' "$ENV_FILE"; then
+    warn ".env.local contains a remote BRIDGE_URL. WSL development should keep root .env.local for local Bridge daemon settings only."
+  fi
+  if grep -Eq '^[[:space:]]*BB_HOST_EXTENSION_DIR=/Users/' "$ENV_FILE"; then
+    warn ".env.local contains a macOS BB_HOST_EXTENSION_DIR. Pass BB_HOST_EXTENSION_DIR explicitly when syncing to a host extension directory."
+  fi
+}
+
 load_env_file
 
 BRIDGE_HOST="${BRIDGE_HOST:-127.0.0.1}"
@@ -136,6 +148,7 @@ check_file "$ROOT_DIR/bridge/.venv" "Python venv"
 check_file "$ROOT_DIR/extension/manifest.json" "Extension manifest"
 if [[ -f "$ENV_FILE" ]]; then
   ok ".env.local exists: $ENV_FILE"
+  check_env_local_scope
 else
   warn ".env.local missing. Defaults are BRIDGE_HOST=127.0.0.1 and BRIDGE_PORT=17777."
 fi
