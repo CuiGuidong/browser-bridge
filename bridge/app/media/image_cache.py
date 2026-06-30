@@ -4,6 +4,7 @@ import os
 import re
 import subprocess
 import sys
+import threading
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse, urlunparse
 
@@ -47,6 +48,7 @@ def _spawn_downloader(tasks):
     if not tasks:
         return
     downloader_path = Path(__file__).with_name("async_image_downloader.py")
+    process = None
     try:
         process = subprocess.Popen(
             [sys.executable, str(downloader_path)],
@@ -55,7 +57,29 @@ def _spawn_downloader(tasks):
             stderr=subprocess.DEVNULL,
             start_new_session=True,
         )
-        process.communicate(input=json.dumps(tasks).encode("utf-8"))
+        if process.stdin:
+            process.stdin.write(json.dumps(tasks).encode("utf-8"))
+            process.stdin.close()
+    except Exception:
+        if process is not None:
+            try:
+                process.kill()
+                process.wait(timeout=1)
+            except Exception:
+                pass
+        return
+    threading.Thread(target=_wait_for_downloader, args=(process,), daemon=True).start()
+
+
+def _wait_for_downloader(process):
+    try:
+        process.wait(timeout=180)
+    except subprocess.TimeoutExpired:
+        try:
+            process.kill()
+            process.wait(timeout=1)
+        except Exception:
+            pass
     except Exception:
         return
 
