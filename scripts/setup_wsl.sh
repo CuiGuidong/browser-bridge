@@ -8,6 +8,7 @@ ENV_FILE="$ROOT_DIR/.env.local"
 BRIDGE_HOST_VALUE=""
 BRIDGE_PORT_VALUE=""
 NON_INTERACTIVE=0
+PYTHON_BIN="${PYTHON:-}"
 
 usage() {
   cat <<'EOF'
@@ -18,6 +19,9 @@ Options:
   --port <port>
   --non-interactive
   --help
+
+Environment:
+  PYTHON=/path/to/python3.12  Override Python interpreter used to create bridge/.venv
 EOF
 }
 
@@ -53,21 +57,32 @@ if ! grep -qiE "microsoft|wsl" /proc/sys/kernel/osrelease 2>/dev/null; then
 fi
 
 python_version_ok() {
-  python3 - "$@" <<'PY'
+  "$1" - <<'PY'
 import sys
 raise SystemExit(0 if sys.version_info >= (3, 10) else 1)
 PY
 }
 
 require_python() {
-  if ! command -v python3 >/dev/null 2>&1; then
-    echo "python3 is required inside WSL. Install Python 3.10+ and rerun this script." >&2
-    exit 1
+  local candidates=()
+  if [[ -n "$PYTHON_BIN" ]]; then
+    candidates+=("$PYTHON_BIN")
   fi
-  if ! python_version_ok; then
-    echo "Python 3.10+ is required. Current: $(python3 --version 2>&1)" >&2
-    exit 1
+  candidates+=(python3.13 python3.12 python3.11 python3.10 python3)
+
+  local candidate
+  for candidate in "${candidates[@]}"; do
+    if command -v "$candidate" >/dev/null 2>&1 && python_version_ok "$candidate"; then
+      PYTHON_BIN="$(command -v "$candidate")"
+      return
+    fi
+  done
+
+  echo "Python 3.10+ is required inside WSL. Install Python 3.10+ or rerun with PYTHON=/path/to/python3.12." >&2
+  if command -v python3 >/dev/null 2>&1; then
+    echo "Current python3: $(python3 --version 2>&1)" >&2
   fi
+  exit 1
 }
 
 prompt_host_port() {
@@ -138,7 +153,7 @@ write_env() {
 }
 
 setup_venv() {
-  python3 -m venv "$VENV_DIR"
+  "$PYTHON_BIN" -m venv "$VENV_DIR"
   "$VENV_DIR/bin/python3" -m pip install --no-cache-dir -r "$ROOT_DIR/requirements.txt"
 }
 

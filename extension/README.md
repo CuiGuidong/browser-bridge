@@ -56,6 +56,20 @@ Chrome/Edge 扩展，负责页面内常驻执行、站点语义读取、站点�
 
 ## 安装
 
+fresh clone 后 `extension/manifest.json` 不存在；仓库只提交 `manifest.dev.json` 和 `manifest.prod.json`。先在项目根目录运行安装或重载脚本生成 `manifest.json`，再加载扩展目录：
+
+```bash
+./scripts/setup_macos.sh
+# 或 Windows + WSL:
+./scripts/setup_wsl.sh
+# 已完成初始化且 Bridge 已启动、需要刷新开发 manifest 与重载扩展时:
+./scripts/dev_reload_extension.sh
+```
+
+如果直接在 Chrome/Edge 里加载 fresh clone 的 `extension/` 目录，浏览器会报清单文件丢失或不可读取。
+
+加载步骤：
+
 1. 打开 `chrome://extensions/` 或 `edge://extensions/`
 2. 开启「开发者模式」
 3. 点击「加载已解压的扩展程序」
@@ -70,7 +84,8 @@ Chrome/Edge 扩展，负责页面内常驻执行、站点语义读取、站点�
 
 ## 文件结构
 
-- `manifest.json` - 扩展配置与权限声明
+- `manifest.dev.json` / `manifest.prod.json` - 开发/生产 manifest 模板
+- `manifest.json` - 由 setup 或 dev reload 脚本生成的浏览器实际加载配置，不作为源码提交
 - `background.js` - 后台服务 Worker（只做桥接转发）
 - `content.js` - 页面内常驻运行时与 RPC 分发器
 - `adapters/` - 特定网站专属解析器存放目录

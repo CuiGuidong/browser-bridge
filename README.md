@@ -37,6 +37,12 @@ Client / Agent
 - Chrome 或 Edge
 - Python 3.10+
 
+安装脚本会自动优先查找 `python3.13`、`python3.12`、`python3.11`、`python3.10`，再回退到 `python3`，并要求实际版本不低于 3.10。也可以显式指定 Python：
+
+```bash
+PYTHON=/opt/homebrew/bin/python3.12 ./scripts/setup_macos.sh
+```
+
 安装：
 
 ```bash
@@ -46,6 +52,8 @@ cd browser-bridge-project
 ```
 
 脚本会创建 `bridge/.venv`、安装依赖、生成扩展 manifest，并引导你加载 `extension/` 目录和安装 Native Host manifest。
+
+fresh clone 后 `extension/manifest.json` 不存在；不要在运行 setup 前直接加载 `extension/` 目录，否则浏览器会提示清单文件丢失或不可读取。
 
 启动 Bridge：
 
@@ -73,6 +81,12 @@ Windows + WSL 路径是：WSL 运行 Bridge 和 Python venv，Windows 运行 Chr
 
 ```bash
 ./scripts/setup_wsl.sh
+```
+
+WSL 内同样要求 Python 3.10+。脚本会自动查找 `python3.13`、`python3.12`、`python3.11`、`python3.10`、`python3`；如需指定：
+
+```bash
+PYTHON=/usr/bin/python3.12 ./scripts/setup_wsl.sh
 ```
 
 脚本会输出：
