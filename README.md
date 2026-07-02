@@ -48,7 +48,7 @@ PYTHON=/opt/homebrew/bin/python3.12 ./scripts/setup_macos.sh
 
 ```bash
 git clone <repo-url>
-cd browser-bridge-project
+cd browser-bridge
 ./scripts/setup_macos.sh
 ```
 
