@@ -32,6 +32,20 @@ class NativeSessionManager:
         logger.info(f"[NativeSession] session {session_id} registered, active: {len(self._sessions)}")
         return session_id
 
+    def _adopt_session(self, session_id):
+        """Adopt a pulling session after Bridge daemon restart.
+
+        Older Windows native host launchers keep long-polling with the previous
+        session id. Adopting that id keeps the browser link alive until the
+        launcher is upgraded, and is equivalent to local re-registration because
+        native sessions are already trusted only on the local Bridge transport.
+        Caller must hold _lock.
+        """
+        now = time.time()
+        self._sessions[session_id] = {"created": now, "last_pull": now, "adopted": True}
+        self._command_queues[session_id] = []
+        logger.info(f"[NativeSession] session {session_id} adopted after missing registration")
+
     def unregister_session(self, session_id):
         """Clean up a session."""
         with self._lock:
@@ -68,9 +82,12 @@ class NativeSessionManager:
 
     def pull_command(self, session_id, timeout_seconds=25):
         """Long-pull: wait for next command from the queue. Thread-safe blocking."""
+        if not session_id:
+            return {"_error": "session_not_found"}
         with self._lock:
             if session_id not in self._sessions:
-                return {"_error": "session_not_found"}
+                self._adopt_session(session_id)
+                self._cleanup_stale_sessions()
             self._sessions[session_id]["last_pull"] = time.time()
 
         deadline = time.time() + timeout_seconds

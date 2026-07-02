@@ -46,7 +46,6 @@ class ReferenceSiteExpansionTest(unittest.TestCase):
         selected_sites = [
             ("youtube", "YoutubeSite"),
             ("weixin", "WeixinSite"),
-            ("douban", "DoubanSite"),
             ("hackernews", "HackerNewsSite"),
             ("instagram", "InstagramSite"),
             ("xueqiu", "XueqiuSite"),
@@ -86,7 +85,6 @@ class ReferenceSiteExpansionTest(unittest.TestCase):
         for site in [
             "youtube",
             "weixin",
-            "douban",
             "hackernews",
             "instagram",
             "xueqiu",
@@ -113,7 +111,6 @@ class ReferenceSiteExpansionTest(unittest.TestCase):
         expected_fragments = [
             "youtube.com",
             "mp.weixin.qq.com",
-            "douban.com",
             "news.ycombinator.com",
             "instagram.com",
             "xueqiu.com",
@@ -123,6 +120,21 @@ class ReferenceSiteExpansionTest(unittest.TestCase):
         for fragment in expected_fragments:
             with self.subTest(fragment=fragment):
                 self.assertIn(fragment, joined_matches)
+
+    def test_douban_uses_dedicated_extension_adapter(self):
+        adapter_source = (ROOT / "extension" / "adapters" / "douban-adapter.js").read_text()
+        manifest = json.loads((ROOT / "extension" / "manifest.dev.json").read_text())
+        douban_matches = []
+        media_matches = []
+        for script in manifest["content_scripts"]:
+            if script.get("js") == ["adapters/douban-adapter.js"]:
+                douban_matches.extend(script.get("matches", []))
+            if script.get("js") == ["adapters/media-adapters.js"]:
+                media_matches.extend(script.get("matches", []))
+
+        self.assertIn("doubanAdapter", adapter_source)
+        self.assertIn("douban.com", "\n".join(douban_matches))
+        self.assertNotIn("douban.com", "\n".join(media_matches))
 
     def test_requested_reference_sites_declare_safe_read_only_capabilities(self):
         for site_id, module_name, class_name, _hosts in self.requested_reference_sites:

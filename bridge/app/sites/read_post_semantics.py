@@ -25,6 +25,7 @@ PLATFORM_TYPE_BY_SITE = {
     "weibo": "weibo_post",
     "xiaohongshu": "xhs_note",
     "zhihu": "zhihu_answer",
+    "douban": "douban_subject",
     "reddit": "reddit_post",
     "bilibili": "bilibili_video",
     "youtube": "youtube_video",
@@ -35,6 +36,7 @@ CONTENT_TYPE_BY_SITE = {
     "weibo": "post",
     "xiaohongshu": "note",
     "zhihu": "answer",
+    "douban": "post",
     "reddit": "discussion",
     "bilibili": "video",
     "youtube": "video",
@@ -61,6 +63,12 @@ PLATFORM_LABELS_BY_SITE = {
         "like": "赞同",
         "favorite": "收藏",
         "comment": "评论",
+    },
+    "douban": {
+        "wish": "想看",
+        "do": "在看",
+        "collect": "看过",
+        "comment": "短评",
     },
     "bilibili": {
         "like": "点赞",
@@ -325,7 +333,62 @@ def raw_metrics_for_site(site, content):
     return metrics
 
 
+def normalize_douban_content_item(workflow_payload):
+    content = workflow_payload.get("content") or {}
+    subject = content.get("subject") or {}
+    raw_metrics = dict(content.get("metrics") or {})
+    if raw_metrics.get("comments") is None:
+        raw_metrics["comments"] = content.get("commentsTotal")
+    raw_metrics["favorites"] = None
+    metrics, _ = split_metrics("douban", raw_metrics)
+    rating = content.get("rating") or {}
+    interest_stats = content.get("interestStats") or {}
+    viewer_interest = content.get("viewerInterest") or {}
+    platform_metrics = {}
+    if rating.get("score") is not None:
+        platform_metrics["ratingScore"] = rating.get("score")
+    if rating.get("ratingCount") is not None:
+        platform_metrics["ratingCount"] = rating.get("ratingCount")
+    for key in ["wish", "do", "collect"]:
+        if interest_stats.get(key) is not None:
+            platform_metrics[key] = parse_count(interest_stats.get(key))
+    if viewer_interest:
+        platform_metrics["viewerInterest"] = viewer_interest
+
+    media = []
+    if subject.get("cover"):
+        media.append({
+            "type": "image",
+            "url": subject.get("cover"),
+            "placement": "cover",
+        })
+
+    return {
+        "id": subject.get("id") or content.get("externalPostId"),
+        "url": content.get("url") or (workflow_payload.get("page") or {}).get("url"),
+        "type": "post",
+        "platformType": content.get("platformType") or "douban_subject",
+        "title": subject.get("title"),
+        "author": None,
+        "published": {
+            "at": subject.get("releaseDate"),
+            "label": subject.get("releaseLabel") or subject.get("releaseDate"),
+            "location": None,
+            "source": None,
+        },
+        "text": None,
+        "summary": normalize_text(subject.get("summary")),
+        "tags": subject.get("genres") or [],
+        "media": normalize_media(media, "cover"),
+        "metrics": metrics,
+        "platformMetrics": platform_metrics,
+    }
+
+
 def normalize_content_item(site, workflow_payload):
+    content = workflow_payload.get("content") or {}
+    if site == "douban" and isinstance(content.get("subject"), dict):
+        return normalize_douban_content_item(workflow_payload)
     content = content_payload_for_site(site, workflow_payload)
     raw_metrics = raw_metrics_for_site(site, content)
     metrics, platform_metrics = split_metrics(site, raw_metrics)
@@ -489,6 +552,14 @@ def build_read_post_semantic(site, workflow_payload, comment_limit=20):
         platform_specific["community"] = content.get("community")
     if content.get("videoContentParsed") is not None:
         platform_specific["videoContentParsed"] = content.get("videoContentParsed")
+    if site == "douban" and isinstance(content.get("subject"), dict):
+        subject = content.get("subject") or {}
+        platform_specific["douban"] = {
+            "subjectRef": {
+                "id": subject.get("id") or content.get("externalPostId"),
+                "schemaVersion": "douban.subject.v1",
+            },
+        }
     result["platform"]["specific"] = platform_specific
 
     if partial:

@@ -15,11 +15,12 @@ class ActionService:
             ("x", "remove_bookmark"),
             ("x", "follow_user"),
             ("x", "unfollow_user"),
+            ("douban", "set_interest"),
         }
         self._last_state_change_at = {}
         self._state_change_interval_seconds = 2.5
         self._log_lock = threading.Lock()
-        self._action_log_path = Path(__file__).resolve().parents[3] / "temp" / "x-state-actions.jsonl"
+        self._action_log_path = Path(__file__).resolve().parents[3] / "temp" / "state-actions.jsonl"
 
     def health(self):
         version = self.browser_runtime.get_version()
@@ -131,7 +132,22 @@ class ActionService:
     def _should_retry_runtime(self, runtime):
         if not runtime or runtime.get("ok"):
             return False
-        error = (runtime.get("error") or "").strip()
+        error_value = runtime.get("error") or ""
+        if isinstance(error_value, dict):
+            error_code = str(error_value.get("code") or "").strip()
+            error_message = str(error_value.get("message") or "").strip()
+        else:
+            error_code = ""
+            error_message = str(error_value).strip()
+        error = error_message or error_code
+        if (
+            error_code == "content_script_error"
+            and (
+                "message channel is closed" in error_message
+                or "back/forward cache" in error_message
+            )
+        ):
+            return True
         return error in {"extension command timed out", "No matching adapter"}
 
     def _is_state_changing(self, site, kind):
@@ -162,6 +178,21 @@ class ActionService:
             return {
                 "kind": "follow_user",
                 "handle": (params or {}).get("handle"),
+            }
+        if site == "douban" and kind == "set_interest":
+            before = (result or {}).get("before") or {}
+            previous_interest = before.get("interest")
+            url = (params or {}).get("url") or before.get("url") or (((result or {}).get("after") or {}).get("url"))
+            if previous_interest in {"wish", "do", "collect"}:
+                return {
+                    "kind": "set_interest",
+                    "url": url,
+                    "interest": previous_interest,
+                }
+            return {
+                "kind": "manual_restore",
+                "url": url,
+                "reason": "previous interest state unknown",
             }
         return None
 

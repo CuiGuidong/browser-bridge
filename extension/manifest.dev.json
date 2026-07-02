@@ -36,6 +36,11 @@
       "run_at": "document_idle"
     },
     {
+      "matches": ["*://douban.com/*", "*://*.douban.com/*"],
+      "js": ["adapters/douban-adapter.js"],
+      "run_at": "document_idle"
+    },
+    {
       "matches": [
         "*://*.zhihu.com/*",
         "*://*.bilibili.com/*",
@@ -48,8 +53,6 @@
         "*://youtu.be/*",
         "*://mp.weixin.qq.com/*",
         "*://weixin.sogou.com/*",
-        "*://douban.com/*",
-        "*://*.douban.com/*",
         "*://news.ycombinator.com/*",
         "*://hn.algolia.com/*",
         "*://instagram.com/*",

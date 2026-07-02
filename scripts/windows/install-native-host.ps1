@@ -128,6 +128,16 @@ class BrowserBridgeNativeHost
         }
     }
 
+    static bool IsSessionNotFoundCommand(object command)
+    {
+        Dictionary<string, object> commandMap = command as Dictionary<string, object>;
+        if (commandMap == null || !commandMap.ContainsKey("_error"))
+        {
+            return false;
+        }
+        return Convert.ToString(commandMap["_error"]) == "session_not_found";
+    }
+
     static void PullLoop(string bridgeUrl, string logPath)
     {
         while (!String.IsNullOrEmpty(SessionId))
@@ -148,7 +158,17 @@ class BrowserBridgeNativeHost
                     Thread.Sleep(1000);
                     continue;
                 }
-                WriteNativeMessage(data["command"]);
+                object command = data["command"];
+                if (IsSessionNotFoundCommand(command))
+                {
+                    Log(logPath, "session not found, re-registering");
+                    if (!RegisterSession(bridgeUrl, logPath))
+                    {
+                        Thread.Sleep(2000);
+                    }
+                    continue;
+                }
+                WriteNativeMessage(command);
             }
             catch (Exception ex)
             {

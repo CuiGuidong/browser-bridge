@@ -71,17 +71,6 @@
         return 'unknown';
       },
     },
-    douban: {
-      hosts: ['douban.com'],
-      mediaType: 'article',
-      read: ['read_post', 'read_profile_metrics', 'search', 'account_status'],
-      pathType(path) {
-        if (path.startsWith('/search')) return 'search';
-        if (path.startsWith('/people/') || path.startsWith('/group/')) return 'profile';
-        if (path.startsWith('/subject/') || path.startsWith('/note/') || path.includes('/review/')) return 'post';
-        return 'unknown';
-      },
-    },
     hackernews: {
       hosts: ['news.ycombinator.com', 'hn.algolia.com'],
       mediaType: 'discussion',
@@ -416,10 +405,6 @@
       if (site === 'weixin') {
         return parsed.searchParams.get('__biz') || parsed.searchParams.get('mid') || '';
       }
-      if (site === 'douban') {
-        const index = parts.findIndex((part) => ['subject', 'note', 'review'].includes(part));
-        return index >= 0 ? parts[index + 1] || '' : '';
-      }
       if (site === 'hackernews') {
         return parsed.searchParams.get('id') || '';
       }
@@ -542,9 +527,6 @@
     if (site === 'weixin') {
       return host === 'mp.weixin.qq.com' || host === 'weixin.sogou.com';
     }
-    if (site === 'douban') {
-      return path.startsWith('/subject/') || path.startsWith('/note/') || path.includes('/review/') || path.startsWith('/people/');
-    }
     if (site === 'hackernews') {
       return host === 'news.ycombinator.com' || host === 'hn.algolia.com';
     }
@@ -589,9 +571,6 @@
     }
     if (site === 'weixin') {
       return firstText(['#js_name', '.profile_nickname', '[class*="nickname"]']);
-    }
-    if (site === 'douban') {
-      return firstText(['.author a', '.name', '[class*="user"] a']);
     }
     if (site === 'hackernews') {
       return firstText(['.hnuser']);

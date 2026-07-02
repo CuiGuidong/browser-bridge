@@ -60,9 +60,31 @@ else
 fi
 
 echo "dev reload bridge: $BRIDGE_URL" >&2
-curl --noproxy '*' -sS \
+response="$(curl --noproxy '*' -sS \
   -H 'Content-Type: application/json' \
   -X POST \
   -d '{"reloadPages":true}' \
-  "$BRIDGE_URL/dev/reload-extension"
-echo
+  "$BRIDGE_URL/dev/reload-extension")"
+printf '%s\n' "$response"
+RESPONSE="$response" python3 - <<'PY'
+import json
+import os
+import sys
+
+try:
+    payload = json.loads(os.environ.get("RESPONSE") or "{}")
+except json.JSONDecodeError as exc:
+    print(f"dev reload returned invalid JSON: {exc}", file=sys.stderr)
+    sys.exit(1)
+
+if not payload.get("ok"):
+    print("dev reload request failed", file=sys.stderr)
+    sys.exit(1)
+
+data = payload.get("data") or {}
+extension = data.get("extension")
+if isinstance(extension, dict):
+    if extension.get("ok") is False or extension.get("error"):
+        print(f"extension reload failed: {extension.get('error') or extension}", file=sys.stderr)
+        sys.exit(1)
+PY

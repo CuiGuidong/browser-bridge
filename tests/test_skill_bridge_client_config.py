@@ -12,6 +12,7 @@ SKILL_CLIENTS = [
     ROOT / "skills" / "weibo-assistant" / "scripts" / "bridge_client.py",
     ROOT / "skills" / "xiaohongshu-assistant" / "scripts" / "bridge_client.py",
     ROOT / "skills" / "zhihu-assistant" / "scripts" / "bridge_client.py",
+    ROOT / "skills" / "douban-assistant" / "scripts" / "bridge_client.py",
 ]
 
 
