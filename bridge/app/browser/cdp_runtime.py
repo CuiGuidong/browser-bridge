@@ -23,6 +23,9 @@ class CdpRuntime:
     def open_or_reuse_url(self, url, reuse_existing_tab=False, reuse_domain=None):
         return self._get_native_runtime().open_or_reuse_url(url, reuse_existing_tab=reuse_existing_tab, reuse_domain=reuse_domain)
 
+    def open_new_url(self, url):
+        return self._get_native_runtime().open_new_url(url)
+
     def activate_tab(self, target_id):
         return self._get_native_runtime().activate_tab(target_id)
 

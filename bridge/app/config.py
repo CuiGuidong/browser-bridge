@@ -46,3 +46,12 @@ BRIDGE_HOST = os.getenv("BRIDGE_HOST", "127.0.0.1")
 BRIDGE_PORT = _get_int("BRIDGE_PORT", 17777)
 
 BROWSER_RUNTIME = os.getenv("BROWSER_RUNTIME", "auto")  # auto | native_only
+
+# Keepalive configurations
+BB_KEEPALIVE_ENABLED = os.getenv("BB_KEEPALIVE_ENABLED", "false").lower() == "true"
+BB_KEEPALIVE_SITES = [s.strip() for s in os.getenv("BB_KEEPALIVE_SITES", "").split(",") if s.strip()]
+BB_KEEPALIVE_WINDOW_START = os.getenv("BB_KEEPALIVE_WINDOW_START", "09:00")
+BB_KEEPALIVE_WINDOW_END = os.getenv("BB_KEEPALIVE_WINDOW_END", "23:00")
+BB_KEEPALIVE_DWELL_SECONDS_MIN = _get_int("BB_KEEPALIVE_DWELL_SECONDS_MIN", 20)
+BB_KEEPALIVE_DWELL_SECONDS_MAX = _get_int("BB_KEEPALIVE_DWELL_SECONDS_MAX", 60)
+BB_KEEPALIVE_STATUS_FILE = os.getenv("BB_KEEPALIVE_STATUS_FILE", "")

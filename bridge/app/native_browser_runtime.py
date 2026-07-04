@@ -145,6 +145,15 @@ class NativeBrowserRuntime:
             tab["reused"] = False
         return tab
 
+    def open_new_url(self, url):
+        result = self._cmd("tabs.create", {"url": url, "active": True})
+        if not result.get("ok"):
+            return None
+        tab = (result.get("data") or {}).get("tab")
+        if tab:
+            tab["reused"] = False
+        return tab
+
     def _try_reuse_tab(self, url, reuse_domain=None, tabs=None):
         tabs = tabs or self.list_tabs()
         if not tabs:

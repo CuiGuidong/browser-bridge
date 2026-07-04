@@ -8,6 +8,7 @@ import uvicorn
 import os
 
 from .upload_tokens import get_upload_token, remove_upload_token
+from .keepalive_scheduler import KeepaliveScheduler, load_keepalive_config
 
 
 from .application.action_service import ActionService
@@ -101,6 +102,17 @@ workflow_service.bind_read_service(read_service)
 workflow_service.bind_action_service(action_service)
 login_service = LoginService(workflow_service, notification_service)
 playwright_client = get_playwright_client()
+keepalive_scheduler = KeepaliveScheduler(browser_runtime, site_registry, load_keepalive_config())
+
+
+@app.on_event("startup")
+def startup_event():
+    keepalive_scheduler.start()
+
+
+@app.on_event("shutdown")
+def shutdown_event():
+    keepalive_scheduler.stop()
 
 
 # Request/Response models
@@ -332,6 +344,14 @@ def health():
         return ok("health", action_service.health())
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/keepalive/status")
+def keepalive_status():
+    try:
+        return ok("keepalive-status", keepalive_scheduler.status())
+    except Exception as e:
+        return fail("keepalive-status", "workflow_failed", str(e))
 
 
 @app.get("/version")
