@@ -5,9 +5,6 @@ description: >-
   searching, home feed, bookmarks, following or unfollowing users, and adding or removing bookmarks.
   Hard triggers include any x.com/twitter.com URL, "read this tweet/post/thread", "看这条推文",
   "X搜索", "首页时间线", "书签", "关注作者", "取关", "加书签", and "移除书签".
-  
-  ⚠️ CRITICAL: When viewing images from tweet output, you MUST use the `read` tool, NOT `image` tool.
-  The `image` tool cannot access `/tmp/browser-bridge-cache/` directory. Always use `read(file_path="...")`.
 version: 2.1.0
 ---
 
@@ -23,19 +20,19 @@ version: 2.1.0
   - 开发排障用 `--raw` 查看 Bridge 原始 payload
   - 需要语义结果加诊断摘要时用 `--debug`
   - 可用 `--comment-limit N` 调整返回的一级评论上限，默认 20；workflow 会尝试滚动加载更多评论，但不保证拿到平台全量评论
-  - ⚠️ 若输出含 `[Image Local: ...]`，**必须用 `read` 工具读取**，不能用 `image` 工具
+  - 仅保留远程 `[Image: URL]` 标签，无本地路径
 
 - 在 X 搜索：
   `python3 skills/x-assistant/scripts/search.py "<keyword>"`
-  - ⚠️ 若输出含 `[Image Local: ...]`，**必须用 `read` 工具读取**，不能用 `image` 工具
+  - 列表输出仅保留远程 `[Image: URL]` 标签，无本地路径
 
 - 查看首页时间线：
   `python3 skills/x-assistant/scripts/feed.py [for_you|following|both] [count]`
-  - ⚠️ 若输出含 `[Image Local: ...]`，**必须用 `read` 工具读取**，不能用 `image` 工具
+  - 列表输出仅保留远程 `[Image: URL]` 标签，无本地路径
 
 - 查看书签列表：
   `python3 skills/x-assistant/scripts/bookmarks.py [count]`
-  - ⚠️ 若输出含 `[Image Local: ...]`，**必须用 `read` 工具读取**，不能用 `image` 工具
+  - 列表输出仅保留远程 `[Image: URL]` 标签，无本地路径
 
 - 关注用户：
   `python3 skills/x-assistant/scripts/follow_user.py "<handle|profile_url>"`
@@ -74,32 +71,12 @@ version: 2.1.0
   - 是否真的发生变化
   - 是否验证成功
 
-## 4. ⚠️ 图片处理（重要）
+## 4. ⚠️ 图片处理规则
 
-当推文正文包含图片标签时，底层脚本会把：
-
-`[Image: URL]`
-
-替换成：
-
-`[Image Local: /tmp/browser-bridge-cache/xxxx.jpg | Remote: https://...]`
-
-### 正确的读取方式
-
-需要看图时，**必须使用 `read` 工具读取 `Local` 路径**：
-```
-read(file_path="/tmp/browser-bridge-cache/xxxx.jpg")
-```
-
-### ❌ 错误 vs ✅ 正确
-
-| ❌ 错误 | ✅ 正确 |
-|--------|--------|
-| `image(file_path="/tmp/browser-bridge-cache/xxxx.jpg")` | `read(file_path="/tmp/browser-bridge-cache/xxxx.jpg")` |
-
-**原因**：`image` 工具无法访问 `/tmp/browser-bridge-cache/` 目录，只有 `read` 工具可以。
-
-**再次强调**：看到 `[Image Local: ...]` 时，用 `read` 工具，不要用 `image` 工具。
+- 默认输出只提供远程图片 URL，不下载图片。
+- 默认阅读以正文图片标签顺序为准；debug/raw 中的 media[] 只作为资产清单，不改变正文顺序语义。
+- 需要识图时，按当前 Agent 环境选择可用图片读取方式；如工具只支持本地文件，先下载到 /tmp 下的任务目录，识别完成后删除。
+- 需要保存到 Obsidian 时，由 to-obsidian 流程下载并本地化附件；下载失败时保留远程引用并记录失败列表。
 
 ## 5. 输出要求
 

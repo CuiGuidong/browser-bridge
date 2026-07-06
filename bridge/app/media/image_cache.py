@@ -1,135 +1,60 @@
-import hashlib
-import json
-import os
 import re
-import subprocess
-import sys
-import threading
-from pathlib import Path
-from urllib.parse import parse_qs, urlparse, urlunparse
 
+IMAGE_TAG_PATTERN = re.compile(r"\[Image:\s*([^\]|]+)\s*(?:\|\s*Alt:\s*([^\]]+))?\]")
 
-CACHE_DIR = "/tmp/browser-bridge-cache"
-IMAGE_TAG_PATTERN = re.compile(r"\[Image:\s*([^\]|]+)\s*(?:\|[^\]]+)?\]")
-
-
-def _normalized_cache_key(url):
-    try:
-        parsed = urlparse(url.strip())
-        normalized = urlunparse(parsed._replace(fragment=""))
-        return normalized or url.strip()
-    except Exception:
-        return url.strip()
-
-
-def _guess_extension(url):
-    ext = "jpg"
-    try:
-        parsed = urlparse(url)
-        qs = parse_qs(parsed.query)
-        if "format" in qs and qs["format"]:
-            return qs["format"][0]
-        base_ext = os.path.splitext(parsed.path)[1]
-        if base_ext:
-            return base_ext.lstrip(".")
-    except Exception:
-        return ext
-    return ext
-
-
-def build_cache_path(url, cache_dir=CACHE_DIR):
-    cache_key = _normalized_cache_key(url)
-    md5_hash = hashlib.md5(cache_key.encode("utf-8")).hexdigest()
-    ext = _guess_extension(url)
-    return os.path.join(cache_dir, f"{md5_hash}.{ext}")
-
-
-def _spawn_downloader(tasks):
-    if not tasks:
-        return
-    downloader_path = Path(__file__).with_name("async_image_downloader.py")
-    process = None
-    try:
-        process = subprocess.Popen(
-            [sys.executable, str(downloader_path)],
-            stdin=subprocess.PIPE,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            start_new_session=True,
-        )
-        if process.stdin:
-            process.stdin.write(json.dumps(tasks).encode("utf-8"))
-            process.stdin.close()
-    except Exception:
-        if process is not None:
-            try:
-                process.kill()
-                process.wait(timeout=1)
-            except Exception:
-                pass
-        return
-    threading.Thread(target=_wait_for_downloader, args=(process,), daemon=True).start()
-
-
-def _wait_for_downloader(process):
-    try:
-        process.wait(timeout=180)
-    except subprocess.TimeoutExpired:
-        try:
-            process.kill()
-            process.wait(timeout=1)
-        except Exception:
-            pass
-    except Exception:
-        return
-
-
-def process_and_spawn_downloads(text_or_items, cache_dir=CACHE_DIR):
+def normalize_image_tags(text_or_items):
     if not text_or_items:
         return text_or_items
 
-    tasks = []
-
     def replacer(match):
         url = match.group(1).strip()
-        local_path = build_cache_path(url, cache_dir=cache_dir)
-        tasks.append({"url": url, "path": local_path})
-        return f"[Image Local: {local_path} | Remote: {url}]"
+        alt = match.group(2)
+        if alt:
+            alt = alt.strip()
+            return f"[Image: {url} | Alt: {alt}]"
+        return f"[Image: {url}]"
 
-    result = text_or_items
     if isinstance(text_or_items, str):
-        result = IMAGE_TAG_PATTERN.sub(replacer, text_or_items)
+        return IMAGE_TAG_PATTERN.sub(replacer, text_or_items)
     elif isinstance(text_or_items, list):
         result = []
         for item in text_or_items:
+            if not isinstance(item, dict):
+                result.append(item)
+                continue
             new_item = dict(item)
             if new_item.get("text"):
                 new_item["text"] = IMAGE_TAG_PATTERN.sub(replacer, new_item["text"])
             result.append(new_item)
+        return result
+    return text_or_items
 
-    _spawn_downloader(tasks)
-    return result
-
-
-def process_media_items_and_spawn_downloads(media_items, cache_dir=CACHE_DIR):
+def normalize_media_items(media_items):
     if not media_items:
         return []
-
-    tasks = []
     result = []
-    for item in media_items:
+    for order, item in enumerate(media_items, start=1):
         if not isinstance(item, dict):
             continue
         new_item = dict(item)
-        media_type = new_item.get("type")
-        url = (new_item.get("url") or "").strip()
-        if media_type == "image" and url:
-            local_path = new_item.get("localPath") or build_cache_path(url, cache_dir=cache_dir)
-            new_item["localPath"] = local_path
-            tasks.append({"url": url, "path": local_path})
-        elif "localPath" not in new_item:
-            new_item["localPath"] = None
+        # remove localPath
+        new_item.pop("localPath", None)
+        
+        # trim url
+        if "url" in new_item and new_item["url"]:
+            new_item["url"] = new_item["url"].strip()
+            
+        # ensure order
+        if "order" not in new_item:
+            new_item["order"] = order
+            
+        # Ensure type
+        if "type" not in new_item:
+            new_item["type"] = "image"
+            
+        # Ensure other fields exist but are None if missing
+        for key in ["placement", "alt", "title", "source", "role"]:
+            if key not in new_item:
+                new_item[key] = None
         result.append(new_item)
-
-    _spawn_downloader(tasks)
     return result

@@ -26,7 +26,7 @@ def load_x_read_post_module():
 
 
 class XReadPostSkillContractTest(unittest.TestCase):
-    def test_default_output_accepts_media_only_semantic_post(self):
+    def test_default_output_strips_media_semantic_post(self):
         module = load_x_read_post_module()
         payload = {
             "data": {
@@ -34,7 +34,7 @@ class XReadPostSkillContractTest(unittest.TestCase):
                     "ok": True,
                     "schemaVersion": "read_post.v1",
                     "contentItem": {
-                        "text": "",
+                        "text": "test",
                         "media": [
                             {
                                 "type": "image",
@@ -55,8 +55,44 @@ class XReadPostSkillContractTest(unittest.TestCase):
 
         result = json.loads(out.getvalue())
         self.assertTrue(result["ok"])
-        self.assertEqual(result["contentItem"]["text"], "")
-        self.assertEqual(result["contentItem"]["media"][0]["type"], "image")
+        self.assertEqual(result["contentItem"]["text"], "test")
+        self.assertNotIn("media", result["contentItem"])
+
+    def test_debug_output_retains_media_semantic_post(self):
+        module = load_x_read_post_module()
+        payload = {
+            "data": {
+                "semantic": {
+                    "ok": True,
+                    "schemaVersion": "read_post.v1",
+                    "contentItem": {
+                        "text": "test",
+                        "media": [
+                            {
+                                "type": "image",
+                                "url": "https://example.test/image.jpg",
+                            }
+                        ],
+                    },
+                },
+                "summary": {
+                    "source": "test",
+                },
+                "diagnostics": {
+                    "latency": 100
+                }
+            }
+        }
+
+        out = io.StringIO()
+        with patch.object(module, "workflow_run", return_value=payload), contextlib.redirect_stdout(out):
+            module.read_single_post("https://x.com/example/status/1", mode="debug")
+
+        result = json.loads(out.getvalue())
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["contentItem"]["text"], "test")
+        self.assertEqual(result["contentItem"]["media"][0]["url"], "https://example.test/image.jpg")
+        self.assertEqual(result["diagnostics"]["latency"], 100)
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 from urllib.parse import quote
 
 from .common import close_temporary_tab, open_x_page, response_target_id
-from ....media.image_cache import process_and_spawn_downloads
+from ....media.image_cache import normalize_image_tags
 
 
 def _infer_page_type(read_result):
@@ -93,7 +93,7 @@ def run(read_service, browser_runtime, target_id=None, params=None, timeout_seco
             "signals": read_result.get("signals") or {},
             "content": {
                 **(read_result.get("content") or {}),
-                "timeline": process_and_spawn_downloads(((read_result.get("content") or {}).get("timeline")) or []),
+                "timeline": normalize_image_tags(((read_result.get("content") or {}).get("timeline")) or []),
             },
             "debug": {
                 "open": opened,

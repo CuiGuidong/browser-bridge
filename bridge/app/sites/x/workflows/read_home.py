@@ -1,7 +1,7 @@
 import time
 
 from .common import close_temporary_tab, open_x_page, response_target_id
-from ....media.image_cache import process_and_spawn_downloads
+from ....media.image_cache import normalize_image_tags
 
 
 READ_INTERVAL_SECONDS = 1.6
@@ -193,7 +193,7 @@ def run(read_service, action_service, browser_runtime, target_id=None, params=No
             "page": {"url": "https://x.com/home"},
             "signals": result.get("signals") or {},
             "content": {
-                "timeline": process_and_spawn_downloads(result.get("rawItems") or []),
+                "timeline": normalize_image_tags(result.get("rawItems") or []),
             },
             "debug": {
                 "open": opened,

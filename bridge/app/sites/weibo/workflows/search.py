@@ -1,5 +1,5 @@
 from .common import close_temporary_tab, open_weibo_page, response_target_id
-from ....media.image_cache import process_and_spawn_downloads
+from ....media.image_cache import normalize_image_tags
 
 
 def run(read_service, browser_runtime, target_id=None, params=None, timeout_seconds=20):
@@ -69,7 +69,7 @@ def run(read_service, browser_runtime, target_id=None, params=None, timeout_seco
             }
 
         content = read_result.get("content") or {}
-        items = process_and_spawn_downloads((content.get("items") or []))
+        items = normalize_image_tags((content.get("items") or []))
         return {
             "ok": True,
             "site": "weibo",

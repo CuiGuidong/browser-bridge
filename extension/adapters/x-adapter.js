@@ -479,18 +479,76 @@ function extractMetricFromText(text, labels) {
   return null;
 }
 
+function extractLongArticleTitle(article) {
+  if (!article) return null;
+  const titleEl = article.querySelector('[data-testid="twitter-article-title"]');
+  if (titleEl) return (titleEl.innerText || '').trim() || null;
+
+  // Fallback from extractRichText(article) first paragraph:
+  const text = extractRichText(article);
+  if (!text) return null;
+  const paragraphs = text.split('\n').map(p => p.trim()).filter(Boolean);
+  for (const p of paragraphs) {
+    // Exclude author names, handle, dates, noise labels, image tags, video tags, pure metrics
+    if (p.startsWith('@')) continue;
+    if (p.includes('[Image:') || p.includes('[Video')) continue;
+    if (/^(显示更多|显示此对话|查看更多|查看回复|显示相关|Show more|reposted|quoted|转发了|引用|·)/i.test(p)) continue;
+    if (/^[0-9\s,.:\-·年月日時分秒apmAPM]+$/.test(p)) continue; // time / date noise
+    if (/^[\d,.\s万亿KMBkmb]+$/.test(p)) continue; // metric noise
+    
+    // Chinese length < 6 chars or English words < 4, return null
+    const isChinese = /[\u4e00-\u9fff]/.test(p);
+    if (isChinese) {
+      if (p.length >= 6) return p;
+    } else {
+      const words = p.split(/\s+/).filter(Boolean);
+      if (words.length >= 4) return p;
+    }
+  }
+  return null;
+}
+
+function extractLongArticleCover(article) {
+  if (!article) return null;
+  const richTextContainer = article.querySelector('[data-testid="twitterArticleRichTextView"]');
+  const imgs = Array.from(article.querySelectorAll('img'));
+  for (const img of imgs) {
+    // Must not be inside the body rich text container
+    if (richTextContainer && richTextContainer.contains(img)) {
+      continue;
+    }
+    const src = img.src || '';
+    if (src && !src.includes('profile_images') && !src.includes('hashflags') && !src.includes('.svg')) {
+      return src;
+    }
+  }
+  return null;
+}
+
 function extractTweetItem(article, candidate = null) {
   const permalinkEl = getArticlePermalinkElement(article);
   const statusId = candidate?.permalinkStatusId || (permalinkEl ? extractStatusId(permalinkEl.href) : null);
-  const text = extractRichText(article);
-  const timeEl = candidate?.isLongArticle ? null : (article?.querySelector('time') || null);
-  const longArticlePublished = candidate?.isLongArticle ? extractLongArticlePublished(text) : null;
+  let text = extractRichText(article);
+  const isLong = candidate?.isLongArticle || false;
+  const title = isLong ? extractLongArticleTitle(article) : null;
+  const cover = isLong ? extractLongArticleCover(article) : null;
+
+  if (cover) {
+    const escapedCover = cover.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+    const pattern = new RegExp('\\[Image:\\s*' + escapedCover + '\\s*(?:\\|[^\\\]]+)?\\]\\n*\\n*', 'g');
+    text = text.replace(pattern, '').trim();
+  }
+
+  const timeEl = isLong ? null : (article?.querySelector('time') || null);
+  const longArticlePublished = isLong ? extractLongArticlePublished(text) : null;
   return {
     statusId,
     url: candidate?.url || permalinkEl?.href || null,
     author: extractTweetAuthor(article),
     publishedAt: longArticlePublished?.at || timeEl?.getAttribute('datetime') || null,
     publishedLabel: longArticlePublished?.label || (timeEl?.innerText || '').trim() || null,
+    title,
+    cover,
     text,
     media: extractTweetMedia(text),
     metrics: extractTweetMetrics(article),

@@ -1,6 +1,6 @@
 import re
 
-from ..media.image_cache import process_and_spawn_downloads, process_media_items_and_spawn_downloads
+from ..media.image_cache import normalize_image_tags, normalize_media_items
 
 
 SCHEMA_VERSION = "read_post.v1"
@@ -220,7 +220,7 @@ def normalize_author_name(raw_author):
 def normalize_text(text):
     if not text:
         return None
-    return process_and_spawn_downloads(str(text).strip()) or None
+    return normalize_image_tags(str(text).strip()) or None
 
 
 def media_from_urls(urls, media_type, placement):
@@ -267,7 +267,7 @@ def normalize_media(raw_media, placement_default="after_text"):
 
     for index, item in enumerate(normalized, start=1):
         item["order"] = item.get("order") or index
-    return process_media_items_and_spawn_downloads(normalized)
+    return normalize_media_items(normalized)
 
 
 def normalize_comment(raw_comment):
@@ -305,17 +305,48 @@ def normalize_filtered_item(raw_item):
     }
 
 
+def normalize_cover(raw_cover):
+    if not raw_cover:
+        return None
+    if isinstance(raw_cover, str):
+        return {
+            "type": "image",
+            "url": raw_cover.strip(),
+            "alt": None
+        }
+    if isinstance(raw_cover, dict):
+        return {
+            "type": raw_cover.get("type") or "image",
+            "url": (raw_cover.get("url") or raw_cover.get("src") or "").strip(),
+            "alt": raw_cover.get("alt") or None,
+            "title": raw_cover.get("title") or None,
+            "source": raw_cover.get("source") or None,
+            "role": raw_cover.get("role") or "cover",
+            "placement": raw_cover.get("placement") or "cover",
+        }
+    return None
+
+
 def collect_raw_media(content, placement_default):
     media = []
     media.extend(content.get("media") or [])
     media.extend(media_from_urls(content.get("images") or [], "image", placement_default))
     media.extend(media_from_urls(content.get("videos") or [], "video", placement_default))
-    if content.get("cover"):
-        media.append({
-            "type": "image",
-            "url": content.get("cover"),
-            "placement": "cover",
-        })
+    raw_cover = content.get("cover") or content.get("post", {}).get("cover")
+    if raw_cover:
+        if isinstance(raw_cover, str):
+            media.append({
+                "type": "image",
+                "url": raw_cover.strip(),
+                "placement": "cover",
+                "role": "cover",
+            })
+        elif isinstance(raw_cover, dict):
+            item = dict(raw_cover)
+            item.setdefault("type", "image")
+            item.setdefault("placement", "cover")
+            item.setdefault("role", "cover")
+            media.append(item)
     return media
 
 
@@ -369,6 +400,7 @@ def normalize_douban_content_item(workflow_payload):
         "type": "post",
         "platformType": content.get("platformType") or "douban_subject",
         "title": subject.get("title"),
+        "cover": normalize_cover(subject.get("cover")),
         "author": None,
         "published": {
             "at": subject.get("releaseDate"),
@@ -397,6 +429,7 @@ def normalize_content_item(site, workflow_payload):
     text = normalize_text(content.get("text"))
     summary = normalize_text(content.get("summary") or content.get("description"))
     placement_default = "inline" if text and "[Image" in text else "after_text"
+    cover = normalize_cover(content.get("cover") or content.get("post", {}).get("cover"))
 
     return {
         "id": content.get("id")
@@ -407,6 +440,7 @@ def normalize_content_item(site, workflow_payload):
         "type": content_type,
         "platformType": platform_type,
         "title": content.get("title"),
+        "cover": cover,
         "author": normalize_author(content.get("author") or {
             "displayName": content.get("authorName") or content.get("nickname"),
             "profileUrl": content.get("authorProfileUrl"),

@@ -6,6 +6,38 @@ from bridge_client import workflow_run
 from zhihu_targets import classify_read_post_input
 
 
+def _strip_media(semantic):
+    clean_sem = dict(semantic)
+    if "contentItem" in clean_sem and isinstance(clean_sem["contentItem"], dict):
+        clean_sem["contentItem"] = dict(clean_sem["contentItem"])
+        clean_sem["contentItem"].pop("media", None)
+    if "thread" in clean_sem and isinstance(clean_sem["thread"], dict):
+        clean_sem["thread"] = dict(clean_sem["thread"])
+        if "items" in clean_sem["thread"] and isinstance(clean_sem["thread"]["items"], list):
+            new_items = []
+            for item in clean_sem["thread"]["items"]:
+                if isinstance(item, dict):
+                    c_item = dict(item)
+                    c_item.pop("media", None)
+                    new_items.append(c_item)
+                else:
+                    new_items.append(item)
+            clean_sem["thread"]["items"] = new_items
+    if "comments" in clean_sem and isinstance(clean_sem["comments"], dict):
+        clean_sem["comments"] = dict(clean_sem["comments"])
+        if "items" in clean_sem["comments"] and isinstance(clean_sem["comments"]["items"], list):
+            new_items = []
+            for item in clean_sem["comments"]["items"]:
+                if isinstance(item, dict):
+                    c_item = dict(item)
+                    c_item.pop("media", None)
+                    new_items.append(c_item)
+                else:
+                    new_items.append(item)
+            clean_sem["comments"]["items"] = new_items
+    return clean_sem
+
+
 def _print_payload(payload, mode):
     if mode == "raw":
         print(json.dumps(payload, ensure_ascii=False))
@@ -21,6 +53,8 @@ def _print_payload(payload, mode):
     if mode == "debug":
         semantic = dict(semantic)
         semantic["diagnostics"] = payload.get("diagnostics") or {}
+    else:
+        semantic = _strip_media(semantic)
     print(json.dumps(semantic, ensure_ascii=False))
 
 

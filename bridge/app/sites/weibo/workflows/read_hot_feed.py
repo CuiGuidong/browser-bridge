@@ -1,5 +1,5 @@
 from .common import close_temporary_tab, collect_flow_items, open_weibo_page, response_target_id
-from ....media.image_cache import process_and_spawn_downloads
+from ....media.image_cache import normalize_image_tags
 
 
 HOT_FEED_URL = "https://weibo.com/hot/weibo/102803"
@@ -59,7 +59,7 @@ def run(read_service, browser_runtime, target_id=None, params=None, timeout_seco
                 "page": read_result.get("page") or {},
             }
 
-        items = process_and_spawn_downloads(collected.get("items") or [])
+        items = normalize_image_tags(collected.get("items") or [])
         return {
             "ok": True,
             "site": "weibo",

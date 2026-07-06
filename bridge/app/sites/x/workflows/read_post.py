@@ -1,7 +1,7 @@
 import time
 
 from .common import close_temporary_tab, response_target_id, wait_for_target_stable
-from ....media.image_cache import process_and_spawn_downloads
+from ....media.image_cache import normalize_image_tags
 from ...read_post_semantics import (
     build_read_post_diagnostics,
     build_read_post_semantic,
@@ -220,10 +220,10 @@ def run(read_service, browser_runtime, target_id=None, params=None, timeout_seco
         content = result.get("content") or {}
         post = content.get("post") if isinstance(content.get("post"), dict) else None
         if post and post.get("text"):
-            post["text"] = process_and_spawn_downloads(post["text"])
+            post["text"] = normalize_image_tags(post["text"])
             content["primaryText"] = post["text"]
         elif content.get("primaryText"):
-            content["primaryText"] = process_and_spawn_downloads(content["primaryText"])
+            content["primaryText"] = normalize_image_tags(content["primaryText"])
         result["content"] = content
         if opened is not None:
             result["debug"]["open"] = opened

@@ -1,7 +1,7 @@
 from urllib.parse import urlparse
 import time
 
-from ....media.image_cache import process_and_spawn_downloads
+from ....media.image_cache import normalize_image_tags
 from ...read_post_semantics import (
     build_read_post_diagnostics,
     build_read_post_semantic,
@@ -164,7 +164,7 @@ def run(read_service, browser_runtime, target_id=None, params=None, timeout_seco
         }
         content = result.get("content") or {}
         if content.get("text"):
-            content["text"] = process_and_spawn_downloads(content["text"])
+            content["text"] = normalize_image_tags(content["text"])
         result["content"] = content
         comment_limit = normalize_comment_limit(params.get("commentLimit"))
         result["semantic"] = build_read_post_semantic("xiaohongshu", result, comment_limit=comment_limit)
