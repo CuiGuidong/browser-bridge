@@ -347,6 +347,7 @@ function getTweetCandidates() {
     const isLongArticle = !!(
       article.querySelector('[data-testid="twitter-article-title"]')
       || article.querySelector('[data-testid="twitterArticleRichTextView"]')
+      || (article.innerText && article.innerText.length > 500)
     );
     const permalinkStatusId = (isLongArticle && pageStatusId)
       ? pageStatusId
@@ -487,9 +488,14 @@ function extractLongArticleTitle(article) {
   // Fallback from extractRichText(article) first paragraph:
   const text = extractRichText(article);
   if (!text) return null;
+  const author = extractTweetAuthor(article);
+  const authorName = author?.displayName;
+  const authorHandle = author?.handle;
   const paragraphs = text.split('\n').map(p => p.trim()).filter(Boolean);
   for (const p of paragraphs) {
     // Exclude author names, handle, dates, noise labels, image tags, video tags, pure metrics
+    if (authorName && p === authorName) continue;
+    if (authorHandle && p === authorHandle) continue;
     if (p.startsWith('@')) continue;
     if (p.includes('[Image:') || p.includes('[Video')) continue;
     if (/^(显示更多|显示此对话|查看更多|查看回复|显示相关|Show more|reposted|quoted|转发了|引用|·)/i.test(p)) continue;
@@ -511,16 +517,25 @@ function extractLongArticleTitle(article) {
 function extractLongArticleCover(article) {
   if (!article) return null;
   const richTextContainer = article.querySelector('[data-testid="twitterArticleRichTextView"]');
-  if (!richTextContainer) return null; // Conservative: if body text container is missing, do not guess cover
   const imgs = Array.from(article.querySelectorAll('img'));
-  for (const img of imgs) {
-    // Must not be inside the body rich text container
-    if (richTextContainer.contains(img)) {
-      continue;
+  if (richTextContainer) {
+    for (const img of imgs) {
+      // Must not be inside the body rich text container
+      if (richTextContainer.contains(img)) {
+        continue;
+      }
+      const src = img.src || '';
+      if (src && !src.includes('profile_images') && !src.includes('hashflags') && !src.includes('.svg')) {
+        return src;
+      }
     }
-    const src = img.src || '';
-    if (src && !src.includes('profile_images') && !src.includes('hashflags') && !src.includes('.svg')) {
-      return src;
+  } else {
+    // Fallback for long posts/articles that render using the regular tweet layout
+    for (const img of imgs) {
+      const src = img.src || '';
+      if (src && !src.includes('profile_images') && !src.includes('hashflags') && !src.includes('.svg')) {
+        return src;
+      }
     }
   }
   return null;
