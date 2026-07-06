@@ -345,12 +345,9 @@ function getTweetCandidates() {
     const rect = article.getBoundingClientRect();
     const permalinkEl = getArticlePermalinkElement(article);
     const text = extractRichText(article);
-    const tweetTextEl = article.querySelector('[data-testid="tweetText"]');
-    const tweetTextLen = tweetTextEl ? (tweetTextEl.innerText || '').length : 0;
     const isLongArticle = !!(
       article.querySelector('[data-testid="twitter-article-title"]')
       || article.querySelector('[data-testid="twitterArticleRichTextView"]')
-      || (tweetTextLen > 800)
     );
     const permalinkStatusId = (isLongArticle && pageStatusId)
       ? pageStatusId
