@@ -18,14 +18,12 @@ version: 1.0.0
   - 开发排障用 `--raw` 查看 Bridge 原始 payload
   - 需要语义结果加诊断摘要时用 `--debug`
   - 可用 `--comment-limit N` 调整返回的已采集一级评论上限，默认 20；当前不承诺自动加载更多评论
-  - 仅保留远程 `[Image: URL]` 标签，无本地路径
 
 - 读取知乎热榜：
   `python3 skills/zhihu-assistant/scripts/read_hot.py [count]`
 
 - 搜索知乎：
   `python3 skills/zhihu-assistant/scripts/search.py "<keyword>" [count]`
-  - 列表输出仅保留远程 `[Image: URL]` 标签，无本地路径
 
 - 读取用户/机构主页指标：
   `python3 skills/zhihu-assistant/scripts/read_profile.py "<url>"`
@@ -65,7 +63,6 @@ version: 1.0.0
 
 ## 4. ⚠️ 图片处理规则
 
-- 默认输出只提供远程图片 URL，不下载图片。
-- 默认阅读以正文图片标签顺序为准；debug/raw 中的 media[] 只作为资产清单，不改变正文顺序语义。
-- 需要识图时，按当前 Agent 环境选择可用图片读取方式；如工具只支持本地文件，先下载到 /tmp 下的任务目录，识别完成后删除。
-- 需要保存到 Obsidian 时，由 to-obsidian 流程下载并本地化附件；下载失败时保留远程引用并记录失败列表。
+- 帖子正文包含 `[Image: URL]` 标签以标明图片位置。本脚本不下载图片，图片本地化由调用方或归档流程自行处理。
+- 阅读时以正文图片标签顺序为准；debug/raw 中的 media[] 作为资产清单，不改变正文顺序语义。
+- 识图时，按当前 Agent 环境选择可用图片读取方式。如工具只支持本地文件，可先下载到 /tmp 下的任务目录，识别完成后删除。
