@@ -39,19 +39,19 @@ def normalize_media_items(media_items):
         new_item = dict(item)
         # remove localPath
         new_item.pop("localPath", None)
-        
+
         # trim url
         if "url" in new_item and new_item["url"]:
             new_item["url"] = new_item["url"].strip()
-            
+
         # ensure order
         if "order" not in new_item:
             new_item["order"] = order
-            
+
         # Ensure type
         if "type" not in new_item:
             new_item["type"] = "image"
-            
+
         # Ensure other fields exist but are None if missing
         for key in ["placement", "alt", "title", "source", "role"]:
             if key not in new_item:

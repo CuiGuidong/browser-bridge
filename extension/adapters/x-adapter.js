@@ -180,7 +180,7 @@ function findUnfollowConfirmControl() {
 
 function extractRichText(container) {
   if (!container) return '';
-  
+
   const fragments = [];
   const standaloneNoiseRegex = /^(主页|探索|通知|聊天|Grok|书签|更多|发帖|文章|对话|查看新帖子|订阅|分享|Home|Explore|Notifications|Messages|Bookmarks|More|Post|Articles|Subscribe|Share|什么是新鲜事|What’s happening|搜索|Search|要查看键盘快捷键，按下问号|键盘快捷键)$/i;
 
@@ -220,7 +220,7 @@ function extractRichText(container) {
       if (tagName === 'IMG') {
         const src = node.src || '';
         const alt = node.alt || '';
-        
+
         // Filter out UI icons, avatars, and hashflags
         if (!src.includes('profile_images') && !src.includes('semantic_core') && !src.includes('hashflags') && !src.includes('.svg')) {
           if (src.includes('emoji')) {
@@ -269,9 +269,9 @@ function extractRichText(container) {
 
 function cleanXPrimaryText(article, tweetText) {
   // Target X Long Articles (Notes) very specifically first based on the title container or rich text view
-  const xArticleRoot = document.querySelector('[data-testid="twitter-article-title"]')?.closest('[role="article"]') 
+  const xArticleRoot = document.querySelector('[data-testid="twitter-article-title"]')?.closest('[role="article"]')
                     || document.querySelector('[data-testid="twitterArticleRichTextView"]')?.closest('[role="article"]');
-  
+
   if (xArticleRoot) {
     return extractRichText(xArticleRoot);
   }
@@ -495,7 +495,7 @@ function extractLongArticleTitle(article) {
     if (/^(显示更多|显示此对话|查看更多|查看回复|显示相关|Show more|reposted|quoted|转发了|引用|·)/i.test(p)) continue;
     if (/^[0-9\s,.:\-·年月日時分秒apmAPM]+$/.test(p)) continue; // time / date noise
     if (/^[\d,.\s万亿KMBkmb]+$/.test(p)) continue; // metric noise
-    
+
     // Chinese length < 6 chars or English words < 4, return null
     const isChinese = /[\u4e00-\u9fff]/.test(p);
     if (isChinese) {
@@ -863,13 +863,13 @@ const xAdapter = {
     const tweetText = document.querySelector('[data-testid="tweetText"]');
     const loginMask = !!document.querySelector('[role="dialog"], [data-testid="sheetDialog"]');
     const sensitiveGate = /(敏感内容|sensitive content|age-restricted|成人内容|adult content)/i.test(document.body?.innerText || '');
-    
+
     const isTweetDetail = /\/status\/\d+/.test(location.href);
     const isBookmarks = location.pathname.startsWith('/i/bookmarks');
     const isExplore = location.pathname.startsWith('/explore');
     const isTimeline = location.pathname === '/home' || location.pathname.startsWith('/search') || isExplore || isBookmarks;
     const feedModeInfo = isTimeline ? detectXHomeFeedMode() : { mode: null, activeTabText: null, tabTexts: [] };
-    
+
     let primaryText = '';
     let post = null;
     let contextItems = [];
@@ -879,7 +879,7 @@ const xAdapter = {
     let readPostRawPayload = null;
     let timeline = [];
     let trends = [];
-    
+
     if (isTweetDetail) {
       const readPostContent = buildReadPostContent(baseSnapshot);
       primaryText = readPostContent.primaryText;
@@ -899,10 +899,10 @@ const xAdapter = {
 
     const network = baseSnapshot.signals.network;
     const networkQuiet = !network || (network.pending === 0 && (network.quietMs === null || network.quietMs > 800));
-    
+
     // CRITICAL GOTCHA: Guard against SPA "Fake Ready" states.
     // X.com renders the shell (sidebar/nav) instantly, which could trigger a primaryText > 20 chars
-    // while the actual tweet is still fetching via GraphQL. We MUST force the extension to remain `ready: false` 
+    // while the actual tweet is still fetching via GraphQL. We MUST force the extension to remain `ready: false`
     // until the absolute core content container (either a tweet or a long article) explicitly appears in the DOM.
     const isXArticle = !!document.querySelector('[data-testid="twitter-article-title"]') || !!document.querySelector('[data-testid="twitterArticleRichTextView"]');
     const hasCoreContent = isXArticle || !!tweetText;
@@ -919,7 +919,7 @@ const xAdapter = {
       !loginMask &&
       networkQuiet
     );
-    
+
     return {
       site: 'x',
       page: baseSnapshot.page,

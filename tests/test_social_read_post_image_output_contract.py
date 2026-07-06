@@ -60,7 +60,7 @@ class SocialReadPostImageOutputContractTest(unittest.TestCase):
 
     def test_weibo_read_post_modes(self):
         module = load_skill_module("weibo")
-        
+
         # Test Default mode
         out = io.StringIO()
         with patch.object(module, "workflow_run", return_value=self.payload), contextlib.redirect_stdout(out):
@@ -84,7 +84,7 @@ class SocialReadPostImageOutputContractTest(unittest.TestCase):
 
     def test_xiaohongshu_read_post_modes(self):
         module = load_skill_module("xiaohongshu")
-        
+
         # Test Default mode
         out = io.StringIO()
         with patch.object(module, "workflow_run", return_value=self.payload), contextlib.redirect_stdout(out):
@@ -103,7 +103,7 @@ class SocialReadPostImageOutputContractTest(unittest.TestCase):
 
     def test_zhihu_read_post_modes(self):
         module = load_skill_module("zhihu")
-        
+
         # Test Default mode
         out = io.StringIO()
         with patch.object(module, "workflow_run", return_value=self.payload), contextlib.redirect_stdout(out):

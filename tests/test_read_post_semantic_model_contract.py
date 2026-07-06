@@ -214,7 +214,7 @@ class ReadPostSemanticModelContractTest(unittest.TestCase):
     def test_image_tags_are_not_downloaded_and_no_localPath(self):
         result = build_read_post_semantic("x", x_workflow_payload(), comment_limit=20)
         content_item = result["contentItem"]
-        
+
         # Verify text preserves remote tag
         self.assertEqual(content_item["text"], "牛逼，Obsidian 创始人下场。\n\n[Image: https://pbs.twimg.com/media/HLaF.jpg]")
         # Verify media list contains URL but no localPath
@@ -224,7 +224,7 @@ class ReadPostSemanticModelContractTest(unittest.TestCase):
     def test_cover_normalization(self):
         payload = x_workflow_payload()
         payload["content"]["post"]["cover"] = "https://example.test/cover.jpg"
-        
+
         result = build_read_post_semantic("x", payload, comment_limit=20)
         self.assertEqual(
             result["contentItem"]["cover"],
