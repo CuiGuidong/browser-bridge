@@ -88,6 +88,7 @@ class XAdapterLongArticleContractTest(unittest.TestCase):
             this.innerTextVal = '';
           }}
           get tagName() {{ return this.nodeName; }}
+          get href() {{ return this.getAttribute('href') || ''; }}
           get innerText() {{
             if (this.innerTextVal) return this.innerTextVal;
             const texts = [];
@@ -108,6 +109,9 @@ class XAdapterLongArticleContractTest(unittest.TestCase):
             if (selector === '[data-testid="twitterArticleRichTextView"]') {{
               return this.find((n) => n.getAttribute && n.getAttribute('data-testid') === 'twitterArticleRichTextView');
             }}
+            if (selector === 'a[href*="/status/"]') {{
+              return this.find((n) => n.nodeName === 'A' && n.getAttribute && n.getAttribute('href') && n.getAttribute('href').includes('/status/'));
+            }}
             return null;
           }}
           querySelectorAll(selector) {{
@@ -117,6 +121,15 @@ class XAdapterLongArticleContractTest(unittest.TestCase):
                 results.push(n);
               }}
               if (selector === 'span' && n.nodeName === 'SPAN') {{
+                results.push(n);
+              }}
+              if (selector === 'a' && n.nodeName === 'A') {{
+                results.push(n);
+              }}
+              if (selector === '[data-testid="card.wrapper"]' && n.getAttribute && n.getAttribute('data-testid') === 'card.wrapper') {{
+                results.push(n);
+              }}
+              if (selector === '*' && n !== this) {{
                 results.push(n);
               }}
             }});
@@ -154,11 +167,14 @@ class XAdapterLongArticleContractTest(unittest.TestCase):
         const mockWindow = {{}};
         const mockChrome = {{ runtime: {{ sendMessage: () => {{}} }} }};
 
-        const contextFn = new Function('window', 'document', 'chrome', 'Node', code + `
+        const mockLocation = {{ origin: 'https://x.com' }};
+
+        const contextFn = new Function('window', 'document', 'chrome', 'Node', 'location', code + `
           return {{
             extractLongArticleTitle,
             extractLongArticleCover,
-            extractTweetItem
+            extractTweetItem,
+            extractRichText
           }};
         `);
 
@@ -167,7 +183,7 @@ class XAdapterLongArticleContractTest(unittest.TestCase):
           TEXT_NODE: 3
         }};
 
-        const adapterExports = contextFn(mockWindow, mockDocument, mockChrome, NodeTypes);
+        const adapterExports = contextFn(mockWindow, mockDocument, mockChrome, NodeTypes, mockLocation);
 
         // Test 1: extractLongArticleTitle with title element
         {{
@@ -240,6 +256,82 @@ class XAdapterLongArticleContractTest(unittest.TestCase):
 
           // The first image (cover) is stripped, but the second one in body text remains
           assert.ok(result.text.includes('[Image: https://pbs.twimg.com/media/cover.jpg]'));
+        }}
+
+        // Test 5: extractRichText quote card pruning
+        {{
+          const article = new MockElement('article');
+          
+          const mainSpan = new MockElement('span');
+          mainSpan.appendChild(new MockNode(3, '#text', 'This is the main post body text.'));
+          article.appendChild(mainSpan);
+
+          const card = new MockElement('div');
+          card.setAttribute('data-testid', 'card.wrapper');
+          article.appendChild(card);
+
+          const link = new MockElement('a');
+          link.setAttribute('href', '/zjp1997720/status/2071375800000000000');
+          card.appendChild(link);
+
+          const cardSpan = new MockElement('span');
+          cardSpan.appendChild(new MockNode(3, '#text', '引用 @zjp1997720 This content should be pruned.'));
+          card.appendChild(cardSpan);
+
+          const textPruned = adapterExports.extractRichText(article, true);
+          const textNotPruned = adapterExports.extractRichText(article, false);
+          assert.strictEqual(textPruned, 'This is the main post body text.');
+          assert.ok(textNotPruned.includes('pruned'));
+        }}
+
+        // Test 6: extractTweetItem quotedItem extraction
+        {{
+          const article = new MockElement('article');
+          
+          const mainSpan = new MockElement('span');
+          mainSpan.appendChild(new MockNode(3, '#text', 'Author post text.'));
+          article.appendChild(mainSpan);
+
+          const card = new MockElement('div');
+          card.setAttribute('data-testid', 'card.wrapper');
+          article.appendChild(card);
+
+          const link = new MockElement('a');
+          link.setAttribute('href', 'https://x.com/zjp1997720/status/2071375800000000000');
+          card.appendChild(link);
+
+          const nameSpan = new MockElement('span');
+          nameSpan.innerText = '智见AI-大鹏';
+          card.appendChild(nameSpan);
+
+          const handleSpan = new MockElement('span');
+          handleSpan.innerText = '@zjp1997720';
+          card.appendChild(handleSpan);
+
+          const dotSpan = new MockElement('span');
+          dotSpan.innerText = '·';
+          card.appendChild(dotSpan);
+
+          const timeSpan = new MockElement('span');
+          timeSpan.innerText = '7月2日';
+          card.appendChild(timeSpan);
+
+          const contentSpan = new MockElement('span');
+          contentSpan.appendChild(new MockNode(3, '#text', 'This is the quoted tweet content.'));
+          card.appendChild(contentSpan);
+
+          const img = new MockElement('img');
+          img.src = 'https://pbs.twimg.com/media/card.jpg';
+          card.appendChild(img);
+
+          const item = adapterExports.extractTweetItem(article, null, true);
+          assert.ok(item.quotedItem);
+          assert.strictEqual(item.quotedItem.statusId, '2071375800000000000');
+          assert.strictEqual(item.quotedItem.author.displayName, '智见AI-大鹏');
+          assert.strictEqual(item.quotedItem.author.handle, '@zjp1997720');
+          assert.strictEqual(item.quotedItem.publishedLabel, '7月2日');
+          assert.ok(item.quotedItem.text.includes('quoted tweet content'));
+          assert.ok(item.quotedItem.media.some(m => m.url === 'https://pbs.twimg.com/media/card.jpg'));
         }}
 
         console.log('All JS long article logic tests passed successfully!');

@@ -1,5 +1,5 @@
 // X (Twitter) Adapter for Browser Bridge
-const X_ADAPTER_VERSION = 'read-post-semantic-2026-06-25-1';
+const X_ADAPTER_VERSION = 'read-post-semantic-2026-07-06-1';
 
 async function expandXLongPost() {
   const showMore = Array.from(document.querySelectorAll('div[role="button"]'))
@@ -178,7 +178,36 @@ function findUnfollowConfirmControl() {
   }) || null;
 }
 
-function extractRichText(container) {
+const isQuoteCardNode = (node) => {
+  if (!node || node.nodeType !== Node.ELEMENT_NODE) return false;
+  
+  // 1. Support card.wrapper data-testid (mock/legacy)
+  const isCardWrapper = node.getAttribute('data-testid') === 'card.wrapper';
+  // 2. Support modern X role="link" cards
+  const isRoleLink = node.tagName.toUpperCase() === 'DIV' && node.getAttribute('role') === 'link';
+  
+  if (isCardWrapper || isRoleLink) {
+    const hasStatusLink = Array.from(node.querySelectorAll('a')).some(a => {
+      const href = a.href || a.getAttribute('href') || '';
+      return href.includes('/status/');
+    });
+    return hasStatusLink;
+  }
+
+  // 3. Support parent container enclosing the quote card and the "引用" prefix
+  const isQuoteContainer = node.tagName.toUpperCase() === 'DIV' && 
+                           node.innerText && 
+                           node.innerText.trim().startsWith('引用') &&
+                           node.querySelector('[role="link"]');
+  if (isQuoteContainer) {
+    const innerLink = node.querySelector('[role="link"]');
+    return isQuoteCardNode(innerLink);
+  }
+  
+  return false;
+};
+
+function extractRichText(container, pruneQuoteCard = false) {
   if (!container) return '';
 
   const fragments = [];
@@ -205,6 +234,10 @@ function extractRichText(container) {
   const walk = (node) => {
     if (node.nodeType === Node.TEXT_NODE) {
       currentLine += node.nodeValue;
+      return;
+    }
+
+    if (pruneQuoteCard && isQuoteCardNode(node)) {
       return;
     }
 
@@ -503,10 +536,10 @@ function extractLongArticleCover(article) {
   return null;
 }
 
-function extractTweetItem(article, candidate = null) {
+function extractTweetItem(article, candidate = null, pruneQuoteCard = false) {
   const permalinkEl = getArticlePermalinkElement(article);
   const statusId = candidate?.permalinkStatusId || (permalinkEl ? extractStatusId(permalinkEl.href) : null);
-  let text = extractRichText(article);
+  let text = extractRichText(article, pruneQuoteCard);
   const isLong = candidate?.isLongArticle || false;
   const title = isLong ? extractLongArticleTitle(article) : null;
   const cover = isLong ? extractLongArticleCover(article) : null;
@@ -515,6 +548,60 @@ function extractTweetItem(article, candidate = null) {
     const escapedCover = cover.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
     const pattern = new RegExp('\\[Image:\\s*' + escapedCover + '\\s*(?:\\|[^\\\]]+)?\\]\\n*\\n*');
     text = text.replace(pattern, '').trim();
+  }
+
+  let quotedItem = null;
+  if (pruneQuoteCard) {
+    const quoteCard = Array.from(article.querySelectorAll('*'))
+      .find(node => isQuoteCardNode(node));
+    if (quoteCard) {
+      let actualCard = quoteCard;
+      if (quoteCard.tagName.toUpperCase() === 'DIV' && quoteCard.getAttribute('role') !== 'link' && quoteCard.getAttribute('data-testid') !== 'card.wrapper') {
+        const innerCard = quoteCard.querySelector('[role="link"]') || quoteCard.querySelector('[data-testid="card.wrapper"]');
+        if (innerCard) actualCard = innerCard;
+      }
+
+      const quoteLink = Array.from(actualCard.querySelectorAll('a'))
+        .find(a => {
+          const href = a.href || a.getAttribute('href') || '';
+          return href.includes('/status/');
+        });
+      const quoteUrl = quoteLink ? (quoteLink.href || quoteLink.getAttribute('href')) : null;
+      const quoteStatusId = quoteUrl ? extractStatusId(quoteUrl) : null;
+      if (quoteStatusId) {
+        const spans = Array.from(actualCard.querySelectorAll('span'));
+        const handleSpan = spans.find(s => s.innerText && s.innerText.trim().startsWith('@'));
+        const handle = handleSpan ? handleSpan.innerText.trim() : null;
+        let displayName = null;
+        if (handleSpan) {
+          const idx = spans.indexOf(handleSpan);
+          if (idx > 0) displayName = spans[idx - 1].innerText.trim();
+        }
+        let publishedLabel = null;
+        if (handleSpan) {
+          const idx = spans.indexOf(handleSpan);
+          if (idx !== -1 && idx + 2 < spans.length) {
+            const potentialTime = spans[idx + 2].innerText.trim();
+            if (potentialTime.length > 1) {
+              publishedLabel = potentialTime;
+            }
+          }
+        }
+        const quoteText = extractRichText(actualCard, false);
+        const quoteMedia = extractTweetMedia(quoteText);
+
+        quotedItem = {
+          statusId: quoteStatusId,
+          url: quoteUrl,
+          author: { displayName, handle },
+          publishedAt: null,
+          publishedLabel: publishedLabel,
+          text: quoteText,
+          media: quoteMedia,
+          relation: 'quoted'
+        };
+      }
+    }
   }
 
   const timeEl = isLong ? null : (article?.querySelector('time') || null);
@@ -530,6 +617,7 @@ function extractTweetItem(article, candidate = null) {
     text,
     media: extractTweetMedia(text),
     metrics: extractTweetMetrics(article),
+    quotedItem,
   };
 }
 
@@ -660,11 +748,15 @@ function buildReadPostContent(_baseSnapshot) {
   const targetStatusId = getCurrentTargetStatusId();
   const candidates = getTweetCandidates();
   const selection = selectTargetTweetArticle(candidates, targetStatusId);
-  const post = selection.article ? extractTweetItem(selection.article, selection.candidate) : null;
+  const post = selection.article ? extractTweetItem(selection.article, selection.candidate, true) : null;
   const contextItems = selection.article ? extractDisplayedContext(candidates, selection.article) : [];
   const { threadItems, commentItems, filteredItems } = selection.article
     ? extractThreadAndComments(candidates, selection.article)
     : { threadItems: [], commentItems: [], filteredItems: [] };
+
+  if (post && post.quotedItem) {
+    threadItems.unshift(post.quotedItem);
+  }
   const primaryText = post?.text || '';
 
   return {
