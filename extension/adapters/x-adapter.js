@@ -198,6 +198,7 @@ const isQuoteCardNode = (node) => {
   const isQuoteContainer = node.tagName.toUpperCase() === 'DIV' && 
                            node.innerText && 
                            node.innerText.trim().startsWith('引用') &&
+                           node.innerText.includes('@') &&
                            node.querySelector('[role="link"]');
   if (isQuoteContainer) {
     const innerLink = node.querySelector('[role="link"]');
@@ -552,7 +553,7 @@ function extractTweetItem(article, candidate = null, pruneQuoteCard = false) {
 
   let quotedItem = null;
   if (pruneQuoteCard) {
-    const quoteCard = Array.from(article.querySelectorAll('*'))
+    const quoteCard = Array.from(article.querySelectorAll('div'))
       .find(node => isQuoteCardNode(node));
     if (quoteCard) {
       let actualCard = quoteCard;

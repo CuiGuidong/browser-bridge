@@ -112,6 +112,9 @@ class XAdapterLongArticleContractTest(unittest.TestCase):
             if (selector === 'a[href*="/status/"]') {{
               return this.find((n) => n.nodeName === 'A' && n.getAttribute && n.getAttribute('href') && n.getAttribute('href').includes('/status/'));
             }}
+            if (selector === '[role="link"]') {{
+              return this.find((n) => n.getAttribute && n.getAttribute('role') === 'link');
+            }}
             return null;
           }}
           querySelectorAll(selector) {{
@@ -127,6 +130,9 @@ class XAdapterLongArticleContractTest(unittest.TestCase):
                 results.push(n);
               }}
               if (selector === '[data-testid="card.wrapper"]' && n.getAttribute && n.getAttribute('data-testid') === 'card.wrapper') {{
+                results.push(n);
+              }}
+              if ((selector === 'div' || selector === 'DIV') && n.nodeName === 'DIV') {{
                 results.push(n);
               }}
               if (selector === '*' && n !== this) {{
@@ -332,6 +338,91 @@ class XAdapterLongArticleContractTest(unittest.TestCase):
           assert.strictEqual(item.quotedItem.publishedLabel, '7月2日');
           assert.ok(item.quotedItem.text.includes('quoted tweet content'));
           assert.ok(item.quotedItem.media.some(m => m.url === 'https://pbs.twimg.com/media/card.jpg'));
+        }}
+
+        // Test 7: extractTweetItem role=link card strategy (Strategy 2)
+        {{
+          const article = new MockElement('article');
+          
+          const mainSpan = new MockElement('span');
+          mainSpan.appendChild(new MockNode(3, '#text', 'Main post content here.'));
+          article.appendChild(mainSpan);
+
+          const card = new MockElement('div');
+          card.setAttribute('role', 'link');
+          article.appendChild(card);
+
+          const link = new MockElement('a');
+          link.setAttribute('href', 'https://x.com/username/status/999123456');
+          card.appendChild(link);
+
+          const nameSpan = new MockElement('span');
+          nameSpan.innerText = 'Test Name';
+          card.appendChild(nameSpan);
+
+          const handleSpan = new MockElement('span');
+          handleSpan.innerText = '@username';
+          card.appendChild(handleSpan);
+
+          const contentSpan = new MockElement('span');
+          contentSpan.appendChild(new MockNode(3, '#text', 'This is a quote from strategy 2.'));
+          card.appendChild(contentSpan);
+
+          const textPruned = adapterExports.extractRichText(article, true);
+          assert.strictEqual(textPruned, 'Main post content here.');
+
+          const item = adapterExports.extractTweetItem(article, null, true);
+          assert.ok(item.quotedItem);
+          assert.strictEqual(item.quotedItem.statusId, '999123456');
+          assert.strictEqual(item.quotedItem.author.handle, '@username');
+          assert.ok(item.quotedItem.text.includes('strategy 2'));
+        }}
+
+        // Test 8: extractTweetItem parent quote container strategy (Strategy 3)
+        {{
+          const article = new MockElement('article');
+          
+          const mainSpan = new MockElement('span');
+          mainSpan.appendChild(new MockNode(3, '#text', 'Main post content.'));
+          article.appendChild(mainSpan);
+
+          const container = new MockElement('div');
+          article.appendChild(container);
+
+          const prefixSpan = new MockElement('span');
+          prefixSpan.appendChild(new MockNode(3, '#text', '引用 @username'));
+          container.appendChild(prefixSpan);
+
+          const card = new MockElement('div');
+          card.setAttribute('role', 'link');
+          container.appendChild(card);
+
+          const link = new MockElement('a');
+          link.setAttribute('href', 'https://x.com/username/status/888123456');
+          card.appendChild(link);
+
+          const nameSpan = new MockElement('span');
+          nameSpan.innerText = 'Some Display Name';
+          card.appendChild(nameSpan);
+
+          const handleSpan = new MockElement('span');
+          handleSpan.innerText = '@username';
+          card.appendChild(handleSpan);
+
+          const contentSpan = new MockElement('span');
+          contentSpan.appendChild(new MockNode(3, '#text', 'This is a quote from strategy 3.'));
+          card.appendChild(contentSpan);
+
+          const textPruned = adapterExports.extractRichText(article, true);
+          assert.strictEqual(textPruned, 'Main post content.');
+
+          const item = adapterExports.extractTweetItem(article, null, true);
+          assert.ok(item.quotedItem);
+          assert.strictEqual(item.quotedItem.statusId, '888123456');
+          assert.strictEqual(item.quotedItem.author.displayName, 'Some Display Name');
+          assert.strictEqual(item.quotedItem.author.handle, '@username');
+          assert.ok(item.quotedItem.text.includes('strategy 3'));
+          assert.ok(!item.quotedItem.text.includes('引用'));
         }}
 
         console.log('All JS long article logic tests passed successfully!');
