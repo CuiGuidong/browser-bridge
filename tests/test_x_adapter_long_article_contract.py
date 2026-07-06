@@ -181,15 +181,15 @@ class XAdapterLongArticleContractTest(unittest.TestCase):
           assert.strictEqual(title, 'Test Title');
         }}
 
-        // Test 2: extractLongArticleTitle fallback
+        // Test 2: extractLongArticleTitle returns null when title element is missing
         {{
           const article = new MockElement('article');
           const span = new MockElement('span');
-          span.appendChild(new MockNode(3, '#text', 'This is a long paragraph that should be the fallback title'));
+          span.appendChild(new MockNode(3, '#text', 'This is a paragraph that used to be a fallback title'));
           article.appendChild(span);
 
           const title = adapterExports.extractLongArticleTitle(article);
-          assert.strictEqual(title, 'This is a long paragraph that should be the fallback title');
+          assert.strictEqual(title, null);
         }}
 
         // Test 3: extractLongArticleCover

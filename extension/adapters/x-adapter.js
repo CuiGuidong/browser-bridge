@@ -482,59 +482,22 @@ function extractMetricFromText(text, labels) {
 function extractLongArticleTitle(article) {
   if (!article) return null;
   const titleEl = article.querySelector('[data-testid="twitter-article-title"]');
-  if (titleEl) return (titleEl.innerText || '').trim() || null;
-
-  // Fallback from extractRichText(article) first paragraph:
-  const text = extractRichText(article);
-  if (!text) return null;
-  const author = extractTweetAuthor(article);
-  const authorName = author?.displayName;
-  const authorHandle = author?.handle;
-  const paragraphs = text.split('\n').map(p => p.trim()).filter(Boolean);
-  for (const p of paragraphs) {
-    // Exclude author names, handle, dates, noise labels, image tags, video tags, pure metrics
-    if (authorName && p === authorName) continue;
-    if (authorHandle && p === authorHandle) continue;
-    if (p.startsWith('@')) continue;
-    if (p.includes('[Image:') || p.includes('[Video')) continue;
-    if (/^(显示更多|显示此对话|查看更多|查看回复|显示相关|Show more|reposted|quoted|转发了|引用|·)/i.test(p)) continue;
-    if (/^[0-9\s,.:\-·年月日時分秒apmAPM]+$/.test(p)) continue; // time / date noise
-    if (/^[\d,.\s万亿KMBkmb]+$/.test(p)) continue; // metric noise
-
-    // Chinese length < 6 chars or English words < 4, return null
-    const isChinese = /[\u4e00-\u9fff]/.test(p);
-    if (isChinese) {
-      if (p.length >= 6) return p;
-    } else {
-      const words = p.split(/\s+/).filter(Boolean);
-      if (words.length >= 4) return p;
-    }
-  }
-  return null;
+  return titleEl ? (titleEl.innerText || '').trim() || null : null;
 }
 
 function extractLongArticleCover(article) {
   if (!article) return null;
   const richTextContainer = article.querySelector('[data-testid="twitterArticleRichTextView"]');
+  if (!richTextContainer) return null;
   const imgs = Array.from(article.querySelectorAll('img'));
-  if (richTextContainer) {
-    for (const img of imgs) {
-      // Must not be inside the body rich text container
-      if (richTextContainer.contains(img)) {
-        continue;
-      }
-      const src = img.src || '';
-      if (src && !src.includes('profile_images') && !src.includes('hashflags') && !src.includes('.svg')) {
-        return src;
-      }
+  for (const img of imgs) {
+    // Must not be inside the body rich text container
+    if (richTextContainer.contains(img)) {
+      continue;
     }
-  } else {
-    // Fallback for long posts/articles that render using the regular tweet layout
-    for (const img of imgs) {
-      const src = img.src || '';
-      if (src && !src.includes('profile_images') && !src.includes('hashflags') && !src.includes('.svg')) {
-        return src;
-      }
+    const src = img.src || '';
+    if (src && !src.includes('profile_images') && !src.includes('hashflags') && !src.includes('.svg')) {
+      return src;
     }
   }
   return null;
