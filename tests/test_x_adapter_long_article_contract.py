@@ -55,14 +55,6 @@ class XAdapterLongArticleContractTest(unittest.TestCase):
         if not self.node_bin:
             self.skipTest("Node.js not found in PATH or ~/.nvm/versions/node")
         js_path = ROOT / "extension/adapters/x-adapter.js"
-        self.assertTrue(js_path.exists())
-
-        # Check syntax using node
-        res = subprocess.run(["node", "--check", str(js_path)], capture_output=True, text=True)
-        self.assertEqual(res.returncode, 0, f"JS Syntax check failed: {res.stderr}")
-
-    def test_javascript_adapter_logic_via_node(self):
-        js_path = ROOT / "extension/adapters/x-adapter.js"
         # Write temporary test runner script
         js_runner_code = f"""
         const fs = require('fs');
