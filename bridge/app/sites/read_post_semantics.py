@@ -315,9 +315,12 @@ def normalize_cover(raw_cover):
             "alt": None
         }
     if isinstance(raw_cover, dict):
+        url = (raw_cover.get("url") or raw_cover.get("src") or "").strip()
+        if not url:
+            return None
         return {
             "type": raw_cover.get("type") or "image",
-            "url": (raw_cover.get("url") or raw_cover.get("src") or "").strip(),
+            "url": url,
             "alt": raw_cover.get("alt") or None,
             "title": raw_cover.get("title") or None,
             "source": raw_cover.get("source") or None,

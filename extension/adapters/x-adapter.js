@@ -511,10 +511,11 @@ function extractLongArticleTitle(article) {
 function extractLongArticleCover(article) {
   if (!article) return null;
   const richTextContainer = article.querySelector('[data-testid="twitterArticleRichTextView"]');
+  if (!richTextContainer) return null; // Conservative: if body text container is missing, do not guess cover
   const imgs = Array.from(article.querySelectorAll('img'));
   for (const img of imgs) {
     // Must not be inside the body rich text container
-    if (richTextContainer && richTextContainer.contains(img)) {
+    if (richTextContainer.contains(img)) {
       continue;
     }
     const src = img.src || '';
@@ -535,7 +536,7 @@ function extractTweetItem(article, candidate = null) {
 
   if (cover) {
     const escapedCover = cover.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-    const pattern = new RegExp('\\[Image:\\s*' + escapedCover + '\\s*(?:\\|[^\\\]]+)?\\]\\n*\\n*', 'g');
+    const pattern = new RegExp('\\[Image:\\s*' + escapedCover + '\\s*(?:\\|[^\\\]]+)?\\]\\n*\\n*');
     text = text.replace(pattern, '').trim();
   }
 
